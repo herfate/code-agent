@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>code-agent 演示</title>
+  <link rel="stylesheet" href="/demo.css" />
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+  <div class="mx-auto grid max-w-[960px] gap-4 p-5">
+    <div>
+      <h1 class="mb-2 text-xl font-semibold">code-agent 演示</h1>
+      <p class="mb-5 text-sm leading-relaxed text-slate-600">
+        与后端同源打开本页（根路径 <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">/</code> 或 <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">/demo</code>），可调试 REST 与 <strong>POST + SSE</strong> Agent。
+        需已在服务端配置 <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">ANTHROPIC_API_KEY</code> / <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">OPENAI_API_KEY</code>。
+      </p>
+    </div>
+
+    <section class="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">连接</h2>
+      <label for="baseUrl" class="mb-1 block text-xs text-slate-600">API 基地址（与当前页同源时可留空）</label>
+      <input id="baseUrl" type="url" placeholder="留空则使用当前 origin" class="w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+      <p class="mb-0 mt-2 text-sm leading-relaxed text-slate-600">
+        <span class="text-[0.7rem] font-medium text-emerald-600">提示</span>
+        若从磁盘双击打开 HTML，会因 CORS 无法调用接口；请通过服务端的 <a class="text-blue-600 hover:underline" href="./">首页</a> 或 <a class="text-blue-600 hover:underline" href="./demo">/demo</a> 访问。
+      </p>
+    </section>
+
+    <div class="grid gap-4 md:grid-cols-2">
+      <section class="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">REST</h2>
+        <label for="threadId" class="mb-1 block text-xs text-slate-600">当前 threadId（UUID）</label>
+        <input id="threadId" type="text" placeholder="创建会话或从下方日志复制 meta.threadId" class="w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        <div class="mt-2.5 flex flex-wrap gap-2">
+          <button type="button" id="btnHealth" class="cursor-pointer rounded-md border-0 bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">GET /health</button>
+          <button type="button" id="btnThreads" class="cursor-pointer rounded-md border-0 bg-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-900 hover:bg-slate-300">GET /api/threads</button>
+          <button type="button" id="btnMsgs" class="cursor-pointer rounded-md border-0 bg-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-900 hover:bg-slate-300">GET 消息</button>
+        </div>
+        <div class="mt-2.5 flex flex-wrap gap-2">
+          <button type="button" id="btnNewClaude" class="cursor-pointer rounded-md border-0 bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">新建 Claude 会话</button>
+          <button type="button" id="btnNewCodex" class="cursor-pointer rounded-md border-0 bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">新建 Codex 会话</button>
+        </div>
+      </section>
+
+      <section class="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Agent（SSE）</h2>
+        <label for="provider" class="mb-1 block text-xs text-slate-600">线路</label>
+        <select id="provider" class="w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25">
+          <option value="claude">Claude — POST /api/agents/claude/sse</option>
+          <option value="codex">Codex — POST /api/agents/codex/sse</option>
+        </select>
+        <label for="model" class="mb-1 mt-2 block text-xs text-slate-600">model（可选）</label>
+        <input id="model" type="text" placeholder="可选，留空则用 SDK 默认" class="w-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        <label for="prompt" class="mb-1 mt-2 block text-xs text-slate-600">prompt</label>
+        <textarea id="prompt" placeholder="输入要向 Agent 发送的内容" class="min-h-[88px] w-full resize-y rounded-md border border-slate-200 bg-white px-2.5 py-2 font-sans text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"></textarea>
+        <div class="mt-2.5 flex flex-wrap gap-2">
+          <button type="button" id="btnStream" class="cursor-pointer rounded-md border-0 bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">发送并流式显示</button>
+          <button type="button" id="btnClear" class="cursor-pointer rounded-md border-0 bg-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-900 hover:bg-slate-300">清空日志</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">输出日志</h2>
+      <div id="log" class="m-0 max-h-[420px] overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-slate-200 bg-slate-100 p-3 font-mono text-xs leading-snug text-slate-800"></div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const logEl = document.getElementById("log");
+      function base() {
+        const v = document.getElementById("baseUrl").value.trim();
+        return v || window.location.origin;
+      }
+      function log(line, cls) {
+        const t = new Date().toISOString().slice(11, 23);
+        const p = document.createElement("div");
+        if (cls) p.className = cls;
+        p.textContent = "[" + t + "] " + line;
+        logEl.appendChild(p);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      async function parseSseStream(response, onEvent) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let sep;
+          while ((sep = buffer.indexOf("\n\n")) !== -1) {
+            const block = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            let eventName = "message";
+            const dataLines = [];
+            for (const line of block.split(/\r?\n/)) {
+              if (line.startsWith("event:")) eventName = line.slice(6).trim();
+              else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+            }
+            const dataStr = dataLines.join("\n");
+            if (!dataStr) continue;
+            let payload;
+            try {
+              payload = JSON.parse(dataStr);
+            } catch {
+              payload = dataStr;
+            }
+            onEvent(eventName, payload);
+          }
+        }
+      }
+
+      document.getElementById("btnClear").onclick = function () {
+        logEl.textContent = "";
+      };
+
+      document.getElementById("btnHealth").onclick = async function () {
+        try {
+          const r = await fetch(base() + "/health");
+          const j = await r.json();
+          log("GET /health → " + r.status + " " + JSON.stringify(j));
+        } catch (e) {
+          log("错误: " + e.message, "text-amber-700");
+        }
+      };
+
+      document.getElementById("btnThreads").onclick = async function () {
+        try {
+          const r = await fetch(base() + "/api/threads");
+          const j = await r.json();
+          log("GET /api/threads → " + r.status + " " + JSON.stringify(j, null, 0));
+        } catch (e) {
+          log("错误: " + e.message, "text-amber-700");
+        }
+      };
+
+      document.getElementById("btnMsgs").onclick = async function () {
+        const id = document.getElementById("threadId").value.trim();
+        if (!id) {
+          log("请先填写 threadId", "text-amber-700");
+          return;
+        }
+        try {
+          const r = await fetch(base() + "/api/threads/" + encodeURIComponent(id) + "/messages");
+          const j = await r.json();
+          log("GET messages → " + r.status + " " + JSON.stringify(j, null, 0));
+        } catch (e) {
+          log("错误: " + e.message, "text-amber-700");
+        }
+      };
+
+      async function createThread(provider) {
+        try {
+          const r = await fetch(base() + "/api/threads", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: "demo-" + provider, provider: provider }),
+          });
+          const j = await r.json();
+          log("POST /api/threads (" + provider + ") → " + r.status + " " + JSON.stringify(j, null, 0));
+          if (j.thread && j.thread.id) {
+            document.getElementById("threadId").value = j.thread.id;
+          }
+        } catch (e) {
+          log("错误: " + e.message, "text-amber-700");
+        }
+      }
+
+      document.getElementById("btnNewClaude").onclick = function () {
+        createThread("claude");
+      };
+      document.getElementById("btnNewCodex").onclick = function () {
+        createThread("codex");
+      };
+
+      document.getElementById("btnStream").onclick = async function () {
+        const provider = document.getElementById("provider").value;
+        const path =
+          provider === "codex" ? "/api/agents/codex/sse" : "/api/agents/claude/sse";
+        const prompt = document.getElementById("prompt").value.trim();
+        if (!prompt) {
+          log("请填写 prompt", "text-amber-700");
+          return;
+        }
+        const body = { prompt: prompt };
+        const tid = document.getElementById("threadId").value.trim();
+        if (tid) body.threadId = tid;
+        const model = document.getElementById("model").value.trim();
+        if (model) body.model = model;
+
+        log("→ POST " + path + " body=" + JSON.stringify(body));
+
+        try {
+          const r = await fetch(base() + path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+
+          if (!r.ok) {
+            const t = await r.text();
+            log("非 SSE 响应 " + r.status + ": " + t, "text-amber-700");
+            return;
+          }
+
+          await parseSseStream(r, function (eventName, payload) {
+            if (eventName === "done") {
+              log("event:done " + JSON.stringify(payload));
+              return;
+            }
+            if (eventName === "error") {
+              log("event:error " + JSON.stringify(payload), "text-amber-700");
+              return;
+            }
+            if (payload && typeof payload === "object" && payload.type === "meta" && payload.threadId) {
+              document.getElementById("threadId").value = payload.threadId;
+            }
+            let line = "data:";
+            if (eventName !== "message") line += " [" + eventName + "]";
+            line += " " + (typeof payload === "string" ? payload : JSON.stringify(payload));
+            log(line);
+          });
+          log("流结束");
+        } catch (e) {
+          log("错误: " + e.message, "text-amber-700");
+        }
+      };
+    })();
+  </script>
+</body>
+</html>
