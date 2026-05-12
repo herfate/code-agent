@@ -28,8 +28,8 @@ export function sendSseData(reply: FastifyReply, payload: SsePayload): void {
   reply.raw.write(formatSseData(payload));
 }
 
-export function sendSseDone(reply: FastifyReply): void {
-  sendSseEvent(reply, "done", { ok: true });
+export function sendSseDone(reply: FastifyReply, extra?: Record<string, unknown>): void {
+  sendSseEvent(reply, "done", { ok: true, ...(extra ?? {}) });
 }
 
 export function sendSseError(reply: FastifyReply, message: string, extra?: Record<string, unknown>): void {

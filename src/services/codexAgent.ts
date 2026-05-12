@@ -1,6 +1,8 @@
 import { Codex } from "@openai/codex-sdk";
 import type { ThreadEvent } from "@openai/codex-sdk";
+import type { DatabaseSync } from "node:sqlite";
 import type { FastifyReply } from "fastify";
+import { appendAgentRunEvent, finishAgentRun } from "../db/agentRun.js";
 import {
   attachAbortOnClose,
   endSse,
@@ -11,16 +13,14 @@ import {
 } from "../sse/helpers.js";
 
 export type CodexSseOptions = {
-  /** App thread id (SQLite) — emitted as first SSE meta for clients */
   threadId: string;
   apiKey?: string;
-  /** Path to codex executable when not discoverable on PATH */
   codexPathOverride?: string;
   prompt: string;
   model?: string;
-  /** Codex thread id from prior `thread.started` */
   resumeThreadId?: string | null;
   clientSignal?: AbortSignal;
+  runRecorder?: { db: DatabaseSync; runId: string };
 };
 
 function latestAgentText(events: ThreadEvent[]): string {
@@ -36,19 +36,53 @@ function latestAgentText(events: ThreadEvent[]): string {
   return last;
 }
 
+function safeSse(reply: FastifyReply, fn: () => void): void {
+  if (reply.raw.writableEnded || reply.raw.destroyed) return;
+  try {
+    fn();
+  } catch {
+    /* client disconnected */
+  }
+}
+
+function emitData(
+  reply: FastifyReply,
+  recorder: CodexSseOptions["runRecorder"],
+  data: Record<string, unknown>,
+): void {
+  if (recorder) {
+    const seq = appendAgentRunEvent(recorder.db, recorder.runId, "message", data);
+    safeSse(reply, () => sendSseData(reply, { ...data, seq }));
+  } else {
+    safeSse(reply, () => sendSseData(reply, data));
+  }
+}
+
 export async function streamCodexTurnToSse(
   reply: FastifyReply,
   opts: CodexSseOptions,
 ): Promise<{ codexThreadId: string | null; assistantText: string | null; error: string | null }> {
   const controller = new AbortController();
-  attachAbortOnClose(reply, controller);
+  const recorder = opts.runRecorder;
+  if (!recorder) {
+    attachAbortOnClose(reply, controller);
+  }
   if (opts.clientSignal) {
     if (opts.clientSignal.aborted) controller.abort();
     else opts.clientSignal.addEventListener("abort", () => controller.abort(), { once: true });
   }
 
   initSse(reply);
-  sendSseData(reply, { type: "meta", threadId: opts.threadId, provider: "codex" });
+  if (recorder) {
+    emitData(reply, recorder, {
+      type: "meta",
+      threadId: opts.threadId,
+      provider: "codex",
+      runId: recorder.runId,
+    });
+  } else {
+    safeSse(reply, () => sendSseData(reply, { type: "meta", threadId: opts.threadId, provider: "codex" }));
+  }
 
   let codexThreadId: string | null = null;
   let assistantText: string | null = null;
@@ -84,17 +118,36 @@ export async function streamCodexTurnToSse(
       if (ev.type === "turn.failed") {
         error = ev.error.message;
       }
-      sendSseData(reply, { channel: "codex", payload: ev });
+      emitData(reply, recorder, { channel: "codex", payload: ev } as unknown as Record<string, unknown>);
     }
 
     assistantText = latestAgentText(seen) || null;
-    sendSseDone(reply);
+
+    const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
+    safeSse(reply, () => sendSseDone(reply, doneSeq != null ? { seq: doneSeq } : undefined));
+    if (recorder) {
+      finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     error = error ?? message;
-    sendSseError(reply, message);
+    if (recorder) {
+      appendAgentRunEvent(recorder.db, recorder.runId, "error", { message });
+      safeSse(reply, () => sendSseError(reply, message));
+      finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: message });
+      const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
+      safeSse(reply, () => sendSseDone(reply, { ok: false, seq: doneSeq }));
+    } else {
+      safeSse(reply, () => sendSseError(reply, message));
+    }
   } finally {
-    endSse(reply);
+    try {
+      if (!reply.raw.writableEnded && !reply.raw.destroyed) {
+        endSse(reply);
+      }
+    } catch {
+      /* already closed */
+    }
   }
 
   return { codexThreadId, assistantText, error };

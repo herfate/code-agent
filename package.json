@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "dev:css": "tailwindcss -i ./src/styles/tailwind.css -o ./public/demo.css --watch",
-    "build:css": "tailwindcss -i ./src/styles/tailwind.css -o ./public/demo.css --minify",
+    "dev:css": "tailwindcss -i ./src/styles/tailwind.css -o ./public/app.css --watch",
+    "build:css": "tailwindcss -i ./src/styles/tailwind.css -o ./public/app.css --minify",
     "build": "npm run build:css && tsc",
     "start": "node dist/server.js"
   },

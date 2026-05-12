@@ -1,6 +1,8 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { DatabaseSync } from "node:sqlite";
 import type { FastifyReply } from "fastify";
+import { appendAgentRunEvent, finishAgentRun } from "../db/agentRun.js";
 import {
   attachAbortOnClose,
   endSse,
@@ -36,29 +38,69 @@ function summarizeSdkMessage(msg: SDKMessage): Record<string, unknown> {
 }
 
 export type ClaudeSseOptions = {
-  /** App thread id (SQLite) — emitted as first SSE meta for clients */
   threadId: string;
   prompt: string;
   model?: string;
-  /** Claude Code session UUID to resume */
   resume?: string;
-  /** Optional caller-owned abort (e.g. upstream timeout) */
   clientSignal?: AbortSignal;
+  /** Persist each frame + keep SDK running after the browser disconnects (resume via GET …/runs/:id/stream). */
+  runRecorder?: { db: DatabaseSync; runId: string };
 };
 
+
+function safeSse(reply: FastifyReply | null, fn: (r: FastifyReply) => void): void {
+  if (!reply || reply.raw.writableEnded || reply.raw.destroyed) return;
+  try {
+    fn(reply);
+  } catch {
+    /* client disconnected */
+  }
+}
+
+function emitData(
+  reply: FastifyReply | null,
+  recorder: ClaudeSseOptions["runRecorder"],
+  data: Record<string, unknown>,
+): void {
+  if (recorder) {
+    const seq = appendAgentRunEvent(recorder.db, recorder.runId, "message", data);
+    safeSse(reply, (r) => sendSseData(r, { ...data, seq }));
+  } else {
+    safeSse(reply, (r) => sendSseData(r, data));
+  }
+}
+
+/**
+ * @param reply 浏览器 SSE 时传入；定时任务等仅落库续订场景传 `null`（须带 `runRecorder`）。
+ */
 export async function streamClaudeQueryToSse(
-  reply: FastifyReply,
+  reply: FastifyReply | null,
   opts: ClaudeSseOptions,
 ): Promise<{ sessionId: string | null; assistantText: string | null; sdkError: string | null }> {
   const controller = new AbortController();
-  attachAbortOnClose(reply, controller);
+  const recorder = opts.runRecorder;
+  if (!recorder && !reply) {
+    throw new Error("streamClaudeQueryToSse: reply is required when runRecorder is omitted");
+  }
+  if (!recorder && reply) {
+    attachAbortOnClose(reply, controller);
+  }
   if (opts.clientSignal) {
     if (opts.clientSignal.aborted) controller.abort();
     else opts.clientSignal.addEventListener("abort", () => controller.abort(), { once: true });
   }
 
-  initSse(reply);
-  sendSseData(reply, { type: "meta", threadId: opts.threadId, provider: "claude" });
+  if (reply) initSse(reply);
+  if (recorder) {
+    emitData(reply, recorder, {
+      type: "meta",
+      threadId: opts.threadId,
+      provider: "claude",
+      runId: recorder.runId,
+    });
+  } else {
+    safeSse(reply, (r) => sendSseData(r, { type: "meta", threadId: opts.threadId, provider: "claude" }));
+  }
 
   let sessionId: string | null = null;
   let assistantText: string | null = null;
@@ -71,8 +113,10 @@ export async function streamClaudeQueryToSse(
         abortController: controller,
         model: opts.model,
         resume: opts.resume,
-        cwd: process.cwd(),
+        cwd: 'C:\\work\\my\\ai\\ai_work4j\\ai_work4j',
         canUseTool: async () => ({ behavior: "allow" as const }),
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
       },
     });
 
@@ -87,15 +131,34 @@ export async function streamClaudeQueryToSse(
           sdkError = msg.errors?.join("; ") ?? msg.subtype;
         }
       }
-      sendSseData(reply, { channel: "claude", payload: summarizeSdkMessage(msg) });
+      emitData(reply, recorder, { channel: "claude", payload: summarizeSdkMessage(msg) });
     }
-    sendSseDone(reply);
+
+    const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
+    safeSse(reply, (r) => sendSseDone(r, doneSeq != null ? { seq: doneSeq } : undefined));
+    if (recorder) {
+      finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     sdkError = sdkError ?? message;
-    sendSseError(reply, message);
+    if (recorder) {
+      appendAgentRunEvent(recorder.db, recorder.runId, "error", { message });
+      safeSse(reply, (r) => sendSseError(r, message));
+      finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: message });
+      const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
+      safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: doneSeq }));
+    } else {
+      safeSse(reply, (r) => sendSseError(r, message));
+    }
   } finally {
-    endSse(reply);
+    try {
+      if (reply && !reply.raw.writableEnded && !reply.raw.destroyed) {
+        endSse(reply);
+      }
+    } catch {
+      /* already closed */
+    }
   }
 
   return { sessionId, assistantText, sdkError };

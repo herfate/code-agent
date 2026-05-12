@@ -54,6 +54,31 @@ export function listThreads(db: DatabaseSync, limit = 100): ThreadRow[] {
     .all(limit) as ThreadRow[];
 }
 
+export function listThreadsFiltered(
+  db: DatabaseSync,
+  filters: { provider?: Provider; titleContains?: string; limit?: number } = {},
+): ThreadRow[] {
+  const limit = Math.min(500, Math.max(1, filters.limit ?? 100));
+  const clauses: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (filters.provider) {
+    clauses.push("provider = ?");
+    params.push(filters.provider);
+  }
+  const raw = filters.titleContains?.trim();
+  if (raw) {
+    clauses.push(`title LIKE ? ESCAPE '\\'`);
+    const esc = raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    params.push("%" + esc + "%");
+  }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+  const sql = `SELECT id, title, provider, external_thread_id, created_at FROM threads ${where} ORDER BY created_at DESC LIMIT ?`;
+  params.push(limit);
+  return db.prepare(sql).all(...params) as ThreadRow[];
+}
+
 export function insertMessage(
   db: DatabaseSync,
   input: {

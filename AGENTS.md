@@ -9,21 +9,27 @@
 - **Agent**：`@anthropic-ai/claude-agent-sdk`（`query()` 异步迭代 → SSE）、`@openai/codex-sdk`（`Codex` + `Thread.runStreamed()` → SSE）。
 - **持久化**：SQLite，经 [`src/db/client.ts`](src/db/client.ts) 使用 **`node:sqlite`**，**不用** `better-sqlite3`（避免 Windows 上原生编译依赖）。表结构在启动时通过 `CREATE TABLE IF NOT EXISTS` 初始化。
 
+## 重要事项
+***使用中文对话, 注释尽量有***
+
 ## 目录职责
 
 | 路径 | 作用 |
 |------|------|
 | [`src/server.ts`](src/server.ts) | 应用入口、注册路由、优雅退出 |
 | [`src/config.ts`](src/config.ts) | `dotenv` + Zod 解析环境变量 |
-| [`src/db/`](src/db/) | 数据库单例、会话与消息的 repository |
+| [`src/db/`](src/db/) | 数据库单例、会话与消息 repository、工作流（[`workflow.ts`](src/db/workflow.ts)）、提示词模板（[`promptTpl.ts`](src/db/promptTpl.ts)）、系统配置（[`systemConfig.ts`](src/db/systemConfig.ts)） |
 | [`src/sse/helpers.ts`](src/sse/helpers.ts) | 在 `reply.raw` 上组帧输出 SSE |
 | [`src/services/`](src/services/) | Claude / Codex 流式封装 |
-| [`src/routes/`](src/routes/) | 各 HTTP 路由插件（含 [`demoPage.ts`](src/routes/demoPage.ts) 提供 `GET /` 与 `GET /demo`） |
-| [`public/demo.html`](public/demo.html) | 浏览器演示页 HTML；样式类名供 Tailwind 扫描 |
-| [`public/demo.css`](public/demo.css) | Tailwind 构建产物（由 `npm run build` / `build:css` 生成） |
+| [`src/routes/`](src/routes/) | 各 HTTP 路由插件（含 [`demoPage.ts`](src/routes/demoPage.ts) 提供 `GET /`、`GET /demo`、`GET /agent-dev`、`GET /user-config`） |
+| [`public/index.html`](public/index.html) | 管理台首页（左侧菜单 + 内容区） |
+| [`public/demo.html`](public/demo.html) | 对话演示页 |
+| [`public/agentDev.html`](public/agentDev.html) | 开发 Agent 独立页（`tasks` 查询） |
+| [`public/userConfig.html`](public/userConfig.html) | 用户与系统配置独立页（`system_config` 查询） |
+| [`public/app.css`](public/app.css) | Tailwind 构建产物（由 `npm run build` / `build:css` 生成） |
 | [`src/styles/tailwind.css`](src/styles/tailwind.css) | Tailwind 入口（`@tailwind` 指令） |
 
-> 演示页由 `GET /` 与 `GET /demo` 返回同一 HTML；改界面编辑 `public/demo.html` 与 `src/styles/tailwind.css`，交付前执行 **`npm run build`**（含 `build:css`）。本地改样式时可并行运行 **`npm run dev:css`**（监听生成 `public/demo.css`）与 **`npm run dev`**。静态资源由 `public/` 经 `@fastify/static` 挂载（如 `/demo.css`）。
+> `GET /` 返回管理台（[`public/index.html`](public/index.html)，含 `/?page=demo` 嵌入 [`/demo`](public/demo.html)、`/?page=adev` 嵌入 [`/agent-dev`](public/agentDev.html)、`/?page=ucfg` 嵌入 [`/user-config`](public/userConfig.html)）；`GET /demo`、`GET /agent-dev`、`GET /user-config` 分别返回对应独立页面。改界面编辑 `public/index.html`、`public/demo.html`、`public/agentDev.html`、`public/userConfig.html` 与 [`src/styles/tailwind.css`](src/styles/tailwind.css)（如 `.form-select`），交付前执行 **`npm run build`**（含 `build:css`）。本地改样式时可并行运行 **`npm run dev:css`**（监听生成 `public/app.css`）与 **`npm run dev`**。静态资源由 `public/` 经 `@fastify/static` 挂载（如 `/app.css`）。
 
 ## 约定
 

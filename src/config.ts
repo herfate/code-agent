@@ -5,6 +5,10 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   HOST: z.string().default("127.0.0.1"),
   DATABASE_PATH: z.string().default("./data/app.db"),
+  /** 待执行任务（`tasks.status = 1`）扫描间隔（毫秒）；`0` 或未设置表示关闭 */
+  TASK_SCAN_INTERVAL_MS: z.coerce.number().int().min(0).default(30000),
+  /** 每轮扫描最多拉取的状态为待执行（1）的任务数（1–500） */
+  TASK_SCAN_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(1),
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
 });

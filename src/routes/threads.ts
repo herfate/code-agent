@@ -1,18 +1,39 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DatabaseSync } from "node:sqlite";
-import { getThread, listMessages, listThreads, createThread, insertMessage } from "../db/repository.js";
+import { getThread, listMessages, listThreads, listThreadsFiltered, createThread } from "../db/repository.js";
 
 const createThreadBody = z.object({
   title: z.string().max(500).optional(),
   provider: z.enum(["claude", "codex"]),
 });
 
+const listThreadsQuery = z.object({
+  provider: z.enum(["claude", "codex"]).optional(),
+  title: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
 export function registerThreadRoutes(app: FastifyInstance, deps: { db: DatabaseSync }): void {
   const { db } = deps;
 
-  app.get("/api/threads", async () => {
-    return { threads: listThreads(db) };
+  app.get("/api/threads", async (request, reply) => {
+    const parsed = listThreadsQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const q = parsed.data;
+    const hasFilter = q.provider !== undefined || (q.title !== undefined && q.title.trim() !== "");
+    if (hasFilter) {
+      return {
+        threads: listThreadsFiltered(db, {
+          provider: q.provider,
+          titleContains: q.title?.trim() || undefined,
+          limit: q.limit,
+        }),
+      };
+    }
+    return { threads: listThreads(db, q.limit ?? 100) };
   });
 
   app.post("/api/threads", async (request, reply) => {

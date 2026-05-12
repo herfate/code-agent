@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>code-agent 管理台</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body class="h-screen overflow-hidden bg-slate-100 text-slate-900 antialiased">
+  <div class="flex h-full">
+    <aside class="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900 text-slate-300">
+      <div class="flex h-14 shrink-0 items-center gap-3 border-b border-slate-800 px-4">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white shadow-sm">CA</div>
+        <div class="min-w-0">
+          <div class="truncate text-sm font-semibold text-white">code-agent</div>
+          <div class="truncate text-[11px] text-slate-500">本地管理台</div>
+        </div>
+      </div>
+      <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3 text-sm" aria-label="主导航">
+        <button type="button" data-nav-page="home" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          工作台
+        </button>
+        <div class="mt-4 px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">开发与调试</div>
+        <button type="button" data-nav-page="demo" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          对话演示
+        </button>
+        <button type="button" data-nav-page="adev" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          开发 Agent
+        </button>
+        <button type="button" data-nav-page="ucfg" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          用户配置
+        </button>
+      </nav>
+      <div class="shrink-0 border-t border-slate-800 px-4 py-3 text-[11px] leading-relaxed text-slate-500">
+        API Key 仅服务端配置；本页不持有密钥。
+      </div>
+    </aside>
+
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header class="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 shadow-sm">
+        <h1 id="page-title" class="text-base font-semibold text-slate-800">工作台</h1>
+        <div class="flex items-center gap-3 text-xs text-slate-500">
+          <span id="page-badge" class="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">概览</span>
+          <a id="header-demo-link" href="/demo" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">新窗口打开演示</a>
+          <a id="header-agentdev-link" href="/agent-dev" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开开发 Agent</a>
+          <a id="header-ucfg-link" href="/user-config" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开用户配置</a>
+        </div>
+      </header>
+
+      <main class="relative min-h-0 flex-1 bg-slate-50">
+        <div id="view-home" class="h-full overflow-y-auto p-6">
+          <div class="mx-auto max-w-5xl space-y-6">
+            <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 class="text-lg font-semibold text-slate-800">欢迎使用</h2>
+              <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+                本管理台用于本地调试 <strong class="font-medium text-slate-800">code-agent</strong>：左侧 <strong class="font-medium text-slate-800">对话演示</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/demo</code>；<strong class="font-medium text-slate-800">开发 Agent</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/agent-dev</code> 查询任务；<strong class="font-medium text-slate-800">用户配置</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/user-config</code> 查询 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">system_config</code>。
+              </p>
+            </div>
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">健康</div>
+                <p class="mt-2 text-sm text-slate-600">启动后可通过 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">GET /health</code> 检查服务与数据库。</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">会话</div>
+                <p class="mt-2 text-sm text-slate-600">SQLite 持久化线程与消息；REST 见 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/api/threads</code>。</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:col-span-2 lg:col-span-1">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Agent</div>
+                <p class="mt-2 text-sm text-slate-600">Claude / Codex 线路均为 SSE；请在「对话演示」内使用浏览器 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">fetch</code> 流式解析。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="view-demo" class="absolute inset-0 hidden bg-white">
+          <iframe id="demo-frame" class="h-full w-full border-0" title="对话演示"></iframe>
+        </div>
+        <div id="view-adev" class="absolute inset-0 hidden bg-white">
+          <iframe id="adev-frame" class="h-full w-full border-0" title="开发 Agent"></iframe>
+        </div>
+        <div id="view-ucfg" class="absolute inset-0 hidden bg-white">
+          <iframe id="ucfg-frame" class="h-full w-full border-0" title="用户配置"></iframe>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var home = document.getElementById("view-home");
+      var demo = document.getElementById("view-demo");
+      var adev = document.getElementById("view-adev");
+      var ucfg = document.getElementById("view-ucfg");
+      var frame = document.getElementById("demo-frame");
+      var adevFrame = document.getElementById("adev-frame");
+      var ucfgFrame = document.getElementById("ucfg-frame");
+      var title = document.getElementById("page-title");
+      var badge = document.getElementById("page-badge");
+      var headerDemoLink = document.getElementById("header-demo-link");
+      var headerAgentDevLink = document.getElementById("header-agentdev-link");
+      var headerUcfgLink = document.getElementById("header-ucfg-link");
+      var navBtns = document.querySelectorAll("[data-nav-page]");
+
+      function syncUrl(page) {
+        if (location.pathname !== "/") return;
+        var target =
+          page === "demo"
+            ? "/?page=demo"
+            : page === "adev"
+              ? "/?page=adev"
+              : page === "ucfg"
+                ? "/?page=ucfg"
+                : "/";
+        if (location.pathname + location.search !== target) {
+          history.replaceState({}, "", target);
+        }
+      }
+
+      function setNavActive(page) {
+        navBtns.forEach(function (btn) {
+          var active = btn.getAttribute("data-nav-page") === page;
+          btn.classList.toggle("bg-slate-800", active);
+          btn.classList.toggle("text-white", active);
+          btn.classList.toggle("shadow-inner", active);
+          btn.classList.toggle("text-slate-300", !active);
+          btn.setAttribute("aria-current", active ? "page" : "false");
+        });
+      }
+
+      function show(page) {
+        setNavActive(page);
+        home.classList.toggle("hidden", page !== "home");
+        demo.classList.toggle("hidden", page !== "demo");
+        adev.classList.toggle("hidden", page !== "adev");
+        ucfg.classList.toggle("hidden", page !== "ucfg");
+        headerDemoLink.classList.toggle("hidden", page === "adev" || page === "ucfg");
+        headerAgentDevLink.classList.toggle("hidden", page !== "adev");
+        headerUcfgLink.classList.toggle("hidden", page !== "ucfg");
+
+        if (page === "demo") {
+          title.textContent = "对话演示";
+          badge.textContent = "嵌入 /demo";
+          badge.className =
+            "rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700";
+          if (!frame.getAttribute("src") || frame.getAttribute("src") === "about:blank") {
+            frame.src = "/demo";
+          }
+        } else if (page === "adev") {
+          title.textContent = "开发 Agent";
+          badge.textContent = "嵌入 /agent-dev";
+          badge.className =
+            "rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-700";
+          if (!adevFrame.getAttribute("src") || adevFrame.getAttribute("src") === "about:blank") {
+            adevFrame.src = "/agent-dev";
+          }
+        } else if (page === "ucfg") {
+          title.textContent = "用户配置";
+          badge.textContent = "嵌入 /user-config";
+          badge.className =
+            "rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700";
+          if (!ucfgFrame.getAttribute("src") || ucfgFrame.getAttribute("src") === "about:blank") {
+            ucfgFrame.src = "/user-config";
+          }
+        } else {
+          title.textContent = "工作台";
+          badge.textContent = "概览";
+          badge.className =
+            "rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600";
+        }
+        syncUrl(page);
+      }
+
+      navBtns.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          show(btn.getAttribute("data-nav-page"));
+        });
+      });
+
+      var q = new URLSearchParams(location.search).get("page");
+      var initial =
+        q === "demo" ? "demo" : q === "adev" ? "adev" : q === "ucfg" ? "ucfg" : "home";
+      show(initial);
+    })();
+  </script>
+</body>
+</html>

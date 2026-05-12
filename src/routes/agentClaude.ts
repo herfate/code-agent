@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DatabaseSync } from "node:sqlite";
+import { createAgentRun } from "../db/agentRun.js";
 import {
   createThread,
   getThread,
@@ -8,6 +9,7 @@ import {
   updateThreadExternalId,
 } from "../db/repository.js";
 import { streamClaudeQueryToSse } from "../services/claudeAgent.js";
+import { pipeAgentRunReplayToSse } from "../sse/replayAgentRun.js";
 
 const bodySchema = z.object({
   threadId: z.string().uuid().optional(),
@@ -17,6 +19,17 @@ const bodySchema = z.object({
 
 export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: DatabaseSync }): void {
   const { db } = deps;
+
+  app.get("/api/agents/claude/runs/:runId/stream", async (request, reply) => {
+    const runIdParsed = z.string().uuid().safeParse((request.params as { runId?: string }).runId);
+    if (!runIdParsed.success) {
+      return reply.status(400).send({ error: "invalid runId" });
+    }
+    const q = (request.query as { afterSeq?: string }).afterSeq;
+    const afterSeq = z.coerce.number().int().min(0).safeParse(q ?? 0);
+    const after = afterSeq.success ? afterSeq.data : 0;
+    await pipeAgentRunReplayToSse(reply, db, runIdParsed.data, after);
+  });
 
   app.post("/api/agents/claude/sse", async (request, reply) => {
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -54,6 +67,9 @@ export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: Data
     const threadRow = getThread(db, threadId);
     const resumeSessionId = threadRow?.external_thread_id ?? undefined;
 
+    const runId = crypto.randomUUID();
+    createAgentRun(db, { id: runId, thread_id: threadId, provider: "claude" });
+
     reply.hijack();
 
     const { sessionId, assistantText, sdkError } = await streamClaudeQueryToSse(reply, {
@@ -61,6 +77,7 @@ export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: Data
       prompt,
       model,
       resume: resumeSessionId,
+      runRecorder: { db, runId },
     });
 
     if (sessionId) {

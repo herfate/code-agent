@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>开发 Agent — 任务查询</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+  <div class="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4 sm:gap-5 sm:p-6">
+    <header class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+      <h1 class="text-base font-semibold text-slate-800">根据预分析文档或用户输入需求生成spec文档或代码MR</h1>
+    </header>
+    <section class="shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <h2 class="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+        <div class="lg:col-span-3">
+          <label for="adev-baseUrl" class="mb-1.5 block text-xs font-medium text-slate-600">API 基地址（留空为当前站点）</label>
+          <input id="adev-baseUrl" type="url" placeholder="留空则使用当前 origin" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="lg:col-span-2">
+          <label id="adev-status-label" for="adev-status-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">状态</label>
+          <div id="adev-status-root" class="relative min-w-0">
+            <input type="hidden" id="adev-status" value="" autocomplete="off" />
+            <div
+              id="adev-status-trigger"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="adev-status-listbox"
+              aria-labelledby="adev-status-label"
+              tabindex="0"
+              class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-sm text-slate-900 shadow-sm transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+            >
+              <span id="adev-status-label-text" class="min-w-0 truncate">全部</span>
+              <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div
+              id="adev-status-listbox"
+              role="listbox"
+              aria-labelledby="adev-status-label"
+              class="absolute left-0 right-0 z-30 mt-1 hidden max-h-60 overflow-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg ring-1 ring-black/5"
+            >
+              <div role="option" data-value="" class="adev-status-opt cursor-pointer px-3 py-2.5 text-slate-900 hover:bg-slate-50">全部</div>
+              <div role="option" data-value="1" class="adev-status-opt cursor-pointer px-3 py-2.5 text-slate-900 hover:bg-slate-50">待执行</div>
+              <div role="option" data-value="2" class="adev-status-opt cursor-pointer px-3 py-2.5 text-slate-900 hover:bg-slate-50">执行中</div>
+              <div role="option" data-value="5" class="adev-status-opt cursor-pointer px-3 py-2.5 text-slate-900 hover:bg-slate-50">已暂停</div>
+              <div role="option" data-value="3" class="adev-status-opt cursor-pointer px-3 py-2.5 text-slate-900 hover:bg-slate-50">执行完成</div>
+              <div role="option" data-value="4" class="adev-status-opt cursor-pointer px-3 py-2.5 text-slate-900 hover:bg-slate-50">执行失败</div>
+              <div role="option" data-value="6" class="adev-status-opt cursor-pointer px-3 py-2.5 text-slate-900 hover:bg-slate-50">已取消</div>
+            </div>
+          </div>
+        </div>
+        <div class="lg:col-span-2">
+          <label for="adev-taskType" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
+          <select id="adev-taskType" class="form-select">
+            <option value="">全部</option>
+            <option value="1">1 — 开发任务</option>
+          </select>
+        </div>
+        <div class="lg:col-span-2">
+          <label for="adev-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题包含</label>
+          <input id="adev-title" type="text" placeholder="模糊匹配 title" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="lg:col-span-1">
+          <label for="adev-limit" class="mb-1.5 block text-xs font-medium text-slate-600">条数上限</label>
+          <input id="adev-limit" type="number" min="1" max="500" value="100" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="flex flex-wrap items-center gap-2 lg:col-span-2">
+          <button type="button" id="adev-btn-new-task" class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增任务</button>
+          <button type="button" id="adev-btn-query" class="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
+          <button type="button" id="adev-btn-reset" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300/80">重置条件</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">查询结果</h2>
+        <span id="adev-count" class="text-xs font-medium text-slate-500"></span>
+      </div>
+      <div class="min-h-0 flex-1 overflow-auto">
+        <p id="adev-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700 sm:px-5"></p>
+        <div class="overflow-x-auto">
+          <table class="min-w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold uppercase tracking-wide text-slate-600 backdrop-blur-sm">
+              <tr>
+                <th class="px-4 py-3 sm:px-5">id</th>
+                <th class="px-4 py-3 sm:px-5">title</th>
+                <th class="px-4 py-3 sm:px-5">状态</th>
+                <th class="px-4 py-3 sm:px-5">task_type</th>
+                <th class="px-4 py-3 sm:px-5">thread_id</th>
+                <th class="px-4 py-3 sm:px-5">workflow_def_id</th>
+                <th class="px-4 py-3 sm:px-5">created_at</th>
+                <th class="px-4 py-3 sm:px-5">updated_at</th>
+                <th class="px-4 py-3 sm:px-5">Claude 流</th>
+              </tr>
+            </thead>
+            <tbody id="adev-tbody" class="divide-y divide-slate-100 text-slate-800"></tbody>
+          </table>
+        </div>
+        <p id="adev-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500 sm:px-5">暂无数据，请调整条件后点击「查询」。</p>
+      </div>
+    </section>
+  </div>
+
+  <div id="adev-modal-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="adev-modal-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="adev-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="adev-modal-title"
+        class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="border-b border-slate-100 px-5 py-4">
+          <h3 id="adev-modal-title" class="text-sm font-semibold text-slate-800">新增任务</h3>
+          <p class="mt-1 text-xs text-slate-500">填写应用、分支版本与需求内容后保存。</p>
+        </div>
+        <form id="adev-modal-form" class="space-y-4 px-5 py-4">
+        <p id="adev-modal-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+        <div>
+          <label for="adev-new-app" class="mb-1.5 block text-xs font-medium text-slate-600">应用</label>
+          <select
+            id="adev-new-app"
+            name="app"
+            required
+            class="form-select w-full"
+            aria-describedby="adev-new-app-hint"
+          >
+            <option value="">请选择应用</option>
+          </select>
+          <p id="adev-new-app-hint" class="mt-1 text-xs text-slate-500">列表来自 QA 平台 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">/qa/findAllAppInfo</code></p>
+        </div>
+        <div>
+          <label for="adev-new-branch" class="mb-1.5 block text-xs font-medium text-slate-600">分支版本</label>
+          <input
+            id="adev-new-branch"
+            name="branch_version"
+            type="text"
+            required
+            maxlength="500"
+            autocomplete="off"
+            class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+            placeholder="例如：release/1.2 或 main"
+          />
+        </div>
+        <div>
+          <label for="adev-new-requirement" class="mb-1.5 block text-xs font-medium text-slate-600">需求内容</label>
+          <textarea
+            id="adev-new-requirement"
+            name="requirement"
+            required
+            rows="6"
+            maxlength="50000"
+            class="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+            placeholder="描述本次开发需求…"
+          ></textarea>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+          <button type="button" id="adev-modal-cancel" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300/80">取消</button>
+          <button type="submit" id="adev-modal-submit" class="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">保存</button>
+        </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 按 task id 续订 GET SSE（与 tasks.meta_json.claudeAgentRunId 对应） -->
+  <div id="adev-sse-root" class="fixed inset-0 z-[60] hidden">
+    <div
+      id="adev-sse-backdrop"
+      class="flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]"
+    >
+      <div
+        id="adev-sse-panel"
+        class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="adev-sse-title"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+          <div>
+            <h3 id="adev-sse-title" class="text-sm font-semibold text-slate-800">Claude Agent SSE（按任务续订）</h3>
+            <p id="adev-sse-sub" class="mt-0.5 font-mono text-xs text-slate-500"></p>
+          </div>
+          <button
+            type="button"
+            id="adev-sse-close"
+            class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            关闭
+          </button>
+        </div>
+        <div id="adev-sse-log" class="min-h-[200px] flex-1 overflow-y-auto whitespace-pre-wrap break-words bg-slate-50 p-3 font-mono text-xs leading-snug text-slate-800 sm:p-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var tbody = document.getElementById("adev-tbody");
+      var emptyEl = document.getElementById("adev-empty");
+      var errEl = document.getElementById("adev-error");
+      var countEl = document.getElementById("adev-count");
+
+      var stHidden = document.getElementById("adev-status");
+      var stRoot = document.getElementById("adev-status-root");
+      var stTrigger = document.getElementById("adev-status-trigger");
+      var stLabelText = document.getElementById("adev-status-label-text");
+      var stListbox = document.getElementById("adev-status-listbox");
+      var stOpts = stRoot.querySelectorAll(".adev-status-opt");
+      /** 与 `src/constants/taskStatus.ts`：`tasks.status` 持久化为 1–6，此处按数字映射中文。 */
+      var stLabels = {
+        "": "全部",
+        "1": "待执行",
+        "2": "执行中",
+        "3": "执行完成",
+        "4": "执行失败",
+        "5": "已暂停",
+        "6": "已取消",
+      };
+
+      function stSetOpen(open) {
+        if (open) {
+          stListbox.classList.remove("hidden");
+          stTrigger.setAttribute("aria-expanded", "true");
+        } else {
+          stListbox.classList.add("hidden");
+          stTrigger.setAttribute("aria-expanded", "false");
+        }
+      }
+
+      function stSyncOptions() {
+        var v = stHidden.value;
+        stOpts.forEach(function (el) {
+          var sel = el.getAttribute("data-value") === v;
+          el.setAttribute("aria-selected", sel ? "true" : "false");
+          if (sel) {
+            el.classList.add("bg-blue-50", "font-medium", "text-blue-900");
+          } else {
+            el.classList.remove("bg-blue-50", "font-medium", "text-blue-900");
+          }
+        });
+        stLabelText.textContent = Object.prototype.hasOwnProperty.call(stLabels, v)
+          ? stLabels[v]
+          : stLabels[""];
+      }
+
+      function stSetValue(val) {
+        stHidden.value = val;
+        stSyncOptions();
+      }
+
+      stTrigger.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var open = stListbox.classList.contains("hidden");
+        stSetOpen(open);
+      });
+
+      stTrigger.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          var open = stListbox.classList.contains("hidden");
+          stSetOpen(open);
+        } else if (e.key === "Escape") {
+          stSetOpen(false);
+        } else if (e.key === "ArrowDown" && stListbox.classList.contains("hidden")) {
+          e.preventDefault();
+          stSetOpen(true);
+        }
+      });
+
+      stOpts.forEach(function (opt) {
+        opt.addEventListener("click", function (e) {
+          e.stopPropagation();
+          stSetValue(opt.getAttribute("data-value") || "");
+          stSetOpen(false);
+        });
+      });
+
+      document.addEventListener("click", function () {
+        stSetOpen(false);
+      });
+
+      stRoot.addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+
+      stSyncOptions();
+
+      function adevBase() {
+        var v = document.getElementById("adev-baseUrl").value.trim();
+        return v || window.location.origin;
+      }
+
+      function fmtTime(ms) {
+        try {
+          return new Date(ms).toLocaleString();
+        } catch (e) {
+          return String(ms);
+        }
+      }
+
+      function esc(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      /** 与 `tasks.meta_json` 中服务端写入的 `claudeAgentRunId` 一致 */
+      function claudeRunIdFromMeta(meta_json) {
+        if (!meta_json || !String(meta_json).trim()) return null;
+        try {
+          var o = JSON.parse(meta_json);
+          if (o && typeof o.claudeAgentRunId === "string" && o.claudeAgentRunId.trim()) return o.claudeAgentRunId.trim();
+        } catch (e) {}
+        return null;
+      }
+
+      var sseRoot = document.getElementById("adev-sse-root");
+      var sseLog = document.getElementById("adev-sse-log");
+      var sseSub = document.getElementById("adev-sse-sub");
+      var sseClose = document.getElementById("adev-sse-close");
+      var sseAbort = null;
+
+      function sseAppend(line) {
+        sseLog.textContent += line + "\n";
+        sseLog.scrollTop = sseLog.scrollHeight;
+      }
+
+      function closeSseModal() {
+        if (sseAbort) {
+          try {
+            sseAbort.abort();
+          } catch (e) {}
+          sseAbort = null;
+        }
+        sseRoot.classList.add("hidden");
+        sseLog.textContent = "";
+        sseSub.textContent = "";
+      }
+
+      async function parseSseStream(response, onEvent) {
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = "";
+        while (true) {
+          var res = await reader.read();
+          if (res.done) break;
+          buffer += decoder.decode(res.value, { stream: true });
+          var sep;
+          while ((sep = buffer.indexOf("\n\n")) !== -1) {
+            var block = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            var eventName = "message";
+            var dataLines = [];
+            block.split(/\r?\n/).forEach(function (line) {
+              if (line.startsWith("event:")) eventName = line.slice(6).trim();
+              else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+            });
+            var dataStr = dataLines.join("\n");
+            if (!dataStr) continue;
+            var payload;
+            try {
+              payload = JSON.parse(dataStr);
+            } catch (e) {
+              payload = dataStr;
+            }
+            onEvent(eventName, payload);
+          }
+        }
+      }
+
+      function openTaskClaudeSse(taskId) {
+        if (sseAbort) {
+          try {
+            sseAbort.abort();
+          } catch (e) {}
+          sseAbort = null;
+        }
+        sseLog.textContent = "";
+        sseRoot.classList.remove("hidden");
+        sseSub.textContent = "task " + taskId;
+        var ac = new AbortController();
+        sseAbort = ac;
+        var lastSeq = 0;
+        var url =
+          adevBase() +
+          "/api/tasks/" +
+          encodeURIComponent(taskId) +
+          "/claude-agent-stream?afterSeq=" +
+          encodeURIComponent(String(lastSeq));
+        sseAppend("[请求] GET " + url);
+        fetch(url, { signal: ac.signal })
+          .then(function (r) {
+            if (!r.ok) {
+              return r.text().then(function (t) {
+                sseAppend("[HTTP " + r.status + "] " + t);
+              });
+            }
+            return parseSseStream(r, function (eventName, payload) {
+              if (eventName === "done") {
+                sseAppend("event:done " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
+                return;
+              }
+              if (eventName === "error") {
+                sseAppend("event:error " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
+                return;
+              }
+              if (payload && typeof payload === "object" && typeof payload.seq === "number") {
+                lastSeq = Math.max(lastSeq, payload.seq);
+              }
+              sseAppend(
+                "data: " + (typeof payload === "string" ? payload : JSON.stringify(payload)),
+              );
+            });
+          })
+          .then(function () {
+            sseAppend("[流结束]");
+          })
+          .catch(function (err) {
+            if (err && err.name === "AbortError") sseAppend("[已中止]");
+            else sseAppend("[错误] " + (err && err.message ? err.message : String(err)));
+          });
+      }
+
+      sseClose.addEventListener("click", closeSseModal);
+      document.getElementById("adev-sse-backdrop").addEventListener("click", function (e) {
+        if (e.target.id === "adev-sse-backdrop") closeSseModal();
+      });
+      document.getElementById("adev-sse-panel").addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+
+      function taskTypeLabel(code) {
+        if (code === "1") return "开发任务";
+        return String(code || "");
+      }
+
+      function runAdevQuery() {
+        errEl.classList.add("hidden");
+        errEl.textContent = "";
+        tbody.innerHTML = "";
+        emptyEl.classList.add("hidden");
+        countEl.textContent = "";
+
+        var params = new URLSearchParams();
+        var st = document.getElementById("adev-status").value;
+        if (st) params.set("status", st);
+        var tt = document.getElementById("adev-taskType").value;
+        if (tt) params.set("task_type", tt);
+        var tit = document.getElementById("adev-title").value.trim();
+        if (tit) params.set("title", tit);
+        var lim = document.getElementById("adev-limit").value.trim();
+        if (lim) params.set("limit", lim);
+
+        var url = adevBase() + "/api/tasks" + (params.toString() ? "?" + params.toString() : "");
+
+        fetch(url)
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              errEl.textContent =
+                "请求失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+              errEl.classList.remove("hidden");
+              emptyEl.classList.remove("hidden");
+              return;
+            }
+            var tasks = res.body.tasks || [];
+            countEl.textContent = "共 " + tasks.length + " 条";
+            if (tasks.length === 0) {
+              emptyEl.classList.remove("hidden");
+              return;
+            }
+            tasks.forEach(function (t) {
+              var tr = document.createElement("tr");
+              tr.className = "transition-colors hover:bg-slate-50";
+              var rid = claudeRunIdFromMeta(t.meta_json);
+              var sseCell = rid
+                ? '<td class="whitespace-nowrap px-4 py-2.5 sm:px-5"><button type="button" class="adev-sse-btn cursor-pointer rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100" data-task-id="' +
+                  esc(t.id) +
+                  '">查看详情(SSE)</button></td>'
+                : '<td class="whitespace-nowrap px-4 py-2.5 text-slate-400 sm:px-5">—</td>';
+              tr.innerHTML =
+                '<td class="whitespace-nowrap px-4 py-2.5 font-mono text-xs sm:px-5">' +
+                esc(t.id) +
+                "</td>" +
+                '<td class="max-w-xs truncate px-4 py-2.5 sm:max-w-md sm:px-5" title="' +
+                esc(t.title || "") +
+                '">' +
+                esc(t.title || "") +
+                "</td>" +
+                '<td class="whitespace-nowrap px-4 py-2.5 sm:px-5" title="' +
+                esc(t.status === undefined || t.status === null ? "" : String(t.status)) +
+                '">' +
+                (function () {
+                  var key = t.status === undefined || t.status === null ? "" : String(t.status);
+                  if (key === "") return "—";
+                  return esc(Object.prototype.hasOwnProperty.call(stLabels, key) ? stLabels[key] : key);
+                })() +
+                "</td>" +
+                '<td class="whitespace-nowrap px-4 py-2.5 text-slate-700 sm:px-5" title="' +
+                esc(taskTypeLabel(t.task_type || "")) +
+                '">' +
+                (function () {
+                  var c = t.task_type;
+                  if (c === undefined || c === null || c === "") return "—";
+                  return esc(String(c)) + " — " + esc(taskTypeLabel(c));
+                })() +
+                "</td>" +
+                '<td class="max-w-[10rem] truncate font-mono text-xs text-slate-600 sm:max-w-md sm:px-5" title="' +
+                esc(t.thread_id || "") +
+                '">' +
+                esc(t.thread_id || "—") +
+                "</td>" +
+                '<td class="max-w-[10rem] truncate font-mono text-xs text-slate-600 sm:max-w-md sm:px-5" title="' +
+                esc(t.workflow_def_id || "") +
+                '">' +
+                esc(t.workflow_def_id || "—") +
+                "</td>" +
+                '<td class="whitespace-nowrap px-4 py-2.5 text-slate-600 sm:px-5">' +
+                esc(fmtTime(t.created_at)) +
+                "</td>" +
+                '<td class="whitespace-nowrap px-4 py-2.5 text-slate-600 sm:px-5">' +
+                esc(fmtTime(t.updated_at)) +
+                "</td>" +
+                sseCell;
+              tbody.appendChild(tr);
+            });
+          })
+          .catch(function (e) {
+            errEl.textContent = "网络错误: " + e.message;
+            errEl.classList.remove("hidden");
+            emptyEl.classList.remove("hidden");
+          });
+      }
+
+      var modalRoot = document.getElementById("adev-modal-root");
+      var modalBackdrop = document.getElementById("adev-modal-backdrop");
+      var modalForm = document.getElementById("adev-modal-form");
+      var modalErr = document.getElementById("adev-modal-error");
+      var appSel = document.getElementById("adev-new-app");
+      var branchIn = document.getElementById("adev-new-branch");
+      var reqIn = document.getElementById("adev-new-requirement");
+      var submitBtn = document.getElementById("adev-modal-submit");
+
+      function modalClearError() {
+        modalErr.classList.add("hidden");
+        modalErr.textContent = "";
+      }
+
+      function modalShowError(msg) {
+        modalErr.textContent = msg;
+        modalErr.classList.remove("hidden");
+      }
+
+      function normalizeQaAppItem(item) {
+        if (typeof item === "string") {
+          var s = item.trim();
+          return s || "";
+        }
+        if (item && typeof item === "object") {
+          var v = item.appName != null ? item.appName : item.name != null ? item.name : item.value != null ? item.value : item.label;
+          if (v != null && String(v).trim()) return String(v).trim();
+        }
+        return "";
+      }
+
+      function fillQaAppSelect(list) {
+        appSel.innerHTML = '<option value="">请选择应用</option>';
+        var seen = {};
+        (list || []).forEach(function (item) {
+          var val = normalizeQaAppItem(item);
+          if (!val || seen[val]) return;
+          seen[val] = true;
+          var opt = document.createElement("option");
+          opt.value = val;
+          opt.textContent = val;
+          appSel.appendChild(opt);
+        });
+      }
+
+      function loadQaAppList() {
+        appSel.innerHTML = '<option value="">加载中…</option>';
+        appSel.disabled = true;
+        appSel.setAttribute("aria-busy", "true");
+        return fetch(adevBase() + "/qa/findAllAppInfo")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            appSel.disabled = false;
+            appSel.removeAttribute("aria-busy");
+            if (!res.ok) {
+              fillQaAppSelect([]);
+              modalShowError(
+                "应用列表加载失败（HTTP " +
+                  res.status +
+                  "）：" +
+                  (res.body && res.body.message ? res.body.message : JSON.stringify(res.body)),
+              );
+              return 0;
+            }
+            if (res.body.code !== 200) {
+              fillQaAppSelect([]);
+              modalShowError("应用列表加载失败：" + (res.body.message || JSON.stringify(res.body)));
+              return 0;
+            }
+            var data = res.body.data;
+            var list = Array.isArray(data) ? data : [];
+            fillQaAppSelect(list);
+            if (list.length === 0) {
+              modalShowError("应用列表为空，请检查 QA 平台或 system_config 中的账号配置。");
+            }
+            return list.length;
+          })
+          .catch(function (e) {
+            appSel.disabled = false;
+            appSel.removeAttribute("aria-busy");
+            fillQaAppSelect([]);
+            modalShowError("应用列表加载失败：" + e.message);
+            return 0;
+          });
+      }
+
+      function openNewTaskModal() {
+        modalClearError();
+        modalForm.reset();
+        modalRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        loadQaAppList().then(function () {
+          setTimeout(function () {
+            appSel.focus();
+          }, 0);
+        });
+      }
+
+      function closeNewTaskModal() {
+        modalRoot.classList.add("hidden");
+        document.body.style.overflow = "";
+        modalClearError();
+      }
+
+      document.getElementById("adev-btn-new-task").onclick = openNewTaskModal;
+      document.getElementById("adev-modal-cancel").onclick = closeNewTaskModal;
+
+      modalBackdrop.addEventListener("click", function (e) {
+        if (e.target === modalBackdrop) {
+          closeNewTaskModal();
+        }
+      });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (modalRoot.classList.contains("hidden")) return;
+        closeNewTaskModal();
+      });
+
+      modalForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        modalClearError();
+        var app = appSel.value.trim();
+        var branch = branchIn.value.trim();
+        var req = reqIn.value.trim();
+        if (!app || !branch || !req) {
+          modalShowError("请填写应用、分支版本与需求内容。");
+          return;
+        }
+        submitBtn.disabled = true;
+        fetch(adevBase() + "/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app: app,
+            branch_version: branch,
+            requirement: req,
+          }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            submitBtn.disabled = false;
+            if (!res.ok) {
+              modalShowError(
+                "请求失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            closeNewTaskModal();
+            runAdevQuery();
+          })
+          .catch(function (err) {
+            submitBtn.disabled = false;
+            modalShowError("网络错误: " + err.message);
+          });
+      });
+
+      document.getElementById("adev-btn-query").onclick = runAdevQuery;
+      tbody.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest && e.target.closest(".adev-sse-btn");
+        if (!btn) return;
+        var tid = btn.getAttribute("data-task-id");
+        if (tid) openTaskClaudeSse(tid);
+      });
+      document.getElementById("adev-btn-reset").onclick = function () {
+        document.getElementById("adev-baseUrl").value = "";
+        stSetValue("");
+        stSetOpen(false);
+        document.getElementById("adev-title").value = "";
+        document.getElementById("adev-taskType").value = "";
+        document.getElementById("adev-limit").value = "100";
+      };
+    })();
+  </script>
+</body>
+</html>
