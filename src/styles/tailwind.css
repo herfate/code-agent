@@ -10,4 +10,110 @@
     background-position: right 0.65rem center;
     background-repeat: no-repeat;
   }
+
+  /* Combobox 下拉：细滚动条，避免系统默认粗条 */
+  .ui-combobox-list {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 225) transparent;
+  }
+  .ui-combobox-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .ui-combobox-list::-webkit-scrollbar-track {
+    margin-block: 4px;
+    background: transparent;
+  }
+  .ui-combobox-list::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: rgb(203 213 225);
+    border: 1px solid transparent;
+    background-clip: content-box;
+  }
+  .ui-combobox-list::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(148 163 184);
+  }
+
+  /* 任务 SSE 全屏页：对话式消息流 */
+  .chat-log {
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-slate-100/80 p-3 sm:gap-4 sm:p-4;
+  }
+
+  .chat-turn {
+    @apply flex w-full;
+  }
+  .chat-turn-user {
+    @apply justify-end;
+  }
+  .chat-turn-assistant {
+    @apply justify-start;
+  }
+  .chat-turn-error {
+    @apply justify-center;
+  }
+
+  .chat-bubble {
+    @apply max-w-[min(100%,42rem)] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm;
+  }
+  .chat-turn-user .chat-bubble {
+    @apply rounded-br-md bg-blue-600 text-white;
+  }
+  .chat-turn-assistant .chat-bubble {
+    @apply rounded-bl-md border border-slate-200 bg-white text-slate-800;
+  }
+  .chat-turn-error .chat-bubble {
+    @apply max-w-full rounded-lg border border-red-200 bg-red-50 text-red-800;
+  }
+
+  .chat-text {
+    @apply whitespace-pre-wrap break-words;
+  }
+  .chat-text-thinking {
+    @apply text-slate-600;
+  }
+
+  .chat-thinking {
+    @apply mt-2 border-t border-slate-200/80 pt-2 first:mt-0 first:border-0 first:pt-0;
+  }
+  .chat-turn-user .chat-thinking {
+    @apply border-white/25;
+  }
+  .chat-thinking-label {
+    @apply mb-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700/90;
+  }
+  .chat-turn-user .chat-thinking-label {
+    @apply text-amber-100/90;
+  }
+
+  .chat-tool {
+    @apply mt-2 rounded-lg border border-slate-200/90 bg-slate-50/90 p-2 first:mt-0;
+  }
+  .chat-tool-error {
+    @apply border-red-200 bg-red-50/90;
+  }
+  .chat-tool-result {
+    @apply border-emerald-200/80 bg-emerald-50/50;
+  }
+  .chat-tool-label {
+    @apply mb-1 text-[10px] font-semibold text-slate-500;
+  }
+  .chat-tool-error .chat-tool-label {
+    @apply text-red-600;
+  }
+
+  .chat-scroll-pre {
+    @apply max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-900/5 p-2 font-mono text-[11px] leading-snug text-slate-700;
+  }
+  .chat-turn-user .chat-scroll-pre {
+    @apply bg-black/15 text-white/95;
+  }
+
+  .chat-system {
+    @apply mx-auto max-w-lg rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-xs text-slate-600;
+  }
+  .chat-system-error {
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+  .chat-system-done {
+    @apply border-emerald-200 bg-emerald-50 font-medium text-emerald-800;
+  }
 }

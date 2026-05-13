@@ -20,16 +20,18 @@
 | [`src/config.ts`](src/config.ts) | `dotenv` + Zod 解析环境变量 |
 | [`src/db/`](src/db/) | 数据库单例、会话与消息 repository、工作流（[`workflow.ts`](src/db/workflow.ts)）、提示词模板（[`promptTpl.ts`](src/db/promptTpl.ts)）、系统配置（[`systemConfig.ts`](src/db/systemConfig.ts)） |
 | [`src/sse/helpers.ts`](src/sse/helpers.ts) | 在 `reply.raw` 上组帧输出 SSE |
-| [`src/services/`](src/services/) | Claude / Codex 流式封装 |
-| [`src/routes/`](src/routes/) | 各 HTTP 路由插件（含 [`demoPage.ts`](src/routes/demoPage.ts) 提供 `GET /`、`GET /demo`、`GET /agent-dev`、`GET /user-config`） |
+| [`src/services/`](src/services/) | Claude / Codex 流式封装；[`parentTaskCreateService.ts`](src/services/create/task/parentTaskCreateService.ts) 新增父任务并分解 `subtasks`；[`dbConfig.ts`](src/services/dbConfig.ts) 从 `system_config` 读 QA 等；GitLab 键与拼克隆 URL 在 [`gitlabTool.ts`](src/services/tools/gitlabTool.ts) |
+| [`src/routes/`](src/routes/) | 各 HTTP 路由插件（含 [`demoPage.ts`](src/routes/demoPage.ts) 提供 `GET /`、`GET /demo`、`GET /agent-dev`、`GET /agent-dev/task-stream`、`GET /dev-agent`、`GET /user-config`） |
 | [`public/index.html`](public/index.html) | 管理台首页（左侧菜单 + 内容区） |
 | [`public/demo.html`](public/demo.html) | 对话演示页 |
 | [`public/agentDev.html`](public/agentDev.html) | 开发 Agent 独立页（`tasks` 查询） |
+| [`public/agentDevTaskStream.html`](public/agentDevTaskStream.html) | 任务 Claude SSE 全屏页（`?taskId=&base=`，由列表「新标签打开」进入） |
+| [`public/devAgent.html`](public/devAgent.html) | 父任务独立页（`parent_task` 查询与新增） |
 | [`public/userConfig.html`](public/userConfig.html) | 用户与系统配置独立页（`system_config` 查询） |
 | [`public/app.css`](public/app.css) | Tailwind 构建产物（由 `npm run build` / `build:css` 生成） |
 | [`src/styles/tailwind.css`](src/styles/tailwind.css) | Tailwind 入口（`@tailwind` 指令） |
 
-> `GET /` 返回管理台（[`public/index.html`](public/index.html)，含 `/?page=demo` 嵌入 [`/demo`](public/demo.html)、`/?page=adev` 嵌入 [`/agent-dev`](public/agentDev.html)、`/?page=ucfg` 嵌入 [`/user-config`](public/userConfig.html)）；`GET /demo`、`GET /agent-dev`、`GET /user-config` 分别返回对应独立页面。改界面编辑 `public/index.html`、`public/demo.html`、`public/agentDev.html`、`public/userConfig.html` 与 [`src/styles/tailwind.css`](src/styles/tailwind.css)（如 `.form-select`），交付前执行 **`npm run build`**（含 `build:css`）。本地改样式时可并行运行 **`npm run dev:css`**（监听生成 `public/app.css`）与 **`npm run dev`**。静态资源由 `public/` 经 `@fastify/static` 挂载（如 `/app.css`）。
+> `GET /` 返回管理台（[`public/index.html`](public/index.html)，含 `/?page=demo` 嵌入 [`/demo`](public/demo.html)、`/?page=adev` 嵌入 [`/agent-dev`](public/agentDev.html)、`/?page=dagent` 嵌入 [`/dev-agent`](public/devAgent.html)、`/?page=ucfg` 嵌入 [`/user-config`](public/userConfig.html)）；`GET /demo`、`GET /agent-dev`、`GET /agent-dev/task-stream`、`GET /dev-agent`、`GET /user-config` 分别返回对应独立页面。改界面编辑 `public/index.html`、`public/demo.html`、`public/agentDev.html`、`public/agentDevTaskStream.html`、`public/devAgent.html`、`public/userConfig.html` 与 [`src/styles/tailwind.css`](src/styles/tailwind.css)（如 `.form-select`），交付前执行 **`npm run build`**（含 `build:css`）。本地改样式时可并行运行 **`npm run dev:css`**（监听生成 `public/app.css`）与 **`npm run dev`**。静态资源由 `public/` 经 `@fastify/static` 挂载（如 `/app.css`）。
 
 ## 约定
 

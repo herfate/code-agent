@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { parseTaskTypeOptional, type TaskType } from "../constants/taskType.js";
 
 /** 提示词模板配置（与表 `prompt_tpl` 对应） */
 export type PromptTplRow = {
@@ -9,7 +10,7 @@ export type PromptTplRow = {
   updated_at: number;
   order_index: number | null;
   prompt: string | null;
-  task_type: string | null;
+  task_type: TaskType | null;
   tpl_key: string | null;
   username: string | null;
 };
@@ -17,7 +18,7 @@ export type PromptTplRow = {
 export type CreatePromptTplInput = {
   order_index?: number | null;
   prompt?: string | null;
-  task_type?: string | null;
+  task_type?: TaskType | null;
   tpl_key?: string | null;
   username?: string | null;
 };
@@ -25,7 +26,7 @@ export type CreatePromptTplInput = {
 export type UpdatePromptTplPatch = Partial<{
   order_index: number | null;
   prompt: string | null;
-  task_type: string | null;
+  task_type: TaskType | null;
   tpl_key: string | null;
   username: string | null;
 }>;
@@ -34,7 +35,8 @@ function now(): number {
   return Date.now();
 }
 
-function rowFromGet(r: unknown): PromptTplRow | undefined {
+/** 将查询结果行映射为 {@link PromptTplRow} */
+export function rowFromGet(r: unknown): PromptTplRow | undefined {
   if (!r || typeof r !== "object") return undefined;
   const o = r as Record<string, unknown>;
   return {
@@ -43,7 +45,7 @@ function rowFromGet(r: unknown): PromptTplRow | undefined {
     updated_at: Number(o.updated_at),
     order_index: o.order_index === null || o.order_index === undefined ? null : Number(o.order_index),
     prompt: o.prompt === null || o.prompt === undefined ? null : String(o.prompt),
-    task_type: o.task_type === null || o.task_type === undefined ? null : String(o.task_type),
+    task_type: parseTaskTypeOptional(o.task_type),
     tpl_key: o.tpl_key === null || o.tpl_key === undefined ? null : String(o.tpl_key),
     username: o.username === null || o.username === undefined ? null : String(o.username),
   };
@@ -89,7 +91,7 @@ export function listPromptTpl(db: DatabaseSync, limit = 500): PromptTplRow[] {
   return rows.map((r) => rowFromGet(r)!).filter(Boolean);
 }
 
-export function listPromptTplByTaskType(db: DatabaseSync, taskType: string, limit = 200): PromptTplRow[] {
+export function listPromptTplByTaskType(db: DatabaseSync, taskType: TaskType, limit = 200): PromptTplRow[] {
   const rows = db
     .prepare(
       `SELECT id, created_at, updated_at, order_index, prompt, task_type, tpl_key, username

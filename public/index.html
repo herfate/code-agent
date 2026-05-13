@@ -27,6 +27,9 @@
         <button type="button" data-nav-page="adev" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           开发 Agent
         </button>
+        <button type="button" data-nav-page="dagent" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          父任务
+        </button>
         <button type="button" data-nav-page="ucfg" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           用户配置
         </button>
@@ -43,6 +46,7 @@
           <span id="page-badge" class="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">概览</span>
           <a id="header-demo-link" href="/demo" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">新窗口打开演示</a>
           <a id="header-agentdev-link" href="/agent-dev" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开开发 Agent</a>
+          <a id="header-devagent-link" href="/dev-agent" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开父任务</a>
           <a id="header-ucfg-link" href="/user-config" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开用户配置</a>
         </div>
       </header>
@@ -53,7 +57,7 @@
             <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 class="text-lg font-semibold text-slate-800">欢迎使用</h2>
               <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-                本管理台用于本地调试 <strong class="font-medium text-slate-800">code-agent</strong>：左侧 <strong class="font-medium text-slate-800">对话演示</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/demo</code>；<strong class="font-medium text-slate-800">开发 Agent</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/agent-dev</code> 查询任务；<strong class="font-medium text-slate-800">用户配置</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/user-config</code> 查询 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">system_config</code>。
+                本管理台用于本地调试 <strong class="font-medium text-slate-800">code-agent</strong>：左侧 <strong class="font-medium text-slate-800">对话演示</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/demo</code>；<strong class="font-medium text-slate-800">开发 Agent</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/agent-dev</code> 查询任务；<strong class="font-medium text-slate-800">父任务</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/dev-agent</code>；<strong class="font-medium text-slate-800">用户配置</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/user-config</code> 查询 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">system_config</code>。
               </p>
             </div>
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -78,6 +82,9 @@
         <div id="view-adev" class="absolute inset-0 hidden bg-white">
           <iframe id="adev-frame" class="h-full w-full border-0" title="开发 Agent"></iframe>
         </div>
+        <div id="view-dagent" class="absolute inset-0 hidden bg-white">
+          <iframe id="dagent-frame" class="h-full w-full border-0" title="父任务"></iframe>
+        </div>
         <div id="view-ucfg" class="absolute inset-0 hidden bg-white">
           <iframe id="ucfg-frame" class="h-full w-full border-0" title="用户配置"></iframe>
         </div>
@@ -89,14 +96,17 @@
       var home = document.getElementById("view-home");
       var demo = document.getElementById("view-demo");
       var adev = document.getElementById("view-adev");
+      var dagent = document.getElementById("view-dagent");
       var ucfg = document.getElementById("view-ucfg");
       var frame = document.getElementById("demo-frame");
       var adevFrame = document.getElementById("adev-frame");
+      var dagentFrame = document.getElementById("dagent-frame");
       var ucfgFrame = document.getElementById("ucfg-frame");
       var title = document.getElementById("page-title");
       var badge = document.getElementById("page-badge");
       var headerDemoLink = document.getElementById("header-demo-link");
       var headerAgentDevLink = document.getElementById("header-agentdev-link");
+      var headerDevAgentLink = document.getElementById("header-devagent-link");
       var headerUcfgLink = document.getElementById("header-ucfg-link");
       var navBtns = document.querySelectorAll("[data-nav-page]");
 
@@ -107,9 +117,11 @@
             ? "/?page=demo"
             : page === "adev"
               ? "/?page=adev"
-              : page === "ucfg"
-                ? "/?page=ucfg"
-                : "/";
+              : page === "dagent"
+                ? "/?page=dagent"
+                : page === "ucfg"
+                  ? "/?page=ucfg"
+                  : "/";
         if (location.pathname + location.search !== target) {
           history.replaceState({}, "", target);
         }
@@ -131,9 +143,11 @@
         home.classList.toggle("hidden", page !== "home");
         demo.classList.toggle("hidden", page !== "demo");
         adev.classList.toggle("hidden", page !== "adev");
+        dagent.classList.toggle("hidden", page !== "dagent");
         ucfg.classList.toggle("hidden", page !== "ucfg");
-        headerDemoLink.classList.toggle("hidden", page === "adev" || page === "ucfg");
+        headerDemoLink.classList.toggle("hidden", page === "adev" || page === "dagent" || page === "ucfg");
         headerAgentDevLink.classList.toggle("hidden", page !== "adev");
+        headerDevAgentLink.classList.toggle("hidden", page !== "dagent");
         headerUcfgLink.classList.toggle("hidden", page !== "ucfg");
 
         if (page === "demo") {
@@ -151,6 +165,14 @@
             "rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-700";
           if (!adevFrame.getAttribute("src") || adevFrame.getAttribute("src") === "about:blank") {
             adevFrame.src = "/agent-dev";
+          }
+        } else if (page === "dagent") {
+          title.textContent = "父任务";
+          badge.textContent = "嵌入 /dev-agent";
+          badge.className =
+            "rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800";
+          if (!dagentFrame.getAttribute("src") || dagentFrame.getAttribute("src") === "about:blank") {
+            dagentFrame.src = "/dev-agent";
           }
         } else if (page === "ucfg") {
           title.textContent = "用户配置";
@@ -177,9 +199,49 @@
 
       var q = new URLSearchParams(location.search).get("page");
       var initial =
-        q === "demo" ? "demo" : q === "adev" ? "adev" : q === "ucfg" ? "ucfg" : "home";
+        q === "demo" ? "demo" : q === "adev" ? "adev" : q === "dagent" ? "dagent" : q === "ucfg" ? "ucfg" : "home";
       show(initial);
     })();
+  </script>
+  <!-- 引入Keycloak JS适配器和认证组件 -->
+  <script src="js/keycloak.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      var keycloak = new Keycloak({
+        url: 'http://pd-keycloak.intelnal.howbuy.com/',
+        realm: 'dtms',
+        clientId: 'dtms-manager-web',
+      });
+
+      keycloak.init({ onLoad: 'login-required' }).then(async (authenticated) => {
+        console.log('authenticated' + authenticated);
+        if (authenticated) {
+          //设置token
+          setLocalItem('token', keycloak.token.toString());
+          setLocalItem('refreshToken', keycloak.refreshToken.toString());
+          setLocalItem('tokenExpire', keycloak.tokenParsed?.exp);
+          //获取token的
+          let userName = null
+          if (keycloak.tokenParsed.email) {
+            userName = keycloak.tokenParsed.email.split('@')[0]
+          } else {
+            userName = keycloak.tokenParsed['preferred_username']
+          }
+          setLocalItem('userName', userName);
+        }
+      }).catch((error) => {
+        console.error('Keycloak initialization failed', error);
+        //keycloakInstance.login();
+      });
+
+    });
+
+    function setLocalItem(key, val) {
+      if (typeof window === "undefined") {
+        return false;
+      }
+      return window.localStorage.setItem(key, val);
+    }
   </script>
 </body>
 </html>

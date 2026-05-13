@@ -38,9 +38,10 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   status INTEGER NOT NULL CHECK (status BETWEEN 1 AND 6),
-  task_type TEXT NOT NULL DEFAULT '1',
-  workflow_def_id TEXT,
-  thread_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
+  task_type INTEGER NOT NULL DEFAULT 1 CHECK (task_type BETWEEN 0 AND 200),
+  creator TEXT,
+  pid TEXT,
+  thread_id TEXT ,
   input_json TEXT,
   output_json TEXT,
   error_message TEXT,
@@ -57,36 +58,51 @@ CREATE TABLE IF NOT EXISTS subtasks (
   sort_order INTEGER NOT NULL DEFAULT 0,
   title TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
-  step_key TEXT,
   status INTEGER NOT NULL CHECK (status BETWEEN 1 AND 6),
   kind TEXT NOT NULL DEFAULT 'agent' CHECK (kind IN ('agent', 'tool', 'approval', 'script', 'human')),
-  payload_json TEXT,
   result_json TEXT,
   error_message TEXT,
   retry_count INTEGER NOT NULL DEFAULT 0,
+  prompt_id TEXT,
+  tpl_file_path TEXT,
+  out_file_path TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   started_at INTEGER,
   completed_at INTEGER
 );
 
+CREATE INDEX IF NOT EXISTS idx_tasks_pid ON tasks(pid);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_thread ON tasks(thread_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_task_type ON tasks(task_type);
 CREATE INDEX IF NOT EXISTS idx_subtasks_task_order ON subtasks(task_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_subtasks_task_status ON subtasks(task_id, status);
 
-CREATE TABLE IF NOT EXISTS task_params (
+CREATE TABLE IF NOT EXISTS parent_task (
+  pid TEXT PRIMARY KEY,
+  title TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  task_type INTEGER NOT NULL DEFAULT 1 ,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_parent_task_task_type ON parent_task(task_type);
+CREATE INDEX IF NOT EXISTS idx_parent_task_created ON parent_task(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS parent_task_params (
   id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  parent_task_id TEXT NOT NULL REFERENCES parent_task(pid) ON DELETE CASCADE,
   param_key TEXT NOT NULL,
   value_json TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  UNIQUE (task_id, param_key)
+  UNIQUE (parent_task_id, param_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_task_params_task ON task_params(task_id);
+CREATE INDEX IF NOT EXISTS idx_parent_task_params_parent ON parent_task_params(parent_task_id);
 
 CREATE TABLE IF NOT EXISTS prompt_tpl (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -94,12 +110,13 @@ CREATE TABLE IF NOT EXISTS prompt_tpl (
   updated_at INTEGER NOT NULL,
   order_index INTEGER,
   prompt TEXT,
-  task_type TEXT,
+  task_type INTEGER ,
   tpl_key TEXT,
   username TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_prompt_tpl_task_type_order ON prompt_tpl(task_type, order_index);
+CREATE INDEX IF NOT EXISTS idx_prompt_tpl_task_type_username ON prompt_tpl(task_type, username);
 CREATE INDEX IF NOT EXISTS idx_prompt_tpl_tpl_key ON prompt_tpl(tpl_key);
 
 CREATE TABLE IF NOT EXISTS system_config (
@@ -146,14 +163,6 @@ CREATE TABLE IF NOT EXISTS agent_run_events (
 CREATE INDEX IF NOT EXISTS idx_agent_run_events_run ON agent_run_events(run_id, seq);
 `;
 
-function migrateTasksTaskType(database: DatabaseSync): void {
-  const cols = database.prepare(`PRAGMA table_info(tasks)`).all() as { name: string }[];
-  if (!cols.some((c) => c.name === "task_type")) {
-    database.exec(`ALTER TABLE tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT '1'`);
-  }
-  database.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_task_type ON tasks(task_type)`);
-}
-
 export function getDb(databasePath: string): DatabaseSync {
   if (db) return db;
   ensureDirForFile(databasePath);
@@ -161,7 +170,6 @@ export function getDb(databasePath: string): DatabaseSync {
   db = new DatabaseSync(resolved);
   db.exec(initSql);
   migrateTasksSubtasksStatusToNumeric(db);
-  migrateTasksTaskType(db);
   return db;
 }
 

@@ -6,3 +6,5 @@ data/
 .DS_Store
 tmp-*.json
 .idea/
+ai_out/
+task-repo/

@@ -18,7 +18,7 @@ export function migrateTasksSubtasksStatusToNumeric(db: DatabaseSync): void {
 
     db.exec(`
     CREATE TEMP TABLE _m_subtasks AS SELECT * FROM subtasks;
-    CREATE TEMP TABLE _m_task_params AS SELECT * FROM task_params;
+    CREATE TEMP TABLE _m_parent_task_params AS SELECT * FROM task_params;
   `);
 
     db.exec(`
@@ -28,7 +28,7 @@ export function migrateTasksSubtasksStatusToNumeric(db: DatabaseSync): void {
       description TEXT NOT NULL DEFAULT '',
       status INTEGER NOT NULL CHECK (status BETWEEN 1 AND 6),
       task_type TEXT NOT NULL DEFAULT '1',
-      workflow_def_id TEXT,
+      pid TEXT,
       thread_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
       input_json TEXT,
       output_json TEXT,
@@ -110,19 +110,22 @@ export function migrateTasksSubtasksStatusToNumeric(db: DatabaseSync): void {
     ).run();
 
     db.exec(`
-    CREATE TABLE task_params_new (
+    CREATE TABLE parent_task_params_new (
       id TEXT PRIMARY KEY,
-      task_id TEXT NOT NULL REFERENCES tasks_new(id) ON DELETE CASCADE,
+      parent_task_id TEXT NOT NULL,
       param_key TEXT NOT NULL,
       value_json TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      UNIQUE (task_id, param_key)
+      UNIQUE (parent_task_id, param_key)
     );
   `);
 
-    db.prepare(`INSERT INTO task_params_new SELECT * FROM _m_task_params`).run();
+    db.prepare(
+      `INSERT INTO parent_task_params_new (id, parent_task_id, param_key, value_json, description, created_at, updated_at)
+       SELECT id, task_id, param_key, value_json, description, created_at, updated_at FROM _m_parent_task_params`,
+    ).run();
 
     db.exec(`
     DROP TABLE subtasks;
@@ -130,7 +133,7 @@ export function migrateTasksSubtasksStatusToNumeric(db: DatabaseSync): void {
     DROP TABLE tasks;
     ALTER TABLE tasks_new RENAME TO tasks;
     ALTER TABLE subtasks_new RENAME TO subtasks;
-    ALTER TABLE task_params_new RENAME TO task_params;
+    ALTER TABLE parent_task_params_new RENAME TO parent_task_params;
   `);
 
     db.exec(`
@@ -139,7 +142,7 @@ export function migrateTasksSubtasksStatusToNumeric(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_tasks_task_type ON tasks(task_type);
     CREATE INDEX IF NOT EXISTS idx_subtasks_task_order ON subtasks(task_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_subtasks_task_status ON subtasks(task_id, status);
-    CREATE INDEX IF NOT EXISTS idx_task_params_task ON task_params(task_id);
+    CREATE INDEX IF NOT EXISTS idx_parent_task_params_parent ON parent_task_params(parent_task_id);
   `);
 
     db.exec("COMMIT");

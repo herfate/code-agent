@@ -8,7 +8,7 @@ import {
   insertMessage,
   updateThreadExternalId,
 } from "../db/repository.js";
-import { streamClaudeQueryToSse } from "../services/claudeAgent.js";
+import { streamClaudeQueryToSse } from "../services/agentsdk/claudeAgent.js";
 import { pipeAgentRunReplayToSse } from "../sse/replayAgentRun.js";
 
 const bodySchema = z.object({
@@ -74,6 +74,7 @@ export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: Data
 
     const { sessionId, assistantText, sdkError } = await streamClaudeQueryToSse(reply, {
       threadId,
+      taskId: '0',
       prompt,
       model,
       resume: resumeSessionId,

@@ -9,23 +9,19 @@ import {
   type SubTaskStatus,
   subtaskStatusLabel,
 } from "../constants/subtaskStatus.js";
+import {
+  parseTaskType,
+  TASK_TYPE,
+  TASK_TYPE_DEV,
+  taskTypeLabel,
+  type TaskType,
+} from "../constants/taskType.js";
 
 export type { TaskStatus };
 export type { SubTaskStatus };
+export type { TaskType };
 export { TASK_STATUS, taskStatusLabel, SUBTASK_STATUS, subtaskStatusLabel };
-
-/** `tasks.task_type`：`1` = 开发任务（后续可扩展其它取值） */
-export type TaskType = "1";
-export const TASK_TYPE_DEV: TaskType = "1";
-
-export function taskTypeLabel(code: string): string {
-  switch (code) {
-    case "1":
-      return "开发任务";
-    default:
-      return code;
-  }
-}
+export { TASK_TYPE, TASK_TYPE_DEV, taskTypeLabel, parseTaskType };
 
 /** 工作流子任务（任务内的一个步骤 / 节点） */
 export type SubTaskKind = "agent" | "tool" | "approval" | "script" | "human";
@@ -36,9 +32,11 @@ export type TaskRow = {
   title: string;
   description: string;
   status: TaskStatus;
-  /** 任务类型：`1` = 开发任务 */
+  /** 任务类型：见 {@link TASK_TYPE} */
   task_type: TaskType;
-  workflow_def_id: string | null;
+  /** HTTPS 克隆时作为 token 的 Basic 用户名；空则沿用 `oauth2` 默认 */
+  creator: string | null;
+  pid: string | null;
   thread_id: string | null;
   /** JSON 字符串：工作流入参 */
   input_json: string | null;
@@ -60,25 +58,25 @@ export type SubTaskRow = {
   sort_order: number;
   title: string;
   description: string;
-  step_key: string | null;
   status: SubTaskStatus;
   kind: SubTaskKind;
-  /** JSON 字符串：本步骤入参 */
-  payload_json: string | null;
   /** JSON 字符串：本步骤出参 */
   result_json: string | null;
   error_message: string | null;
   retry_count: number;
+  prompt_id: string | null;
+  tpl_file_path: string | null;
+  out_file_path: string | null;
   created_at: number;
   updated_at: number;
   started_at: number | null;
   completed_at: number | null;
 };
 
-/** 任务运行参数（与表 `task_params` 对应；按 param_key 存运行所需配置） */
-export type TaskParamRow = {
+/** 父任务运行参数（与表 `parent_task_params` 对应；按 param_key 存运行所需配置） */
+export type ParentTaskParamRow = {
   id: string;
-  task_id: string;
+  parent_task_id: string;
   param_key: string;
   /** JSON 字符串：任意合法 JSON */
   value_json: string;
@@ -93,10 +91,14 @@ export type CreateTaskInput = {
   description?: string;
   status?: TaskStatus;
   task_type?: TaskType;
-  workflow_def_id?: string | null;
+  creator?: string | null;
+  pid?: string | null;
   thread_id?: string | null;
   input_json?: string | null;
   meta_json?: string | null;
+  /** 省略时取当前时间；批量创建时可传入递增时间戳以便排序区分 */
+  created_at?: number;
+  updated_at?: number;
 };
 
 export type UpdateTaskPatch = Partial<{
@@ -104,7 +106,8 @@ export type UpdateTaskPatch = Partial<{
   description: string;
   status: TaskStatus;
   task_type: TaskType;
-  workflow_def_id: string | null;
+  creator: string | null;
+  pid: string | null;
   thread_id: string | null;
   input_json: string | null;
   output_json: string | null;
@@ -120,36 +123,38 @@ export type CreateSubTaskInput = {
   sort_order?: number;
   title?: string;
   description?: string;
-  step_key?: string | null;
   status?: SubTaskStatus;
   kind?: SubTaskKind;
-  payload_json?: string | null;
+  prompt_id?: string | null;
+  tpl_file_path?: string | null;
+  out_file_path?: string | null;
 };
 
 export type UpdateSubTaskPatch = Partial<{
   title: string;
   description: string;
-  step_key: string | null;
   sort_order: number;
   status: SubTaskStatus;
   kind: SubTaskKind;
-  payload_json: string | null;
   result_json: string | null;
   error_message: string | null;
   retry_count: number;
+  prompt_id: string | null;
+  tpl_file_path: string | null;
+  out_file_path: string | null;
   started_at: number | null;
   completed_at: number | null;
 }>;
 
-export type CreateTaskParamInput = {
+export type CreateParentTaskParamInput = {
   id: string;
-  task_id: string;
+  parent_task_id: string;
   param_key: string;
   value_json: string;
   description?: string;
 };
 
-export type UpdateTaskParamPatch = Partial<{
+export type UpdateParentTaskParamPatch = Partial<{
   param_key: string;
   value_json: string;
   description: string;
@@ -160,29 +165,32 @@ function now(): number {
 }
 
 export function createTask(db: DatabaseSync, input: CreateTaskInput): TaskRow {
-  const t = now();
+  const t = input.created_at ?? now();
+  const u = input.updated_at ?? t;
   const title = input.title ?? "";
   const description = input.description ?? "";
   const status = input.status ?? TASK_STATUS.Pending;
-  const taskType = input.task_type ?? TASK_TYPE_DEV;
+  const taskType = input.task_type ?? TASK_TYPE.Dev;
+  const creator = input.creator?.trim() ? input.creator.trim() : null;
   db.prepare(
     `INSERT INTO tasks (
-       id, title, description, status, task_type, workflow_def_id, thread_id,
+       id, title, description, status, task_type, creator, pid, thread_id,
        input_json, output_json, error_message, meta_json,
        created_at, updated_at, started_at, completed_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, NULL)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, NULL)`,
   ).run(
     input.id,
     title,
     description,
     status,
     taskType,
-    input.workflow_def_id ?? null,
+    creator,
+    input.pid ?? null,
     input.thread_id ?? null,
     input.input_json ?? null,
     input.meta_json ?? null,
     t,
-    t,
+    u,
   );
   return getTask(db, input.id)!;
 }
@@ -190,12 +198,30 @@ export function createTask(db: DatabaseSync, input: CreateTaskInput): TaskRow {
 export function getTask(db: DatabaseSync, id: string): TaskRow | undefined {
   return db
     .prepare(
-      `SELECT id, title, description, status, task_type, workflow_def_id, thread_id,
+      `SELECT id, title, description, status, task_type, creator, pid, thread_id,
               input_json, output_json, error_message, meta_json,
               created_at, updated_at, started_at, completed_at
        FROM tasks WHERE id = ?`,
     )
     .get(id) as TaskRow | undefined;
+}
+
+/** 按父任务 `pid` 列出关联任务（创建时间升序） */
+export function listTasksByPid(db: DatabaseSync, pid: string): TaskRow[] {
+  return db
+    .prepare(
+      `SELECT id, title, description, status, task_type, creator, pid, thread_id,
+              input_json, output_json, error_message, meta_json,
+              created_at, updated_at, started_at, completed_at
+       FROM tasks WHERE pid = ? ORDER BY created_at ASC`,
+    )
+    .all(pid) as TaskRow[];
+}
+
+/** 按父任务 `pid` 取最近一条任务 */
+export function getLatestTaskByPid(db: DatabaseSync, pid: string): TaskRow | undefined {
+  const rows = listTasksByPid(db, pid);
+  return rows.length > 0 ? rows[rows.length - 1] : undefined;
 }
 
 /**
@@ -213,23 +239,10 @@ export function claimTaskIfPending(db: DatabaseSync, id: string): TaskRow | unde
   return getTask(db, id);
 }
 
-/** 待执行任务队列扫描：状态 1 按创建时间升序（先入先出）。 */
-export function listPendingTasksForScan(db: DatabaseSync, limit = 10): TaskRow[] {
-  const n = Math.min(500, Math.max(1, limit));
-  return db
-    .prepare(
-      `SELECT id, title, description, status, task_type, workflow_def_id, thread_id,
-              input_json, output_json, error_message, meta_json,
-              created_at, updated_at, started_at, completed_at
-       FROM tasks WHERE status = ? ORDER BY created_at ASC LIMIT ?`,
-    )
-    .all(TASK_STATUS.Pending, n) as TaskRow[];
-}
-
 export function listTasks(db: DatabaseSync, limit = 100): TaskRow[] {
   return db
     .prepare(
-      `SELECT id, title, description, status, task_type, workflow_def_id, thread_id,
+      `SELECT id, title, description, status, task_type, creator, pid, thread_id,
               input_json, output_json, error_message, meta_json,
               created_at, updated_at, started_at, completed_at
        FROM tasks ORDER BY created_at DESC LIMIT ?`,
@@ -240,7 +253,7 @@ export function listTasks(db: DatabaseSync, limit = 100): TaskRow[] {
 export function listTasksByStatus(db: DatabaseSync, status: TaskStatus, limit = 100): TaskRow[] {
   return db
     .prepare(
-      `SELECT id, title, description, status, task_type, workflow_def_id, thread_id,
+      `SELECT id, title, description, status, task_type, creator, pid, thread_id,
               input_json, output_json, error_message, meta_json,
               created_at, updated_at, started_at, completed_at
        FROM tasks WHERE status = ? ORDER BY created_at DESC LIMIT ?`,
@@ -272,7 +285,7 @@ export function listTasksFiltered(
   }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
-  const sql = `SELECT id, title, description, status, task_type, workflow_def_id, thread_id,
+  const sql = `SELECT id, title, description, status, task_type, creator, pid, thread_id,
               input_json, output_json, error_message, meta_json,
               created_at, updated_at, started_at, completed_at
        FROM tasks ${where} ORDER BY created_at DESC LIMIT ?`;
@@ -290,7 +303,8 @@ export function updateTask(db: DatabaseSync, id: string, patch: UpdateTaskPatch)
     description: patch.description ?? row.description,
     status: patch.status ?? row.status,
     task_type: patch.task_type ?? row.task_type,
-    workflow_def_id: patch.workflow_def_id !== undefined ? patch.workflow_def_id : row.workflow_def_id,
+    creator: patch.creator !== undefined ? patch.creator : row.creator,
+    pid: patch.pid !== undefined ? patch.pid : row.pid,
     thread_id: patch.thread_id !== undefined ? patch.thread_id : row.thread_id,
     input_json: patch.input_json !== undefined ? patch.input_json : row.input_json,
     output_json: patch.output_json !== undefined ? patch.output_json : row.output_json,
@@ -302,7 +316,7 @@ export function updateTask(db: DatabaseSync, id: string, patch: UpdateTaskPatch)
   };
   db.prepare(
     `UPDATE tasks SET
-       title = ?, description = ?, status = ?, task_type = ?, workflow_def_id = ?, thread_id = ?,
+       title = ?, description = ?, status = ?, task_type = ?, creator = ?, pid = ?, thread_id = ?,
        input_json = ?, output_json = ?, error_message = ?, meta_json = ?,
        updated_at = ?, started_at = ?, completed_at = ?
      WHERE id = ?`,
@@ -311,7 +325,8 @@ export function updateTask(db: DatabaseSync, id: string, patch: UpdateTaskPatch)
     next.description,
     next.status,
     next.task_type,
-    next.workflow_def_id,
+    next.creator,
+    next.pid,
     next.thread_id,
     next.input_json,
     next.output_json,
@@ -339,20 +354,22 @@ export function createSubTask(db: DatabaseSync, input: CreateSubTaskInput): SubT
   const sortOrder = input.sort_order ?? 0;
   db.prepare(
     `INSERT INTO subtasks (
-       id, task_id, sort_order, title, description, step_key, status, kind,
-       payload_json, result_json, error_message, retry_count,
+       id, task_id, sort_order, title, description, status, kind,
+       result_json, error_message, retry_count,
+       prompt_id, tpl_file_path, out_file_path,
        created_at, updated_at, started_at, completed_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, ?, ?, NULL, NULL)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, ?, ?, ?, ?, ?, NULL, NULL)`,
   ).run(
     input.id,
     input.task_id,
     sortOrder,
     title,
     description,
-    input.step_key ?? null,
     status,
     kind,
-    input.payload_json ?? null,
+    input.prompt_id ?? null,
+    input.tpl_file_path ?? null,
+    input.out_file_path ?? null,
     t,
     t,
   );
@@ -362,8 +379,9 @@ export function createSubTask(db: DatabaseSync, input: CreateSubTaskInput): SubT
 export function getSubTask(db: DatabaseSync, id: string): SubTaskRow | undefined {
   return db
     .prepare(
-      `SELECT id, task_id, sort_order, title, description, step_key, status, kind,
-              payload_json, result_json, error_message, retry_count,
+      `SELECT id, task_id, sort_order, title, description, status, kind,
+              result_json, error_message, retry_count,
+              prompt_id, tpl_file_path, out_file_path,
               created_at, updated_at, started_at, completed_at
        FROM subtasks WHERE id = ?`,
     )
@@ -373,8 +391,9 @@ export function getSubTask(db: DatabaseSync, id: string): SubTaskRow | undefined
 export function listSubTasksByTaskId(db: DatabaseSync, taskId: string): SubTaskRow[] {
   return db
     .prepare(
-      `SELECT id, task_id, sort_order, title, description, step_key, status, kind,
-              payload_json, result_json, error_message, retry_count,
+      `SELECT id, task_id, sort_order, title, description, status, kind,
+              result_json, error_message, retry_count,
+              prompt_id, tpl_file_path, out_file_path,
               created_at, updated_at, started_at, completed_at
        FROM subtasks WHERE task_id = ? ORDER BY sort_order ASC, created_at ASC`,
     )
@@ -389,35 +408,38 @@ export function updateSubTask(db: DatabaseSync, id: string, patch: UpdateSubTask
     ...row,
     title: patch.title ?? row.title,
     description: patch.description ?? row.description,
-    step_key: patch.step_key !== undefined ? patch.step_key : row.step_key,
     sort_order: patch.sort_order ?? row.sort_order,
     status: patch.status ?? row.status,
     kind: patch.kind ?? row.kind,
-    payload_json: patch.payload_json !== undefined ? patch.payload_json : row.payload_json,
     result_json: patch.result_json !== undefined ? patch.result_json : row.result_json,
     error_message: patch.error_message !== undefined ? patch.error_message : row.error_message,
     retry_count: patch.retry_count ?? row.retry_count,
+    prompt_id: patch.prompt_id !== undefined ? patch.prompt_id : row.prompt_id,
+    tpl_file_path: patch.tpl_file_path !== undefined ? patch.tpl_file_path : row.tpl_file_path,
+    out_file_path: patch.out_file_path !== undefined ? patch.out_file_path : row.out_file_path,
     started_at: patch.started_at !== undefined ? patch.started_at : row.started_at,
     completed_at: patch.completed_at !== undefined ? patch.completed_at : row.completed_at,
     updated_at: u,
   };
   db.prepare(
     `UPDATE subtasks SET
-       sort_order = ?, title = ?, description = ?, step_key = ?, status = ?, kind = ?,
-       payload_json = ?, result_json = ?, error_message = ?, retry_count = ?,
+       sort_order = ?, title = ?, description = ?, status = ?, kind = ?,
+       result_json = ?, error_message = ?, retry_count = ?,
+       prompt_id = ?, tpl_file_path = ?, out_file_path = ?,
        updated_at = ?, started_at = ?, completed_at = ?
      WHERE id = ?`,
   ).run(
     next.sort_order,
     next.title,
     next.description,
-    next.step_key,
     next.status,
     next.kind,
-    next.payload_json,
     next.result_json,
     next.error_message,
     next.retry_count,
+    next.prompt_id,
+    next.tpl_file_path,
+    next.out_file_path,
     next.updated_at,
     next.started_at,
     next.completed_at,
@@ -431,68 +453,77 @@ export function deleteSubTask(db: DatabaseSync, id: string): boolean {
   return r.changes > 0;
 }
 
-export function createTaskParam(db: DatabaseSync, input: CreateTaskParamInput): TaskParamRow {
+export function createParentTaskParam(
+  db: DatabaseSync,
+  input: CreateParentTaskParamInput,
+): ParentTaskParamRow {
   const t = now();
   const description = input.description ?? "";
   db.prepare(
-    `INSERT INTO task_params (id, task_id, param_key, value_json, description, created_at, updated_at)
+    `INSERT INTO parent_task_params (id, parent_task_id, param_key, value_json, description, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(input.id, input.task_id, input.param_key, input.value_json, description, t, t);
-  return getTaskParam(db, input.id)!;
+  ).run(input.id, input.parent_task_id, input.param_key, input.value_json, description, t, t);
+  return getParentTaskParam(db, input.id)!;
 }
 
-/** 若已存在相同 task_id + param_key 则更新值与说明，否则插入新行 */
-export function upsertTaskParam(db: DatabaseSync, input: CreateTaskParamInput): TaskParamRow {
-  const existing = getTaskParamByTaskAndKey(db, input.task_id, input.param_key);
+/** 若已存在相同 parent_task_id + param_key 则更新值与说明，否则插入新行 */
+export function upsertParentTaskParam(
+  db: DatabaseSync,
+  input: CreateParentTaskParamInput,
+): ParentTaskParamRow {
+  const existing = getParentTaskParamByParentAndKey(db, input.parent_task_id, input.param_key);
   if (existing) {
-    return updateTaskParam(db, existing.id, {
+    return updateParentTaskParam(db, existing.id, {
       value_json: input.value_json,
       description: input.description !== undefined ? input.description : existing.description,
     })!;
   }
-  return createTaskParam(db, input);
+  return createParentTaskParam(db, input);
 }
 
-export function getTaskParam(db: DatabaseSync, id: string): TaskParamRow | undefined {
+export function getParentTaskParam(db: DatabaseSync, id: string): ParentTaskParamRow | undefined {
   return db
     .prepare(
-      `SELECT id, task_id, param_key, value_json, description, created_at, updated_at
-       FROM task_params WHERE id = ?`,
+      `SELECT id, parent_task_id, param_key, value_json, description, created_at, updated_at
+       FROM parent_task_params WHERE id = ?`,
     )
-    .get(id) as TaskParamRow | undefined;
+    .get(id) as ParentTaskParamRow | undefined;
 }
 
-export function getTaskParamByTaskAndKey(
+export function getParentTaskParamByParentAndKey(
   db: DatabaseSync,
-  taskId: string,
+  parentTaskId: string,
   paramKey: string,
-): TaskParamRow | undefined {
+): ParentTaskParamRow | undefined {
   return db
     .prepare(
-      `SELECT id, task_id, param_key, value_json, description, created_at, updated_at
-       FROM task_params WHERE task_id = ? AND param_key = ?`,
+      `SELECT id, parent_task_id, param_key, value_json, description, created_at, updated_at
+       FROM parent_task_params WHERE parent_task_id = ? AND param_key = ?`,
     )
-    .get(taskId, paramKey) as TaskParamRow | undefined;
+    .get(parentTaskId, paramKey) as ParentTaskParamRow | undefined;
 }
 
-export function listTaskParamsByTaskId(db: DatabaseSync, taskId: string): TaskParamRow[] {
+export function listParentTaskParamsByParentId(
+  db: DatabaseSync,
+  parentTaskId: string,
+): ParentTaskParamRow[] {
   return db
     .prepare(
-      `SELECT id, task_id, param_key, value_json, description, created_at, updated_at
-       FROM task_params WHERE task_id = ? ORDER BY param_key ASC`,
+      `SELECT id, parent_task_id, param_key, value_json, description, created_at, updated_at
+       FROM parent_task_params WHERE parent_task_id = ? ORDER BY param_key ASC`,
     )
-    .all(taskId) as TaskParamRow[];
+    .all(parentTaskId) as ParentTaskParamRow[];
 }
 
-export function updateTaskParam(
+export function updateParentTaskParam(
   db: DatabaseSync,
   id: string,
-  patch: UpdateTaskParamPatch,
-): TaskParamRow | undefined {
-  const row = getTaskParam(db, id);
+  patch: UpdateParentTaskParamPatch,
+): ParentTaskParamRow | undefined {
+  const row = getParentTaskParam(db, id);
   if (!row) return undefined;
   const u = now();
-  const next: TaskParamRow = {
+  const next: ParentTaskParamRow = {
     ...row,
     param_key: patch.param_key ?? row.param_key,
     value_json: patch.value_json ?? row.value_json,
@@ -500,17 +531,23 @@ export function updateTaskParam(
     updated_at: u,
   };
   db.prepare(
-    `UPDATE task_params SET param_key = ?, value_json = ?, description = ?, updated_at = ? WHERE id = ?`,
+    `UPDATE parent_task_params SET param_key = ?, value_json = ?, description = ?, updated_at = ? WHERE id = ?`,
   ).run(next.param_key, next.value_json, next.description, next.updated_at, id);
-  return getTaskParam(db, id);
+  return getParentTaskParam(db, id);
 }
 
-export function deleteTaskParam(db: DatabaseSync, id: string): boolean {
-  const r = db.prepare(`DELETE FROM task_params WHERE id = ?`).run(id);
+export function deleteParentTaskParam(db: DatabaseSync, id: string): boolean {
+  const r = db.prepare(`DELETE FROM parent_task_params WHERE id = ?`).run(id);
   return r.changes > 0;
 }
 
-export function deleteTaskParamByTaskAndKey(db: DatabaseSync, taskId: string, paramKey: string): boolean {
-  const r = db.prepare(`DELETE FROM task_params WHERE task_id = ? AND param_key = ?`).run(taskId, paramKey);
+export function deleteParentTaskParamByParentAndKey(
+  db: DatabaseSync,
+  parentTaskId: string,
+  paramKey: string,
+): boolean {
+  const r = db
+    .prepare(`DELETE FROM parent_task_params WHERE parent_task_id = ? AND param_key = ?`)
+    .run(parentTaskId, paramKey);
   return r.changes > 0;
 }

@@ -130,3 +130,85 @@ export function isAppKey(value: string): value is AppKey {
 export function getApp(key: AppKey): AppDefinition {
   return APPS[key];
 }
+
+/**
+ * 按任务里的应用标识解析 GitLab 仓库根 URL（与 `tasks.input_json.gitRemoteUrl` 一致，用于 clone）。
+ * 匹配顺序：枚举键（忽略大小写）→ `repoId`（忽略大小写）。
+ */
+export function getGitlabUrlForAppLookup(appName: string): string | undefined {
+  const t = appName.trim();
+  if (!t) return undefined;
+  for (const k of APP_KEYS) {
+    if (k === t || k.toLowerCase() === t.toLowerCase()) return APPS[k].gitlabUrl;
+  }
+  const lower = t.toLowerCase();
+  for (const k of APP_KEYS) {
+    if (APPS[k].repoId.toLowerCase() === lower) return APPS[k].gitlabUrl;
+  }
+  return undefined;
+}
+
+/**
+ * 解析 DevOps 部署用的 `serverName`（应用/模块名）。
+ * 匹配顺序：枚举键（忽略大小写）→ `repoId`（忽略大小写）→ 原样返回 trim 后的输入。
+ */
+export function resolveServerNameForDeploy(appName: string): string | undefined {
+  const t = appName.trim();
+  if (!t) return undefined;
+  for (const k of APP_KEYS) {
+    if (k === t || k.toLowerCase() === t.toLowerCase()) return APPS[k].repoId;
+  }
+  const lower = t.toLowerCase();
+  for (const k of APP_KEYS) {
+    if (APPS[k].repoId.toLowerCase() === lower) return APPS[k].repoId;
+  }
+  return t;
+}
+
+/**
+ * 按 git 地址在 catalog 中解析 DevOps 用的 `repoId`（`serverName`）。
+ * 同一仓库多应用时，可传 `hintApp`（枚举键或 `repoId`）消歧。
+ */
+export function resolveRepoIdFromGitRemoteUrl(gitRemoteUrl: string, hintApp?: string): string | undefined {
+  const matches = listAppKeysByGitRemoteUrl(gitRemoteUrl);
+  if (matches.length === 0) return undefined;
+  if (matches.length === 1) return APPS[matches[0]].repoId;
+
+  const hint = hintApp?.trim();
+  if (hint) {
+    for (const k of matches) {
+      if (k === hint || k.toLowerCase() === hint.toLowerCase()) return APPS[k].repoId;
+      if (APPS[k].repoId.toLowerCase() === hint.toLowerCase()) return APPS[k].repoId;
+    }
+  }
+  return undefined;
+}
+
+
+/** 列出与 git 地址匹配的全部 `AppKey`（同一仓库可能对应多个应用模块） */
+export function listAppKeysByGitRemoteUrl(gitRemoteUrl: string): AppKey[] {
+  const normalized = normalizeGitRemoteUrlForMatch(gitRemoteUrl);
+  if (!normalized) return [];
+  const matches: AppKey[] = [];
+  for (const k of APP_KEYS) {
+    const catalogNorm = normalizeGitRemoteUrlForMatch(APPS[k].gitlabUrl);
+    if (catalogNorm === normalized) matches.push(k);
+  }
+  return matches;
+}
+
+
+/** 归一化 Git 远程地址，便于与 catalog 中 `gitlabUrl` 比对（忽略协议大小写、末尾 `/`、`.git` 后缀） */
+function normalizeGitRemoteUrlForMatch(gitRemoteUrl: string): string | undefined {
+  const raw = gitRemoteUrl.trim();
+  if (!raw) return undefined;
+  const withProto = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const u = new URL(withProto);
+    const path = u.pathname.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+    if (!path) return undefined;
+    return `${u.protocol}//${u.host}/${path}`.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}

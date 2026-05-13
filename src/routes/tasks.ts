@@ -2,8 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DatabaseSync } from "node:sqlite";
+import { getGitlabUrlForAppLookup } from "../constants/appCatalog.js";
 import { isTaskStatus, type TaskStatus } from "../constants/taskStatus.js";
+import { TASK_TYPE } from "../constants/taskType.js";
 import { createTask, getTask, listTasks, listTasksFiltered } from "../db/workflow.js";
+import { zTaskCreator } from "../validation/taskCreatorZod.js";
+import { zTaskTypeOptional } from "../validation/taskTypeZod.js";
 import { getClaudeAgentRunIdFromTaskMeta } from "../services/taskClaudeMeta.js";
 import { pipeAgentRunReplayToSse } from "../sse/replayAgentRun.js";
 
@@ -11,6 +15,7 @@ const createTaskBody = z.object({
   app: z.string().trim().min(1).max(500),
   branch_version: z.string().trim().min(1).max(500),
   requirement: z.string().trim().min(1).max(50_000),
+  creator: zTaskCreator,
 });
 
 const listTasksQuery = z.object({
@@ -19,7 +24,7 @@ const listTasksQuery = z.object({
     .int()
     .refine((n): n is TaskStatus => isTaskStatus(n), { message: "invalid status" })
     .optional(),
-  task_type: z.enum(["1"]).optional(),
+  task_type: zTaskTypeOptional,
   title: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
@@ -78,18 +83,23 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: DatabaseSyn
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const { app: appName, branch_version, requirement } = parsed.data;
+    const { app: appName, branch_version, requirement, creator } = parsed.data;
     const id = randomUUID();
-    const inputJson = JSON.stringify({
-      app: appName,
-      branch_version,
-      requirement,
-    });
+    const gitRemoteUrl = getGitlabUrlForAppLookup(appName);
+    const inputPayload: {
+      app: string;
+      branch_version: string;
+      requirement: string;
+      gitRemoteUrl?: string;
+    } = { app: appName, branch_version, requirement };
+    if (gitRemoteUrl) inputPayload.gitRemoteUrl = gitRemoteUrl;
+    const inputJson = JSON.stringify(inputPayload);
     const task = createTask(db, {
       id,
       title: `${appName} / ${branch_version}`,
       description: requirement,
-      task_type: "1",
+      task_type: TASK_TYPE.Dev,
+      creator,
       input_json: inputJson,
     });
     return reply.status(201).send({ task });

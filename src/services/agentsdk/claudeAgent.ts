@@ -1,8 +1,10 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyReply } from "fastify";
-import { appendAgentRunEvent, finishAgentRun } from "../db/agentRun.js";
+import { appendAgentRunEvent, finishAgentRun } from "../../db/agentRun.js";
 import {
   attachAbortOnClose,
   endSse,
@@ -10,7 +12,7 @@ import {
   sendSseData,
   sendSseDone,
   sendSseError,
-} from "../sse/helpers.js";
+} from "../../sse/helpers.js";
 
 function summarizeSdkMessage(msg: SDKMessage): Record<string, unknown> {
   if (msg.type === "assistant" || msg.type === "user") {
@@ -39,6 +41,7 @@ function summarizeSdkMessage(msg: SDKMessage): Record<string, unknown> {
 
 export type ClaudeSseOptions = {
   threadId: string;
+  pId: string;
   prompt: string;
   model?: string;
   resume?: string;
@@ -107,13 +110,16 @@ export async function streamClaudeQueryToSse(
   let sdkError: string | null = null;
 
   try {
+    const taskRepoCwd = path.join(process.cwd(), "task-repo", opts.pId);
+
+    //开始call cc
     const q = query({
       prompt: opts.prompt,
       options: {
         abortController: controller,
         model: opts.model,
         resume: opts.resume,
-        cwd: 'C:\\work\\my\\ai\\ai_work4j\\ai_work4j',
+        cwd: taskRepoCwd,
         canUseTool: async () => ({ behavior: "allow" as const }),
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
@@ -128,6 +134,7 @@ export async function streamClaudeQueryToSse(
         if (msg.subtype === "success") {
           assistantText = msg.result;
         } else {
+          console.log( "Claude error1:", msg.errors)
           sdkError = msg.errors?.join("; ") ?? msg.subtype;
         }
       }
@@ -140,6 +147,7 @@ export async function streamClaudeQueryToSse(
       finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
     }
   } catch (err) {
+    console.log("Claude error2:", err)
     const message = err instanceof Error ? err.message : String(err);
     sdkError = sdkError ?? message;
     if (recorder) {

@@ -4,10 +4,9 @@ import { z } from "zod";
 import {
   QA_CONFIG_KEY_PASSWORD,
   QA_CONFIG_KEY_USERNAME,
-  getQaCredentials,
-  qaGetData,
-  qaPostRaw,
-} from "../services/qaPlatformClient.js";
+} from "../constants/systemConfigKeys.js";
+import { getQaCredentials } from "../services/dbConfig.js";
+import { qaGetData, qaPostRaw } from "../services/tools/qaPlatformClient.js";
 
 function ok<T>(data: T) {
   return { code: 200 as const, message: "success", data };

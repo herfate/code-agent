@@ -1,13 +1,16 @@
-import type { FastifyBaseLogger } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import {
   TASK_STATUS,
   claimTaskIfPending,
-  listPendingTasksForScan,
   updateTask,
-  type TaskRow,
-} from "../db/workflow.js";
-import { handleClaimedTask } from "./claimedTaskHandler.js";
+  type TaskRow, TASK_TYPE,
+} from "../../db/workflow.js";
+import { AppLog } from "../appLogger.js";
+import { handleClaimedAgentTask } from "../workflow/claimedTaskHandler.js";
+import { selectPendingTasksForScan } from "../select/pendingTasksForScan.js";
+import type {ParentTaskRow} from "../../db/parentTask.js";
+import {isToolTaskType} from "../../constants/taskType.js";
+import {handleTestEnvDeployToolTask} from "../workflow/toolTasks/testEnvDeployToolTask.js";
 
 export type TaskScanSchedulerHandle = { stop: () => void };
 
@@ -15,9 +18,9 @@ export function startTaskScanScheduler(opts: {
   db: DatabaseSync;
   intervalMs: number;
   batchSize: number;
-  log: FastifyBaseLogger;
 }): TaskScanSchedulerHandle | null {
-  const { db, intervalMs, batchSize, log } = opts;
+  const { db, intervalMs, batchSize } = opts;
+  const log = AppLog.logger;
   if (intervalMs <= 0) return null;
 
   let stopped = false;
@@ -27,13 +30,13 @@ export function startTaskScanScheduler(opts: {
     if (stopped || ticking) return;
     ticking = true;
     try {
-      const candidates = listPendingTasksForScan(db, batchSize);
-      for (const task of candidates) {
+      const candidates = selectPendingTasksForScan(db, batchSize);
+      for (const { task, parent_task } of candidates) {
         if (stopped) break;
         const claimed = claimTaskIfPending(db, task.id);
         if (!claimed) continue;
         try {
-          await handleClaimedTask(db, claimed, log);
+          await handleClaimedTask(db, claimed, parent_task);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           log.error({ err: e, taskId: claimed.id }, "task scan handler failed");
@@ -57,6 +60,21 @@ export function startTaskScanScheduler(opts: {
       clearInterval(timer);
     },
   };
+}
+
+
+/**
+ * 定时扫描在将任务从待执行（1）原子认领为执行中（2）之后调用。
+ * 工具类 `task_type` 走独立处理器；其余类型使用 `description` 作提示词调用 Claude Agent SDK。
+ */
+function handleClaimedTask(db: DatabaseSync, task: TaskRow, parentTask: ParentTaskRow): Promise<void> {
+  if (isToolTaskType(task.task_type)) {
+    if (task.task_type === TASK_TYPE.TestEnvDeploy) {
+      return handleTestEnvDeployToolTask(db, task, parentTask);
+    }
+    throw new Error(`unsupported tool task_type: ${task.task_type}`);
+  }
+  return handleClaimedAgentTask(db, task, parentTask);
 }
 
 function failClaimedTask(db: DatabaseSync, task: TaskRow, error_message: string): void {

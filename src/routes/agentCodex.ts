@@ -8,7 +8,7 @@ import {
   insertMessage,
   updateThreadExternalId,
 } from "../db/repository.js";
-import { streamCodexTurnToSse } from "../services/codexAgent.js";
+import { streamCodexTurnToSse } from "../services/agentsdk/codexAgent.js";
 import { pipeAgentRunReplayToSse } from "../sse/replayAgentRun.js";
 
 const bodySchema = z.object({

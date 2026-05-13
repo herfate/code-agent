@@ -1,26 +1,39 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyBaseLogger } from "fastify";
+import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { createAgentRun } from "../db/agentRun.js";
+import { createAgentRun } from "../../db/agentRun.js";
 import {
   createThread,
   getThread,
   insertMessage,
   updateThreadExternalId,
-} from "../db/repository.js";
-import { TASK_STATUS, updateTask, type TaskRow } from "../db/workflow.js";
-import { streamClaudeQueryToSse } from "./claudeAgent.js";
-import { mergeTaskMetaWithClaudeRunId } from "./taskClaudeMeta.js";
+} from "../../db/repository.js";
+import { parseTaskInputJson } from "../../db/taskInputJson.js";
+import { TASK_STATUS, updateTask, type TaskRow } from "../../db/workflow.js";
+import { AppLog } from "../appLogger.js";
+import { streamClaudeQueryToSse } from "../agentsdk/claudeAgent.js";
+import { prepareClaimedTaskRepoWorkspace } from "../tools/gitlabTool.js";
+import { writeClaimedTaskPromptFile } from "../file/writeClaimedTaskPromptFile.js";
+import { writeClaimedTaskOutTplFile } from "../file/writeClaimedTaskOutTplFile.js";
+import { runParentTaskChangedFilesPipeline } from "./pipeline.js";
+import { listTaskRepoFilesModifiedSince } from "../file/scanTaskRepoModifiedSince.js";
+import { failClaimedTaskAfterRunStart } from "../scheduler/taskService.js";
+import { mergeTaskMetaWithClaudeRunId } from "../taskClaudeMeta.js";
+import type { ParentTaskRow } from "../../db/parentTask.js";
+import { isToolTaskType, TASK_TYPE } from "../../constants/taskType.js";
+import { handleTestEnvDeployToolTask } from "./toolTasks/testEnvDeployToolTask.js";
+
 
 /**
- * 定时扫描在将任务从待执行（1）原子认领为执行中（2）之后调用。
- * 使用任务 `description` 作为提示词调用 Claude Agent SDK，结束后写回状态与出参。
+ * Agent 任务：使用任务 `description` 作为提示词调用 Claude Agent SDK，结束后写回状态与出参。
  */
-export async function handleClaimedTask(
+export async function handleClaimedAgentTask(
   db: DatabaseSync,
   task: TaskRow,
-  log: FastifyBaseLogger,
+  parentTask: ParentTaskRow,
 ): Promise<void> {
+  const log = AppLog.logger;
+  const taskInputJson = parseTaskInputJson(task.input_json);
   // 步骤 1：从任务描述得到提示词，并准备写入 completed_at 等字段用的时间戳
   const prompt = task.description.trim();
   const t = () => Date.now();
@@ -37,7 +50,15 @@ export async function handleClaimedTask(
   }
 
   // 开始进入 Agent 主流程（打结构化日志）
-  log.info({ taskId: task.id, title: task.title }, "claimed task: running Claude agent");
+  log.info(
+    {
+      taskId: task.id,
+      title: task.title,
+      app: taskInputJson.app,
+      branch_version: taskInputJson.branch_version,
+    },
+    "定时任务 running task",
+  );
 
   // 步骤 3：确保存在与任务绑定的 Claude 会话（thread）；无则新建，坏引用或 provider 不符则失败或换新线程
   let threadId = task.thread_id;
@@ -82,10 +103,42 @@ export async function handleClaimedTask(
   const metaJson = mergeTaskMetaWithClaudeRunId(task.meta_json, runId);
   updateTask(db, task.id, { meta_json: metaJson });
 
-  // 步骤 8：无 HTTP 回复、仅落库模式跑 Claude（与 POST /api/agents/claude/sse 同源逻辑）
+  // 步骤 7.1：准备任务工作目录，并 clone 仓库
+  const taskRepoCwd = path.join(process.cwd(), "task-repo", parentTask.pid);
+  const repoOk = await prepareClaimedTaskRepoWorkspace({
+    db,
+    taskInputJson,
+    creator: task.creator,
+    taskRepoCwd,
+    taskId: parentTask.pid,
+    onClonePrepFailed: (errorMessage) =>
+      failClaimedTaskAfterRunStart({
+        db,
+        taskId: task.id,
+        runId,
+        errorMessage,
+        logReason: "gitlab clone / prep",
+        outputExtra: { cloneError: errorMessage },
+        completedAt: t(),
+      }),
+  });
+  if (!repoOk) return;
+
+
+  // 步骤 7.2：description 写入 task_prompt.md；Agent 提示词为 init 模板（优先具体用户）
+  const agentPrompt = writeClaimedTaskPromptFile(db, task, taskRepoCwd);
+
+  // 步骤 7.3：查询 tpl_key=2（out_tpl），若有则写入任务仓库 task_out_tpl.txt
+  writeClaimedTaskOutTplFile(db, task, taskRepoCwd);
+
+  // 克隆与提示词写入完成后的基线时间戳（步骤 12.1 扫描 mtime 大于此值的文件）
+  const repoScanSinceMs = Date.now() + 1500;
+
+  // 步骤 8：无 HTTP 回复、仅落库模式跑agent
   const { sessionId, assistantText, sdkError } = await streamClaudeQueryToSse(null, {
     threadId,
-    prompt,
+    pId: parentTask.pid,
+    prompt: agentPrompt,
     model: undefined,
     resume: resumeSessionId,
     runRecorder: { db, runId },
@@ -138,6 +191,22 @@ export async function handleClaimedTask(
       content: assistantText,
     });
   }
+
+  // 步骤 12.1：保存输出文件parent_task_params.changed_files/提交代码文件mr
+  const changedFiles = listTaskRepoFilesModifiedSince(taskRepoCwd, repoScanSinceMs);
+  await runParentTaskChangedFilesPipeline({
+    db,
+    parentTaskId: parentTask.pid,
+    executingTaskId: task.id,
+    taskType: task.task_type,
+    taskRepoCwd,
+    relativePaths: changedFiles,
+    gitCtx: { taskInputJson, creator: task.creator },
+  });
+  log.info(
+    { taskId: task.id, parentTaskId: parentTask.pid, changedFileCount: changedFiles.length },
+    "claimed task: saved changed_files to parent_task_params",
+  );
 
   // 步骤 13：任务标记完成并写入汇总出参
   updateTask(db, task.id, {

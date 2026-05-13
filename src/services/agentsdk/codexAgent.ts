@@ -2,7 +2,7 @@ import { Codex } from "@openai/codex-sdk";
 import type { ThreadEvent } from "@openai/codex-sdk";
 import type { DatabaseSync } from "node:sqlite";
 import type { FastifyReply } from "fastify";
-import { appendAgentRunEvent, finishAgentRun } from "../db/agentRun.js";
+import { appendAgentRunEvent, finishAgentRun } from "../../db/agentRun.js";
 import {
   attachAbortOnClose,
   endSse,
@@ -10,7 +10,7 @@ import {
   sendSseData,
   sendSseDone,
   sendSseError,
-} from "../sse/helpers.js";
+} from "../../sse/helpers.js";
 
 export type CodexSseOptions = {
   threadId: string;
