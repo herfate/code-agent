@@ -1,17 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { parentAgentTypeLabel } from "../../constants/parentAgentType.js";
-import { getParentTask } from "../../db/parentTask.js";
 import { TASK_STATUS, TASK_TYPE, createTask, getTask, listTasksByPid, type TaskRow } from "../../db/workflow.js";
 import { AppLog } from "../appLogger.js";
-import { sendWecomTextWebhook } from "../notify/wecomWebhook.js";
-
-/** 文档预览*/
-const FILE_PREVIEW_BASE = "todo";
 
 /** 同父任务下已存在的测试案例执行任务数 */
 export function countTestCaseExecuteTasksUnderParent(db: DatabaseSync, parentTaskId: string): number {
   return listTasksByPid(db, parentTaskId).filter((t) => t.task_type === TASK_TYPE.TestCaseExecute).length;
+}
+
+/** 同父任务下已存在的测试环境发布（部署）任务数 */
+export function countTestEnvDeployTasksUnderParent(db: DatabaseSync, parentTaskId: string): number {
+  return listTasksByPid(db, parentTaskId).filter((t) => t.task_type === TASK_TYPE.TestEnvDeploy).length;
 }
 
 /** 未全通过时写入开发任务 description 的文本 */
@@ -100,44 +99,4 @@ export function cloneTasksOnTestNotFullyPassed(
   );
 
   return { devTask, testTask };
-}
-
-/**
- * 测试案例执行通过率 100%：发送企业微信 Webhook 通知（默认 hook）。
- */
-export async function notifyTestCaseExecuteFullyPassed(
-  db: DatabaseSync,
-  parentTaskId: string,
-  executingTaskId: string,
-  creator: string | null,
-  passRate: number,
-  summary?: string,
-): Promise<void> {
-  const executing = getTask(db, executingTaskId);
-  if (!executing) {
-    AppLog.logger.warn({ executingTaskId }, "notifyTestCaseExecuteFullyPassed: task not found");
-    return;
-  }
-
-  const parent = getParentTask(db, parentTaskId);
-  const parentTitle = parent?.title?.trim() || parentTaskId;
-  const atPrefix = creator?.trim() ? `@${creator.trim()} ` : "";
-  const title = `${atPrefix}测试案例执行完成`;
-
-  const lines = [
-    title,
-    `父任务ID: ${parentTaskId}`,
-    `父任务名称: ${parentTitle}`,
-    `任务ID: ${executingTaskId}`,
-    `任务名称: ${executing.title}`,
-    `测试通过率: ${passRate}%`,
-    "执行状态: 已完成",
-    `Agent类型: ${parent ? parentAgentTypeLabel(parent.task_type) : "—"}`,
-  ];
-  if (summary?.trim()) {
-    lines.push("", "测试总结简述：", summary.trim());
-  }
-  lines.push("", `文档预览链接: ${FILE_PREVIEW_BASE}?taskId=${executingTaskId}`);
-
-  await sendWecomTextWebhook(lines.join("\n"));
 }

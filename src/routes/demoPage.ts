@@ -8,6 +8,7 @@ const indexHtmlPath = join(__dirname, "..", "..", "public", "index.html");
 const demoHtmlPath = join(__dirname, "..", "..", "public", "demo.html");
 const agentDevHtmlPath = join(__dirname, "..", "..", "public", "agentDev.html");
 const agentDevTaskStreamHtmlPath = join(__dirname, "..", "..", "public", "agentDevTaskStream.html");
+const parentTaskFlowHtmlPath = join(__dirname, "..", "..", "public", "parentTaskFlow.html");
 const devAgentHtmlPath = join(__dirname, "..", "..", "public", "devAgent.html");
 const userConfigHtmlPath = join(__dirname, "..", "..", "public", "userConfig.html");
 
@@ -28,6 +29,11 @@ async function sendAgentDevHtml(reply: FastifyReply): Promise<void> {
 
 async function sendAgentDevTaskStreamHtml(reply: FastifyReply): Promise<void> {
   const html = await readFile(agentDevTaskStreamHtmlPath, "utf8");
+  await reply.type("text/html; charset=utf-8").send(html);
+}
+
+async function sendParentTaskFlowHtml(reply: FastifyReply): Promise<void> {
+  const html = await readFile(parentTaskFlowHtmlPath, "utf8");
   await reply.type("text/html; charset=utf-8").send(html);
 }
 
@@ -53,6 +59,9 @@ export function registerDemoPageRoute(app: FastifyInstance): void {
   });
   app.get("/agent-dev/task-stream", async (_req, reply) => {
     return sendAgentDevTaskStreamHtml(reply);
+  });
+  app.get("/dev-agent/parent-flow", async (_req, reply) => {
+    return sendParentTaskFlowHtml(reply);
   });
   app.get("/dev-agent", async (_req, reply) => {
     return sendDevAgentHtml(reply);

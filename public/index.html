@@ -24,11 +24,12 @@
         <button type="button" data-nav-page="demo" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           对话演示
         </button>
+        <!-- 暂时不展示
         <button type="button" data-nav-page="adev" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           开发 Agent
-        </button>
+        </button> -->
         <button type="button" data-nav-page="dagent" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
-          父任务
+          开发自测Agent
         </button>
         <button type="button" data-nav-page="ucfg" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           用户配置
@@ -83,7 +84,7 @@
           <iframe id="adev-frame" class="h-full w-full border-0" title="开发 Agent"></iframe>
         </div>
         <div id="view-dagent" class="absolute inset-0 hidden bg-white">
-          <iframe id="dagent-frame" class="h-full w-full border-0" title="父任务"></iframe>
+          <iframe id="dagent-frame" class="h-full w-full border-0" title="开发自测Agent"></iframe>
         </div>
         <div id="view-ucfg" class="absolute inset-0 hidden bg-white">
           <iframe id="ucfg-frame" class="h-full w-full border-0" title="用户配置"></iframe>
@@ -167,7 +168,7 @@
             adevFrame.src = "/agent-dev";
           }
         } else if (page === "dagent") {
-          title.textContent = "父任务";
+          title.textContent = "开发自测Agent";
           badge.textContent = "嵌入 /dev-agent";
           badge.className =
             "rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800";

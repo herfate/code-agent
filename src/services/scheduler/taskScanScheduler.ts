@@ -2,9 +2,12 @@ import type { DatabaseSync } from "node:sqlite";
 import {
   TASK_STATUS,
   claimTaskIfPending,
+  getTask,
   updateTask,
-  type TaskRow, TASK_TYPE,
+  type TaskRow,
+  TASK_TYPE,
 } from "../../db/workflow.js";
+import { notifyTaskExecuteFailed } from "../notify/taskExecuteNotify.js";
 import { AppLog } from "../appLogger.js";
 import { handleClaimedAgentTask } from "../workflow/claimedTaskHandler.js";
 import { selectPendingTasksForScan } from "../select/pendingTasksForScan.js";
@@ -41,6 +44,16 @@ export function startTaskScanScheduler(opts: {
           const msg = e instanceof Error ? e.message : String(e);
           log.error({ err: e, taskId: claimed.id }, "task scan handler failed");
           failClaimedTask(db, claimed, msg);
+        } finally {
+          // 任务失败时发送通用企业微信通知
+          try {
+            await notifyIfTaskFailed(db, claimed.id, parent_task.pid);
+          } catch (notifyErr) {
+            log.error(
+              { err: notifyErr, taskId: claimed.id },
+              "notifyTaskExecuteFailed on task failure",
+            );
+          }
         }
       }
     } finally {
@@ -84,4 +97,17 @@ function failClaimedTask(db: DatabaseSync, task: TaskRow, error_message: string)
     error_message,
     completed_at: t,
   });
+}
+
+/** 任务已标记失败时发送通用 Webhook 通知 */
+async function notifyIfTaskFailed(
+  db: DatabaseSync,
+  taskId: string,
+  parentTaskId: string,
+): Promise<void> {
+  const row = getTask(db, taskId);
+  if (!row || row.status !== TASK_STATUS.Failed) {
+    return;
+  }
+  await notifyTaskExecuteFailed(db, parentTaskId, taskId);
 }

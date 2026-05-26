@@ -17,7 +17,7 @@ export type DevParentTaskWorkflowContext = {
   taskType: ParentAgentType;
 };
 
-/** 开发父任务编排下固定创建的 workflow 任务（含末尾工具任务：测试环境发布） */
+/** 开发父任务编排下固定创建的 workflow 任务（含工具任务：测试环境发布；末尾：测试案例执行） */
 export const DEV_PARENT_WORKFLOW_TASK_TYPES = [
   TASK_TYPE.Design,
   TASK_TYPE.TestPreAnalysis,
@@ -25,10 +25,11 @@ export const DEV_PARENT_WORKFLOW_TASK_TYPES = [
   TASK_TYPE.TestEnvDeploy,
   TASK_TYPE.TestCaseDesign,
   TASK_TYPE.TestDataAnalysis,
+  TASK_TYPE.TestCaseExecute,
 ] as const;
 
 export type DevParentTaskWorkflowResult = {
-  /** 设计 → 开发 → a-测试环境发布 → 测试数据分析等等 */
+  /** 设计 → 开发 → 测试环境发布 → … → 测试数据分析 → 测试案例执行 */
   tasks: TaskRow[];
   /** 开发任务（`task_type = 1`），与历史 API 字段 `task` 兼容 */
   task: TaskRow;

@@ -38,12 +38,14 @@ npm run build && npm start
 | `GET` | `/agent-dev` | 开发 Agent 页（`GET /api/tasks` 查询 `tasks` 表；可嵌入管理台） |
 | `GET` | `/agent-dev/task-stream` | 任务 Claude Agent SSE **全屏**查看页；查询参数 `taskId`（必填 UUID）、`base`（可选 API 根地址，默认当前站点 origin） |
 | `GET` | `/dev-agent` | 父任务页（`GET/POST /api/parent-tasks`；可嵌入管理台） |
+| `GET` | `/dev-agent/parent-flow` | 父任务工作流页：按 `pid` 查询该父任务下全部 `tasks` 与子任务，右侧续订 Claude SSE；查询参数 `pid`（必填）、`base`（可选 API 根）、`taskId`（可选，预选中某工作流任务的 SSE） |
 | `GET` | `/user-config` | 用户与系统配置页（`GET /api/system-config` 查询 `system_config` 表；可嵌入管理台） |
 | `GET` | `/health` | 健康检查；含 SQLite `SELECT 1` |
 | `GET` | `/api/tasks` | 工作流任务列表（表 `tasks`）；可选查询参数：`status`（整数 **1–6**：1 待执行、2 执行中、3 执行完成、4 执行失败、5 已暂停、6 已取消）、`task_type`（整数 **0–7** 或 **101**：0 设计、1 开发、2 开发规范优化、3 测试预分析、4 测试案例设计、5 测试数据分析、6 测试案例执行、7 QA 平台测试脚本生成、101 测试环境发布）、`title`（标题模糊匹配）、`limit`（1–500，默认无筛选时 100） |
+| `PATCH` | `/api/tasks/:taskId` | 更新任务；JSON：`{ "status": 1–6 }`。设为 **1（待执行）** 时同时清空 `error_message`、`output_json`、`started_at`、`completed_at`，并从 `meta_json` 移除 `claudeAgentRunId`，便于调度器重新认领；响应 `{ task }` |
 | `GET` | `/api/tasks/:taskId/claude-agent-stream` | 按**任务 id**续订该任务最近一次认领执行写入的 Claude Agent **SSE**（内部与 `GET /api/agents/claude/runs/:runId/stream` 相同：`?afterSeq=` 整数 ≥0，默认 0）。要求 `tasks.meta_json` 中存在本次运行的 UUID 字段 **`claudeAgentRunId`**（由服务端在定时认领执行 `handleClaimedTask` 创建 `agent_run` 后写入）。无该字段或任务不存在时返回 **404** JSON。进行中则轮询追新直至 `agent_runs.status` 非 `running`；**进程重启后进行中的 run 无法续**。 |
-| `GET` | `/api/parent-tasks` | 父任务；`?pid=` 返回 `{ parent_task, parent_task_params, tasks?, task?, subtasks? }`（`tasks` 为 `tasks.pid` 关联的任务列表；`task` 为其中开发任务）；否则 `{ parent_tasks }` |
-| `POST` | `/api/parent-tasks` | 新增父任务并编排：写 `parent_task` / `init` 参数（`branch_version`、可选 `gitRemoteUrl`、`testEnv`）→ 开发父任务时创建设计、开发、测试数据分析等 `tasks`（`tasks.pid` = 父任务 pid）；JSON 必填 `creator`（写入各 `tasks.creator`，HTTPS 克隆用户名），另可含 `app`、`requirement`；响应含 `parent_task`、`parent_task_params`、`tasks`、`task` |
+| `GET` | `/api/parent-tasks` | 父任务；`?pid=` 返回 `{ parent_task, parent_task_params, tasks?, task?, subtasks?, tasks_with_subtasks? }`（`tasks` 为 `tasks.pid` 关联的任务列表；`task` 为其中开发任务；`tasks_with_subtasks` 为每项任务附带 `subtasks` 数组）；否则 `{ parent_tasks }` |
+| `POST` | `/api/parent-tasks` | 新增父任务并编排：写 `parent_task` / `init` 参数（`branch_version`、可选 `gitRemoteUrl`、`testEnv`）→ 开发父任务时创建设计、开发、测试数据分析等 `tasks`（`tasks.pid` = 父任务 pid）；JSON 必填 `creator`（写入各 `tasks.creator`，HTTPS 克隆用户名），`pid` 可省略（自动为表中数值型 pid 的 max+1），另可含 `app`、`requirement`；响应含 `parent_task`、`parent_task_params`、`tasks`、`task` |
 | `GET` | `/api/system-config` | 系统配置列表（表 `system_config`）；可选：`scope`（`global` \| `user`）、`username`（与 `scope=user` 或单独填写时筛选该用户）、`config_key`（键名子串模糊匹配）、`limit`（1–500，默认 200） |
 | `GET` | `/api/threads` | 会话列表；可选查询参数：`provider`（`claude` \| `codex`）、`title`（标题模糊匹配）、`limit`（1–500，默认无筛选时 100、有筛选时默认 100） |
 | `POST` | `/api/threads` | 创建会话；JSON：`{ "title"?: string, "provider": "claude" \| "codex" }` |

@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { RESERVED_PARENT_PARAM_KEYS } from "../constants/commonKey.js";
-import { getParentTask, listParentTasks } from "../db/parentTask.js";
+import { getParentTask, listParentTasks, nextParentTaskPid } from "../db/parentTask.js";
 import { PARENT_AGENT_TYPE } from "../constants/parentAgentType.js";
 import { TASK_TYPE } from "../constants/taskType.js";
 import {
@@ -14,12 +14,19 @@ import {
 import { zTaskCreator } from "../validation/taskCreatorZod.js";
 import { zParentAgentTypeOptional } from "../validation/parentAgentTypeZod.js";
 import { createParentTaskWorkflow } from "../services/create/task/parentTaskCreateService.js";
+import {
+  buildParentTaskTitleSource,
+  summarizeParentTaskTitleAsync,
+} from "../services/create/task/parentTaskTitleAsync.js";
+import { PARENT_TASK_PLACEHOLDER_TITLE } from "../constants/parentTask.js";
 
 const listQuery = z.object({
   /** 按主键精确查询单条；有值时忽略其它筛选并只返回该条 */
   pid: z.string().trim().min(1).max(200).optional(),
   task_type: zParentAgentTypeOptional,
   title: z.string().max(200).optional(),
+  /** 精确匹配关联 `tasks.creator`（存在至少一条子任务命中） */
+  creator: z.string().trim().min(1).max(200).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
@@ -40,7 +47,8 @@ const createParamItem = z.object({
 });
 
 const createBody = z.object({
-  pid: z.string().trim().min(1).max(200),
+  /** 省略时由服务端分配为 max(数值型 pid)+1 */
+  pid: z.string().trim().min(1).max(200).optional(),
   title: z.string().max(500).optional(),
   description: z.string().max(50_000).optional(),
   task_type: zParentAgentTypeOptional,
@@ -82,17 +90,23 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       const tasks = listTasksByPid(db, q.pid);
       const task = tasks.find((t) => t.task_type === TASK_TYPE.Dev) ?? tasks[0];
       const subtasks = task ? listSubTasksByTaskId(db, task.id) : [];
+      const tasks_with_subtasks = tasks.map((t) => ({
+        ...t,
+        subtasks: listSubTasksByTaskId(db, t.id),
+      }));
       return {
         parent_task: row,
         parent_task_params,
         tasks,
         task,
         subtasks,
+        tasks_with_subtasks,
       };
     }
     const rows = listParentTasks(db, {
       task_type: q.task_type,
       titleContains: q.title?.trim() || undefined,
+      creator: q.creator,
       limit: q.limit,
     });
     return { parent_tasks: rows };
@@ -103,8 +117,9 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const { pid, title, description, task_type, branch_version, gitRemoteUrl, testEnv, app, requirement, creator, params } =
+    const { title, description, task_type, branch_version, gitRemoteUrl, testEnv, app, requirement, creator, params } =
       parsed.data;
+    const pid = parsed.data.pid?.trim() || nextParentTaskPid(db);
     if (getParentTask(db, pid)) {
       return reply.status(409).send({ error: "parent task already exists" });
     }
@@ -132,10 +147,13 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       return reply.status(400).send({ error: "invalid value_json" });
     }
 
+    const explicitTitle = title?.trim();
+    const createTitle = explicitTitle || PARENT_TASK_PLACEHOLDER_TITLE;
+
     try {
       const result = createParentTaskWorkflow(db, {
         pid,
-        title,
+        title: createTitle,
         description,
         task_type: task_type ?? PARENT_AGENT_TYPE.DevSelfTest,
         branch_version,
@@ -146,6 +164,15 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
         creator,
         extraParams,
       });
+      if (!explicitTitle) {
+        const sourceText = buildParentTaskTitleSource({
+          requirement,
+          description,
+          app,
+          branch_version,
+        });
+        void summarizeParentTaskTitleAsync(db, pid, sourceText);
+      }
       return reply.status(201).send(result);
     } catch (err) {
       request.log.error(err, "create parent task failed");

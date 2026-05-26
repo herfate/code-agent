@@ -5,9 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>任务 Claude SSE — 全屏</title>
   <link rel="stylesheet" href="/app.css" />
+  <style>
+    /* iframe 嵌入时隐藏页头，日志区占满高度 */
+    html.ats-embed-root,
+    html.ats-embed-root body.ats-embed {
+      height: 100%;
+    }
+    body.ats-embed header { display: none; }
+    body.ats-embed #ats-log { flex: 1; min-height: 0; }
+  </style>
 </head>
 <body class="flex h-screen flex-col overflow-hidden bg-slate-50 text-slate-900 antialiased">
-  <header class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+  <header id="ats-header" class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
     <div class="min-w-0">
       <h1 class="text-sm font-semibold text-slate-800">Claude Agent（任务流）</h1>
       <p id="ats-sub" class="mt-0.5 truncate font-mono text-xs text-slate-500"></p>
@@ -49,6 +58,16 @@
 
       function queryParams() {
         return new URLSearchParams(window.location.search);
+      }
+
+      var isEmbed =
+        queryParams().get("embed") === "1" ||
+        queryParams().get("embed") === "true";
+      if (isEmbed) {
+        document.documentElement.classList.add("ats-embed-root");
+        document.body.classList.add("ats-embed");
+        document.body.classList.remove("h-screen");
+        document.body.classList.add("h-full", "min-h-0");
       }
 
       function apiBase() {

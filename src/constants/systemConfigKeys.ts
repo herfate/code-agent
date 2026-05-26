@@ -18,3 +18,10 @@ export const DEV_OPS_DEPLOY_URL_CONFIG_KEY = "dev_ops_deploy_url";
 
 /** 测试未通过时同父任务复制开发/测试任务的最大重试次数（全局非负整数， 默认 `3`, 去dbConfig.ts修改DEFAULT_MAX_RETRY_COUNT） */
 export const MAX_RETRY_COUNT_CONFIG_KEY = "max_retry_count";
+
+/** OpenAI 兼容 API Key（`openAiUtil.chat`）；勿写入日志 */
+export const OPENAI_CONFIG_KEY_API_KEY = "openai_api_key";
+/** OpenAI 兼容 API Base URL（如 `https://api.openai.com/v1`） */
+export const OPENAI_CONFIG_KEY_BASE_URL = "openai_base_url";
+/** OpenAI 兼容模型名 */
+export const OPENAI_CONFIG_KEY_MODEL = "openai_model";

@@ -6,6 +6,7 @@ import {
   parseParentAgentType,
   type ParentAgentType,
 } from "../constants/parentAgentType.js";
+import { PARENT_TASK_PLACEHOLDER_TITLE } from "../constants/parentTask.js";
 import { createParentTaskParam, type ParentTaskParamRow } from "./workflow.js";
 
 /** `param_key = init` 时 `value_json` 的对象结构 */
@@ -181,7 +182,7 @@ export function createParentTaskWithParams(
 
 export function createParentTask(db: DatabaseSync, input: CreateParentTaskInput): ParentTaskRow {
   const t = now();
-  const title = input.title ?? "";
+  const title = input.title?.trim() || PARENT_TASK_PLACEHOLDER_TITLE;
   const description = input.description ?? "";
   const taskType = input.task_type ?? PARENT_AGENT_TYPE.DevSelfTest;
   db.prepare(
@@ -189,6 +190,18 @@ export function createParentTask(db: DatabaseSync, input: CreateParentTaskInput)
      VALUES (?, ?, ?, ?, ?, ?)`,
   ).run(input.pid, title, description, taskType, t, t);
   return getParentTask(db, input.pid)!;
+}
+
+/** 取当前表中数值型 pid 的最大值 +1，作为新父任务默认主键（无记录时为 `"1"`） */
+export function nextParentTaskPid(db: DatabaseSync): string {
+  const rows = db.prepare(`SELECT pid FROM parent_task`).all() as Array<{ pid: string }>;
+  let max = 0;
+  for (const { pid } of rows) {
+    if (!/^\d+$/.test(pid)) continue;
+    const n = Number(pid);
+    if (Number.isSafeInteger(n) && n > max) max = n;
+  }
+  return String(max + 1);
 }
 
 export function getParentTask(db: DatabaseSync, pid: string): ParentTaskRow | undefined {
@@ -203,7 +216,12 @@ export function getParentTask(db: DatabaseSync, pid: string): ParentTaskRow | un
 
 export function listParentTasks(
   db: DatabaseSync,
-  filters: { task_type?: ParentAgentType; titleContains?: string; limit?: number } = {},
+  filters: {
+    task_type?: ParentAgentType;
+    titleContains?: string;
+    creator?: string;
+    limit?: number;
+  } = {},
 ): ParentTaskRow[] {
   const limit = Math.min(500, Math.max(1, filters.limit ?? 100));
   const clauses: string[] = [];
@@ -218,6 +236,13 @@ export function listParentTasks(
     clauses.push(`title LIKE ? ESCAPE '\\'`);
     const esc = raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
     params.push("%" + esc + "%");
+  }
+  const creator = filters.creator?.trim();
+  if (creator) {
+    clauses.push(
+      `EXISTS (SELECT 1 FROM tasks t WHERE t.pid = parent_task.pid AND t.creator = ?)`,
+    );
+    params.push(creator);
   }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";

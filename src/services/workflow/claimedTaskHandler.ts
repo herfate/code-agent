@@ -22,6 +22,7 @@ import { mergeTaskMetaWithClaudeRunId } from "../taskClaudeMeta.js";
 import type { ParentTaskRow } from "../../db/parentTask.js";
 import { isToolTaskType, TASK_TYPE } from "../../constants/taskType.js";
 import { handleTestEnvDeployToolTask } from "./toolTasks/testEnvDeployToolTask.js";
+import { buildClaimedTaskFollowUpPrompt } from "../prompt/buildClaimedTaskFollowUpPrompt.js";
 
 
 /**
@@ -141,6 +142,7 @@ export async function handleClaimedAgentTask(
     prompt: agentPrompt,
     model: undefined,
     resume: resumeSessionId,
+    followUpPrompt: buildClaimedTaskFollowUpPrompt(db, task),
     runRecorder: { db, runId },
   });
 

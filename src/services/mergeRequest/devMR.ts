@@ -4,6 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { DatabaseSync } from "node:sqlite";
 import { TASK_TYPE, type TaskType } from "../../constants/taskType.js";
+import { getParentTask } from "../../db/parentTask.js";
 import type { TaskInputJson } from "../../db/taskInputJson.js";
 import { AppLog } from "../appLogger.js";
 import {
@@ -189,7 +190,9 @@ export async function tryCreateDevMergeRequest(input: TryCreateDevMrInput): Prom
   }
 
   // const sourceBranch = buildSourceBranchName(targetBranch);
-  const commitMessage = `AI dev: ${parentTaskId}`;
+  const parent = getParentTask(db, parentTaskId);
+  const taskTitle = parent?.title?.trim() || parentTaskId;
+  const commitMessage = `feat(${targetBranch}): ${taskTitle.replace(/\s+/g, " ")}`;
   const httpsTokenUsername = creator?.trim() || undefined;
 
   try {

@@ -1,28 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="h-full">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>父任务 — 查询与新增</title>
   <link rel="stylesheet" href="/app.css" />
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
-  <div class="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4 sm:gap-5 sm:p-6">
-    <header class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
-      <h1 class="text-base font-semibold text-slate-800">父任务（parent_task）查询与新增</h1>
-      <p class="mt-1 text-xs text-slate-500">对接 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET/POST /api/parent-tasks</code>，运行参数写入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">parent_task_params</code>。</p>
+<body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
+  <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
+    <header class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <h1 class="text-sm font-semibold text-slate-800">任务（parent_task）查询与新增</h1>
+      <p class="mt-0.5 text-xs text-slate-500">对接 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET/POST /api/parent-tasks</code>，运行参数写入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">parent_task_params</code>。</p>
     </header>
-    <section class="shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <h2 class="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
+    <section class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
-        <div class="lg:col-span-3">
-          <label for="dag-baseUrl" class="mb-1.5 block text-xs font-medium text-slate-600">API 基地址（留空为当前站点）</label>
-          <input id="dag-baseUrl" type="url" placeholder="留空则使用当前 origin" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
-        </div>
-        <div class="lg:col-span-2">
-          <label for="dag-pid" class="mb-1.5 block text-xs font-medium text-slate-600">pid（精确）</label>
-          <input id="dag-pid" type="text" placeholder="留空则列表查询" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-mono text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
-        </div>
         <div class="lg:col-span-2">
           <label for="dag-taskType" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
           <select id="dag-taskType" class="form-select">
@@ -30,48 +22,51 @@
             <option value="1">1 — 开发自测Agent</option>
           </select>
         </div>
-        <div class="lg:col-span-2">
+        <div class="lg:col-span-3">
           <label for="dag-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题包含</label>
-          <input id="dag-title" type="text" placeholder="模糊匹配 title" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+          <input id="dag-title" type="text" placeholder="模糊匹配 title" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
         </div>
-        <div class="lg:col-span-1">
-          <label for="dag-limit" class="mb-1.5 block text-xs font-medium text-slate-600">条数上限</label>
-          <input id="dag-limit" type="number" min="1" max="500" value="100" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        <div class="lg:col-span-3">
+          <label for="dag-creator" class="mb-1.5 block text-xs font-medium text-slate-600">创建人</label>
+          <input id="dag-creator" type="text" placeholder="精确匹配 tasks.creator" maxlength="200" autocomplete="username" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
         </div>
-        <div class="flex flex-wrap items-center gap-2 lg:col-span-2">
-          <button type="button" id="dag-btn-new" class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增父任务</button>
-          <button type="button" id="dag-btn-query" class="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
-          <button type="button" id="dag-btn-reset" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300/80">重置条件</button>
+        <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-4">
+          <span class="mb-1.5 hidden text-xs lg:block lg:invisible" aria-hidden="true">操作</span>
+          <div class="flex flex-nowrap items-center gap-2">
+            <button type="button" id="dag-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增父任务</button>
+            <button type="button" id="dag-btn-query" class="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-5">
+    <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
         <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">查询结果</h2>
         <span id="dag-count" class="text-xs font-medium text-slate-500"></span>
       </div>
       <div class="min-h-0 flex-1 overflow-auto">
-        <p id="dag-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700 sm:px-5"></p>
+        <p id="dag-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700"></p>
         <div class="overflow-x-auto">
           <table class="min-w-full border-collapse text-left text-sm">
             <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold uppercase tracking-wide text-slate-600 backdrop-blur-sm">
               <tr>
-                <th class="px-4 py-3 sm:px-5">pid</th>
-                <th class="px-4 py-3 sm:px-5">title</th>
-                <th class="px-4 py-3 sm:px-5">description</th>
-                <th class="px-4 py-3 sm:px-5">branch_version</th>
-                <th class="px-4 py-3 sm:px-5">gitRemoteUrl</th>
-                <th class="px-4 py-3 sm:px-5">testEnv</th>
-                <th class="px-4 py-3 sm:px-5">task_type</th>
-                <th class="px-4 py-3 sm:px-5">created_at</th>
-                <th class="px-4 py-3 sm:px-5">updated_at</th>
+                <th class="px-4 py-3">pid</th>
+                <th class="px-4 py-3">title</th>
+                <th class="px-4 py-3">description</th>
+                <th class="px-4 py-3">branch_version</th>
+                <th class="px-4 py-3">gitRemoteUrl</th>
+                <th class="px-4 py-3">testEnv</th>
+                <th class="px-4 py-3">task_type</th>
+                <th class="px-4 py-3">created_at</th>
+                <th class="px-4 py-3">updated_at</th>
+                <th class="px-4 py-3">操作</th>
               </tr>
             </thead>
             <tbody id="dag-tbody" class="divide-y divide-slate-100 text-slate-800"></tbody>
           </table>
         </div>
-        <p id="dag-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500 sm:px-5">暂无数据，请调整条件后点击「查询」。</p>
+        <p id="dag-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500">暂无数据，请调整条件后点击「查询」。</p>
       </div>
     </section>
   </div>
@@ -87,32 +82,21 @@
       >
         <div class="shrink-0 border-b border-slate-100 px-5 py-4">
           <h3 id="dag-modal-title" class="text-sm font-semibold text-slate-800">新增父任务</h3>
-          <p class="mt-1 text-xs text-slate-500">分支版本、gitRemoteUrl、testEnv 合并写入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">parent_task_params</code>（<code class="font-mono text-[11px]">param_key=init</code>）；可再添加其它参数行。</p>
+          <p class="mt-1 text-xs text-slate-500">创建后标题默认为 <code class="font-mono text-[11px]">thinking</code>，后台 AI 根据说明等自动汇总；分支版本、gitRemoteUrl、testEnv 写入 <code class="font-mono text-[11px]">param_key=init</code>。</p>
         </div>
         <form id="dag-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <p id="dag-modal-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></p>
             <div class="grid gap-4 sm:grid-cols-2">
-              <div class="sm:col-span-2">
-                <label for="dag-new-pid" class="mb-1.5 block text-xs font-medium text-slate-600">pid <span class="text-red-500">*</span></label>
+              <div class="sm:col-span-2 hidden">
+                <label for="dag-new-pid" class="mb-1.5 block text-xs font-medium text-slate-600">pid（可选，留空自动分配）</label>
                 <input
                   id="dag-new-pid"
                   type="text"
-                  required
                   maxlength="200"
                   autocomplete="off"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
-                  placeholder="父任务主键，全局唯一"
-                />
-              </div>
-              <div>
-                <label for="dag-new-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题</label>
-                <input
-                  id="dag-new-title"
-                  type="text"
-                  maxlength="500"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
-                  placeholder="可选"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  placeholder="留空则 max(pid)+1"
                 />
               </div>
               <div>
@@ -123,7 +107,7 @@
                   required
                   maxlength="500"
                   autocomplete="off"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
                   placeholder="例如 release/1.2 或 main"
                 />
               </div>
@@ -134,7 +118,7 @@
                   type="url"
                   maxlength="2000"
                   autocomplete="off"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
                   placeholder="HTTPS Git 仓库地址（可选）"
                 />
               </div>
@@ -145,7 +129,7 @@
                   type="text"
                   maxlength="200"
                   autocomplete="off"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
                   placeholder="例如 qa / staging（可选）"
                 />
               </div>
@@ -161,7 +145,7 @@
                   id="dag-new-description"
                   rows="3"
                   maxlength="50000"
-                  class="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  class="w-full resize-y rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
                   placeholder="可选"
                 ></textarea>
               </div>
@@ -204,8 +188,22 @@
       var countEl = document.getElementById("dag-count");
 
       function dagBase() {
-        var v = document.getElementById("dag-baseUrl").value.trim();
-        return v || window.location.origin;
+        return window.location.origin;
+      }
+
+      /** 新标签打开父任务工作流页（GET /dev-agent/parent-flow） */
+      function openParentFlowInNewTab(pid) {
+        if (!pid) return;
+        var apiBase = dagBase();
+        var pageOrigin = window.location.origin;
+        var u =
+          pageOrigin +
+          "/dev-agent/parent-flow?pid=" +
+          encodeURIComponent(pid);
+        if (apiBase && apiBase !== pageOrigin) {
+          u += "&base=" + encodeURIComponent(apiBase);
+        }
+        window.open(u, "_blank", "noopener,noreferrer");
       }
 
       /** 与管理台 Keycloak 脚本写入的 `localStorage.userName` 一致，用作任务创建人（HTTPS 克隆用户名）。 */
@@ -267,35 +265,35 @@
         var tr = document.createElement("tr");
         tr.className = "transition-colors hover:bg-slate-50";
         tr.innerHTML =
-          '<td class="whitespace-nowrap px-4 py-2.5 font-mono text-xs sm:px-5">' +
+          '<td class="whitespace-nowrap px-4 py-3 font-mono text-xs">' +
           esc(t.pid) +
           "</td>" +
-          '<td class="max-w-xs truncate px-4 py-2.5 sm:max-w-md sm:px-5" title="' +
+          '<td class="max-w-xs truncate px-4 py-3 sm:max-w-md" title="' +
           esc(t.title || "") +
           '">' +
           esc(t.title || "—") +
           "</td>" +
-          '<td class="max-w-md truncate px-4 py-2.5 text-slate-600 sm:max-w-xl sm:px-5" title="' +
+          '<td class="max-w-md truncate px-4 py-3 text-slate-600 sm:max-w-xl" title="' +
           esc(t.description || "") +
           '">' +
           esc(t.description || "—") +
           "</td>" +
-          '<td class="max-w-[8rem] truncate px-4 py-2.5 text-slate-700 sm:max-w-xs sm:px-5" title="' +
+          '<td class="max-w-[8rem] truncate px-4 py-3 text-slate-700 sm:max-w-xs" title="' +
           esc(branch) +
           '">' +
           esc(branch || "—") +
           "</td>" +
-          '<td class="max-w-[10rem] truncate font-mono text-xs text-slate-600 sm:max-w-md sm:px-5" title="' +
+          '<td class="max-w-[10rem] truncate px-4 py-3 font-mono text-xs text-slate-600 sm:max-w-md" title="' +
           esc(git) +
           '">' +
           esc(git || "—") +
           "</td>" +
-          '<td class="max-w-[8rem] truncate px-4 py-2.5 text-slate-700 sm:max-w-xs sm:px-5" title="' +
+          '<td class="max-w-[8rem] truncate px-4 py-3 text-slate-700 sm:max-w-xs" title="' +
           esc(testEnv) +
           '">' +
           esc(testEnv || "—") +
           "</td>" +
-          '<td class="whitespace-nowrap px-4 py-2.5 text-slate-700 sm:px-5" title="' +
+          '<td class="whitespace-nowrap px-4 py-3 text-slate-700" title="' +
           esc(parentAgentTypeLabel(t.task_type || "")) +
           '">' +
           (function () {
@@ -304,12 +302,21 @@
             return esc(String(c)) + " — " + esc(parentAgentTypeLabel(c));
           })() +
           "</td>" +
-          '<td class="whitespace-nowrap px-4 py-2.5 text-slate-600 sm:px-5">' +
+          '<td class="whitespace-nowrap px-4 py-3 text-slate-600">' +
           esc(fmtTime(t.created_at)) +
           "</td>" +
-          '<td class="whitespace-nowrap px-4 py-2.5 text-slate-600 sm:px-5">' +
+          '<td class="whitespace-nowrap px-4 py-3 text-slate-600">' +
           esc(fmtTime(t.updated_at)) +
-          "</td>";
+          "</td>" +
+          '<td class="whitespace-nowrap px-4 py-3">' +
+          '<div class="flex flex-nowrap items-center gap-1">' +
+          '<button type="button" class="dag-copy-new-btn shrink-0 cursor-pointer rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100" data-pid="' +
+          esc(t.pid) +
+          '">复制新增</button>' +
+          '<button type="button" class="dag-flow-tab-btn shrink-0 cursor-pointer rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100" data-pid="' +
+          esc(t.pid) +
+          '">‌Multi-Agent‌ View</button>' +
+          "</div></td>";
         tbody.appendChild(tr);
       }
 
@@ -321,17 +328,12 @@
         countEl.textContent = "";
 
         var params = new URLSearchParams();
-        var pid = document.getElementById("dag-pid").value.trim();
-        if (pid) {
-          params.set("pid", pid);
-        } else {
-          var tt = document.getElementById("dag-taskType").value;
-          if (tt) params.set("task_type", tt);
-          var tit = document.getElementById("dag-title").value.trim();
-          if (tit) params.set("title", tit);
-          var lim = document.getElementById("dag-limit").value.trim();
-          if (lim) params.set("limit", lim);
-        }
+        var tt = document.getElementById("dag-taskType").value;
+        if (tt) params.set("task_type", tt);
+        var tit = document.getElementById("dag-title").value.trim();
+        if (tit) params.set("title", tit);
+        var creator = document.getElementById("dag-creator").value.trim();
+        if (creator) params.set("creator", creator);
 
         var url = dagBase() + "/api/parent-tasks" + (params.toString() ? "?" + params.toString() : "");
 
@@ -352,15 +354,8 @@
               emptyEl.classList.remove("hidden");
               return;
             }
-            if (res.body.parent_task) {
-              var taskParams = res.body.parent_task_params || [];
-              countEl.textContent =
-                "共 1 条（parent_task_params " + taskParams.length + " 项）";
-              renderRow(res.body.parent_task, taskParams);
-              return;
-            }
             var list = res.body.parent_tasks || [];
-            countEl.textContent = "共 " + list.length + " 条（按 pid 精确查询可带出参数表）";
+            countEl.textContent = "共 " + list.length + " 条";
             if (list.length === 0) {
               emptyEl.classList.remove("hidden");
               return;
@@ -430,6 +425,36 @@
 
       var reservedParamKeys = { init: true };
 
+      /** 复制新增时不带入的运行时/落库参数键（与服务端 RESERVED_PARENT_PARAM_KEYS 对齐） */
+      var skipCopyParamKeys = {
+        init: true,
+        DesignOut: true,
+        TestDataAnalysisOut: true,
+        TestPreAnalysisOut: true,
+        TestCaseDesignOut: true,
+        TestCaseExecuteOut: true,
+        TestCaseExecutePassRate: true,
+        TestCaseExecutePassResult: true,
+      };
+
+      function formatParamJsonForRow(raw) {
+        if (raw == null || raw === "") return "";
+        if (typeof raw === "string") {
+          var t = raw.trim();
+          if (!t) return "";
+          try {
+            return JSON.stringify(JSON.parse(t), null, 2);
+          } catch (e) {
+            return raw;
+          }
+        }
+        try {
+          return JSON.stringify(raw, null, 2);
+        } catch (e) {
+          return String(raw);
+        }
+      }
+
       function collectParams() {
         var rows = paramsList.querySelectorAll(".dag-param-row");
         var out = [];
@@ -460,16 +485,82 @@
         return out;
       }
 
-      function openNewModal() {
+      function openNewModal(copyFrom) {
         modalClearError();
         modalForm.reset();
-        document.getElementById("dag-new-taskType").value = "1";
+        document.getElementById("dag-new-pid").value = "";
         clearParamRows();
+        var titleEl = document.getElementById("dag-modal-title");
+        if (copyFrom && copyFrom.parent_task) {
+          var pt = copyFrom.parent_task;
+          var taskParams = copyFrom.parent_task_params || [];
+          titleEl.textContent = "复制新增父任务（源自 " + pt.pid + "）";
+          var initFields = initParamFields(taskParams);
+          document.getElementById("dag-new-branch").value = initFields.branch;
+          document.getElementById("dag-new-gitRemoteUrl").value = initFields.git;
+          document.getElementById("dag-new-testEnv").value = initFields.testEnv;
+          document.getElementById("dag-new-description").value = pt.description || "";
+          document.getElementById("dag-new-taskType").value =
+            pt.task_type !== undefined && pt.task_type !== null && pt.task_type !== ""
+              ? String(pt.task_type)
+              : "1";
+          taskParams.forEach(function (p) {
+            if (!p || skipCopyParamKeys[p.param_key]) return;
+            paramsList.appendChild(
+              createParamRow({
+                param_key: p.param_key,
+                value_json: formatParamJsonForRow(p.value_json),
+                description: p.description || "",
+              }),
+            );
+          });
+        } else {
+          titleEl.textContent = "新增父任务";
+          document.getElementById("dag-new-taskType").value = "1";
+        }
         modalRoot.classList.remove("hidden");
         document.body.style.overflow = "hidden";
         setTimeout(function () {
-          document.getElementById("dag-new-pid").focus();
+          document.getElementById("dag-new-branch").focus();
         }, 0);
+      }
+
+      function openCopyNewModal(pid, triggerBtn) {
+        if (!pid) return;
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "加载中…";
+        }
+        fetch(dagBase() + "/api/parent-tasks?pid=" + encodeURIComponent(pid))
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "复制新增";
+            }
+            if (!res.ok) {
+              errEl.textContent =
+                "加载父任务失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+              errEl.classList.remove("hidden");
+              return;
+            }
+            openNewModal(res.body);
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "复制新增";
+            }
+            errEl.textContent = "加载父任务失败: " + e.message;
+            errEl.classList.remove("hidden");
+          });
       }
 
       function closeNewModal() {
@@ -482,7 +573,9 @@
         paramsList.appendChild(createParamRow());
       };
 
-      document.getElementById("dag-btn-new").onclick = openNewModal;
+      document.getElementById("dag-btn-new").onclick = function () {
+        openNewModal();
+      };
       document.getElementById("dag-modal-cancel").onclick = closeNewModal;
 
       modalBackdrop.addEventListener("click", function (e) {
@@ -498,14 +591,10 @@
       modalForm.addEventListener("submit", function (e) {
         e.preventDefault();
         modalClearError();
-        var pid = document.getElementById("dag-new-pid").value.trim();
+        var pidInput = document.getElementById("dag-new-pid").value.trim();
         var branch = document.getElementById("dag-new-branch").value.trim();
         var gitRemoteUrl = document.getElementById("dag-new-gitRemoteUrl").value.trim();
         var testEnv = document.getElementById("dag-new-testEnv").value.trim();
-        if (!pid) {
-          modalShowError("请填写 pid。");
-          return;
-        }
         if (!branch) {
           modalShowError("请填写分支版本。");
           return;
@@ -516,13 +605,12 @@
           return;
         }
         var body = {
-          pid: pid,
           branch_version: branch,
-          title: document.getElementById("dag-new-title").value.trim() || undefined,
           description: document.getElementById("dag-new-description").value.trim() || undefined,
           task_type: Number(document.getElementById("dag-new-taskType").value) || 1,
           creator: creator,
         };
+        if (pidInput) body.pid = pidInput;
         if (gitRemoteUrl) body.gitRemoteUrl = gitRemoteUrl;
         if (testEnv) body.testEnv = testEnv;
         try {
@@ -555,7 +643,6 @@
               return;
             }
             closeNewModal();
-            document.getElementById("dag-pid").value = pid;
             runDagQuery();
           })
           .catch(function (err) {
@@ -565,13 +652,22 @@
       });
 
       document.getElementById("dag-btn-query").onclick = runDagQuery;
-      document.getElementById("dag-btn-reset").onclick = function () {
-        document.getElementById("dag-baseUrl").value = "";
-        document.getElementById("dag-pid").value = "";
-        document.getElementById("dag-title").value = "";
-        document.getElementById("dag-taskType").value = "";
-        document.getElementById("dag-limit").value = "100";
-      };
+      tbody.addEventListener("click", function (ev) {
+        var copyBtn = ev.target.closest(".dag-copy-new-btn");
+        if (copyBtn) {
+          var copyPid = copyBtn.getAttribute("data-pid");
+          if (copyPid) openCopyNewModal(copyPid, copyBtn);
+          return;
+        }
+        var flowBtn = ev.target.closest(".dag-flow-tab-btn");
+        if (!flowBtn) return;
+        var flowPid = flowBtn.getAttribute("data-pid");
+        if (flowPid) openParentFlowInNewTab(flowPid);
+      });
+      var dagCreatorDefault = dagCurrentLoginUser();
+      if (dagCreatorDefault) {
+        document.getElementById("dag-creator").value = dagCreatorDefault;
+      }
     })();
   </script>
 </body>

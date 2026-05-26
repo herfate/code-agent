@@ -23,3 +23,12 @@ export function getClaudeAgentRunIdFromTaskMeta(meta_json: string | null): strin
   const v = meta[TASK_META_CLAUDE_AGENT_RUN_ID];
   return typeof v === "string" && v.length > 0 ? v : null;
 }
+
+/** 重置为待执行时移除旧 Claude run 引用，避免 SSE 续订到上一轮 */
+export function stripClaudeAgentRunIdFromTaskMeta(meta_json: string | null): string | null {
+  const meta = parseMetaObject(meta_json);
+  delete meta[TASK_META_CLAUDE_AGENT_RUN_ID];
+  const keys = Object.keys(meta);
+  if (keys.length === 0) return null;
+  return JSON.stringify(meta);
+}

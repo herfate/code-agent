@@ -5,6 +5,7 @@ export default {
     "./public/demo.html",
     "./public/agentDev.html",
     "./public/agentDevTaskStream.html",
+    "./public/parentTaskFlow.html",
     "./public/devAgent.html",
     "./public/userConfig.html",
     "./public/js/claude-sse-render.js",

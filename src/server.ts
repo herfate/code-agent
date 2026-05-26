@@ -63,7 +63,7 @@ try {
     );
   }
   app.log.info(
-    `Web: http://${config.HOST}:${config.PORT}/ 管理台 /demo /agent-dev /agent-dev/task-stream /dev-agent /user-config /?page=demo /?page=adev /?page=dagent /?page=ucfg`,
+    `Web: http://${config.HOST}:${config.PORT}/ 管理台 /demo /agent-dev /agent-dev/task-stream /dev-agent /dev-agent/parent-flow /user-config /?page=demo /?page=adev /?page=dagent /?page=ucfg`,
   );
 } catch (err) {
   app.log.error(err);

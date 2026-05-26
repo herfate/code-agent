@@ -3,9 +3,10 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DatabaseSync } from "node:sqlite";
 import { getGitlabUrlForAppLookup } from "../constants/appCatalog.js";
-import { isTaskStatus, type TaskStatus } from "../constants/taskStatus.js";
+import { isTaskStatus, TASK_STATUS, type TaskStatus } from "../constants/taskStatus.js";
 import { TASK_TYPE } from "../constants/taskType.js";
-import { createTask, getTask, listTasks, listTasksFiltered } from "../db/workflow.js";
+import { createTask, getTask, listTasks, listTasksFiltered, updateTask } from "../db/workflow.js";
+import { stripClaudeAgentRunIdFromTaskMeta } from "../services/taskClaudeMeta.js";
 import { zTaskCreator } from "../validation/taskCreatorZod.js";
 import { zTaskTypeOptional } from "../validation/taskTypeZod.js";
 import { getClaudeAgentRunIdFromTaskMeta } from "../services/taskClaudeMeta.js";
@@ -16,6 +17,13 @@ const createTaskBody = z.object({
   branch_version: z.string().trim().min(1).max(500),
   requirement: z.string().trim().min(1).max(50_000),
   creator: zTaskCreator,
+});
+
+const patchTaskBody = z.object({
+  status: z.coerce
+    .number()
+    .int()
+    .refine((n): n is TaskStatus => isTaskStatus(n), { message: "invalid status" }),
 });
 
 const listTasksQuery = z.object({
@@ -53,6 +61,38 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: DatabaseSyn
     const afterSeq = z.coerce.number().int().min(0).safeParse(q ?? 0);
     const after = afterSeq.success ? afterSeq.data : 0;
     await pipeAgentRunReplayToSse(reply, db, runIdParsed.data, after);
+  });
+
+  app.patch("/api/tasks/:taskId", async (request, reply) => {
+    const taskIdParsed = z.string().uuid().safeParse((request.params as { taskId?: string }).taskId);
+    if (!taskIdParsed.success) {
+      return reply.status(400).send({ error: "invalid taskId" });
+    }
+    const parsed = patchTaskBody.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const existing = getTask(db, taskIdParsed.data);
+    if (!existing) {
+      return reply.status(404).send({ error: "task not found" });
+    }
+    const nextStatus = parsed.data.status;
+    const patch =
+      nextStatus === TASK_STATUS.Pending
+        ? {
+            status: TASK_STATUS.Pending,
+            error_message: null,
+            output_json: null,
+            started_at: null,
+            completed_at: null,
+            meta_json: stripClaudeAgentRunIdFromTaskMeta(existing.meta_json),
+          }
+        : { status: nextStatus };
+    const task = updateTask(db, taskIdParsed.data, patch);
+    if (!task) {
+      return reply.status(404).send({ error: "task not found" });
+    }
+    return { task };
   });
 
   app.get("/api/tasks", async (request, reply) => {

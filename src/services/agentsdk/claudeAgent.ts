@@ -45,6 +45,8 @@ export type ClaudeSseOptions = {
   prompt: string;
   model?: string;
   resume?: string;
+  /** 首轮成功后同 session 再跑一轮（如认领任务 12.1 前补输出） */
+  followUpPrompt?: string;
   clientSignal?: AbortSignal;
   /** Persist each frame + keep SDK running after the browser disconnects (resume via GET …/runs/:id/stream). */
   runRecorder?: { db: DatabaseSync; runId: string };
@@ -109,36 +111,47 @@ export async function streamClaudeQueryToSse(
   let assistantText: string | null = null;
   let sdkError: string | null = null;
 
-  try {
-    const taskRepoCwd = path.join(process.cwd(), "task-repo", opts.pId);
-
-    //开始call cc
+  const taskRepoCwd = path.join(process.cwd(), "task-repo", opts.pId);
+  const runRound = async (prompt: string, resume?: string) => {
+    let roundSessionId: string | null = null;
+    let roundText: string | null = null;
+    let roundError: string | null = null;
     const q = query({
-      prompt: opts.prompt,
+      prompt,
       options: {
         abortController: controller,
         model: opts.model,
-        resume: opts.resume,
+        resume,
         cwd: taskRepoCwd,
         canUseTool: async () => ({ behavior: "allow" as const }),
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
       },
     });
-
     for await (const msg of q) {
-      if (msg.type === "system" && msg.subtype === "init") {
-        sessionId = msg.session_id;
-      }
+      if (msg.type === "system" && msg.subtype === "init") roundSessionId = msg.session_id;
       if (msg.type === "result") {
-        if (msg.subtype === "success") {
-          assistantText = msg.result;
-        } else {
-          console.log( "Claude error1:", msg.errors)
-          sdkError = msg.errors?.join("; ") ?? msg.subtype;
+        if (msg.subtype === "success") roundText = msg.result;
+        else {
+          console.log("Claude error1:", msg.errors);
+          roundError = msg.errors?.join("; ") ?? msg.subtype;
         }
       }
       emitData(reply, recorder, { channel: "claude", payload: summarizeSdkMessage(msg) });
+    }
+    return { sessionId: roundSessionId, assistantText: roundText, sdkError: roundError };
+  };
+
+  try {
+    const first = await runRound(opts.prompt, opts.resume);
+    sessionId = first.sessionId;
+    assistantText = first.assistantText;
+    sdkError = first.sdkError;
+    if (!sdkError && opts.followUpPrompt?.trim()) {
+      const follow = await runRound(opts.followUpPrompt.trim(), sessionId ?? undefined);
+      if (follow.sessionId) sessionId = follow.sessionId;
+      if (follow.assistantText) assistantText = [assistantText, follow.assistantText].filter(Boolean).join("\n\n");
+      sdkError = follow.sdkError;
     }
 
     const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
@@ -160,6 +173,8 @@ export async function streamClaudeQueryToSse(
       safeSse(reply, (r) => sendSseError(r, message));
     }
   } finally {
+    console.log("Claude stream end")
+    console.log("task completed:", opts.pId,  opts.prompt)
     try {
       if (reply && !reply.raw.writableEnded && !reply.raw.destroyed) {
         endSse(reply);

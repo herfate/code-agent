@@ -1,10 +1,11 @@
 /**
  * 表 `prompt_tpl.tpl_key` 持久化数值。
- * 1 init 提示词、2 out_tpl。
+ * 1 init 提示词、2 out_tpl、3 follow_up（追加对话）。
  */
 export const TPL_KEY = {
   Init: 1,
   OutTpl: 2,
+  FollowUp: 3,
 } as const;
 
 export type TplKey = (typeof TPL_KEY)[keyof typeof TPL_KEY];
@@ -39,6 +40,8 @@ export function tplKeyLabel(code: TplKey | number | string): string {
       return "init提示词";
     case TPL_KEY.OutTpl:
       return "out_tpl";
+    case TPL_KEY.FollowUp:
+      return "follow_up";
     default:
       return String(code);
   }

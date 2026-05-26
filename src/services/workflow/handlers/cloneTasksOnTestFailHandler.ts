@@ -5,12 +5,12 @@ import {
   buildTestReportDescription,
   cloneTasksOnTestNotFullyPassed,
   countTestCaseExecuteTasksUnderParent,
-  notifyTestCaseExecuteFullyPassed,
 } from "../../loop/cloneTasksOnTestNotFullyPassed.js";
+import { notifyTestCaseExecuteResult } from "../../notify/testCaseExecuteNotify.js";
 import { AppLog } from "../../appLogger.js";
 import type { ParentTaskChangedFilesContext, ParentTaskChangedFilesHandler } from "../types.js";
 
-/** 测试案例执行：100% 时 Webhook 通知；未达 100% 时复制新增开发/测试任务 */
+/** 测试案例执行：Webhook 通知；未达 100% 时复制新增开发/测试任务 */
 export const cloneTasksOnTestFailHandler: ParentTaskChangedFilesHandler = {
   supports(taskType: TaskType): boolean {
     return taskType === TASK_TYPE.TestCaseExecute;
@@ -20,15 +20,16 @@ export const cloneTasksOnTestFailHandler: ParentTaskChangedFilesHandler = {
     const parsed = parseTaskOutPassRateFromChangedFiles(ctx.taskRepoCwd, ctx.relativePaths);
     if (!parsed) return;
 
+    await notifyTestCaseExecuteResult(
+      ctx.db,
+      ctx.parentTaskId,
+      ctx.executingTaskId,
+      ctx.gitCtx.creator,
+      parsed.passRate,
+      parsed.summary,
+    );
+
     if (parsed.passRate === 100) {
-      await notifyTestCaseExecuteFullyPassed(
-        ctx.db,
-        ctx.parentTaskId,
-        ctx.executingTaskId,
-        ctx.gitCtx.creator,
-        parsed.passRate,
-        parsed.summary,
-      );
       return;
     }
 

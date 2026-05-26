@@ -1,6 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
   MAX_RETRY_COUNT_CONFIG_KEY,
+  OPENAI_CONFIG_KEY_API_KEY,
+  OPENAI_CONFIG_KEY_BASE_URL,
+  OPENAI_CONFIG_KEY_MODEL,
   QA_CONFIG_KEY_PASSWORD,
   QA_CONFIG_KEY_USERNAME,
 } from "../constants/systemConfigKeys.js";
@@ -93,6 +96,39 @@ export type QaProxyCredentials = {
   userName: string;
   passWord: string;
 };
+
+/** OpenAI 兼容 chat 配置（环境变量优先，未设置时回退全局 `system_config`） */
+export type OpenAiChatSettings = {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+};
+
+function readGlobalConfigTrimmed(db: DatabaseSync, configKey: string): string {
+  const row = getGlobalConfigByKey(db, configKey);
+  if (!row) return "";
+  return parseConfigStringValue(row.value_json).trim();
+}
+
+/**
+ * 解析 OpenAI chat 用配置：先读环境变量，再读全局 `system_config`（键见 {@link OPENAI_CONFIG_KEY_API_KEY} 等）。
+ * `baseUrl` / `model` 在环境与库均未配置时由调用方补默认值。
+ */
+export function resolveOpenAiChatSettings(db?: DatabaseSync): OpenAiChatSettings {
+  const envApiKey = (process.env.OPENAI_API_KEY ?? "").trim();
+  const envBaseUrl = (process.env.OPENAI_BASE_URL ?? "").trim();
+  const envModel = (process.env.OPENAI_MODEL ?? "").trim();
+
+  if (!db) {
+    return { apiKey: envApiKey, baseUrl: envBaseUrl, model: envModel };
+  }
+
+  return {
+    apiKey: envApiKey || readGlobalConfigTrimmed(db, OPENAI_CONFIG_KEY_API_KEY),
+    baseUrl: envBaseUrl || readGlobalConfigTrimmed(db, OPENAI_CONFIG_KEY_BASE_URL),
+    model: envModel || readGlobalConfigTrimmed(db, OPENAI_CONFIG_KEY_MODEL),
+  };
+}
 
 export function getQaCredentials(db: DatabaseSync): QaProxyCredentials | null {
   const userRow = getGlobalConfigByKey(db, QA_CONFIG_KEY_USERNAME);

@@ -4,7 +4,12 @@ import type { ParentTaskRow } from "../../../db/parentTask.js";
 import { parseTaskInputJson } from "../../../db/taskInputJson.js";
 import { TASK_STATUS, updateTask, type TaskRow } from "../../../db/workflow.js";
 import { AppLog } from "../../appLogger.js";
-import { devOpsDeployTestEnv, resolveDevOpsDeployUrl } from "../../tools/devOpsDeployClient.js";
+import { countTestEnvDeployTasksUnderParent } from "../../loop/cloneTasksOnTestNotFullyPassed.js";
+import {
+  devOpsDeployTestEnv,
+  POST_DEPLOY_SLEEP_MS_MULTIPLE_DEPLOYS,
+  resolveDevOpsDeployUrl,
+} from "../../tools/devOpsDeployClient.js";
 
 /**
  * 工具任务：a-测试环境发布（`task_type = 101`）。
@@ -21,6 +26,7 @@ export async function handleTestEnvDeployToolTask(
 
   const gitRemoteUrl = taskInputJson.gitRemoteUrl?.trim() || '';
   const gitBranch = taskInputJson.branch_version?.trim();
+  const testEnv = taskInputJson.testEnv?.trim();
   const serverName = resolveRepoIdFromGitRemoteUrl(gitRemoteUrl, '');
   if (!gitBranch) {
     updateTask(db, task.id, {
@@ -41,6 +47,16 @@ export async function handleTestEnvDeployToolTask(
     return;
   }
 
+  if (!testEnv) {
+    updateTask(db, task.id, {
+      status: TASK_STATUS.Failed,
+      completed_at: t(),
+      error_message: "缺少 input_json.testEnv（或父任务 init.testEnv），无法绑定测试环境",
+    });
+    log.warn({ taskId: task.id }, "test env deploy: missing testEnv");
+    return;
+  }
+
   const deployUrl = resolveDevOpsDeployUrl(db);
   if (!deployUrl) {
     updateTask(db, task.id, {
@@ -54,15 +70,30 @@ export async function handleTestEnvDeployToolTask(
   }
 
   log.info(
-    { taskId: task.id, parentPid: parentTask.pid, serverName, gitBranch },
+    { taskId: task.id, parentPid: parentTask.pid, serverName, gitBranch, testEnv },
     "test env deploy: invoking DevOps",
   );
 
-  const deployResult = await devOpsDeployTestEnv(deployUrl, { gitBranch, serverName });
+  const deployTaskCount = countTestEnvDeployTasksUnderParent(db, parentTask.pid);
+  const postSuccessDelayMs =
+    deployTaskCount > 1 ? POST_DEPLOY_SLEEP_MS_MULTIPLE_DEPLOYS : undefined;
+  if (postSuccessDelayMs) {
+    log.info(
+      { taskId: task.id, parentPid: parentTask.pid, deployTaskCount },
+      "test env deploy: multiple deploy tasks under parent, will sleep 5min after success",
+    );
+  }
+
+  const deployResult = await devOpsDeployTestEnv(
+    deployUrl,
+    { gitBranch, serverName, env: testEnv },
+    { postSuccessDelayMs },
+  );
   const outputPayload = {
     deployUrl,
     serverName,
     gitBranch,
+    testEnv,
     httpStatus: deployResult.status,
     responseBody: deployResult.body.slice(0, 4000),
   };

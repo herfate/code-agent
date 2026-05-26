@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "chcp 65001 >nul 2>&1 & tsx watch src/server.ts",
     "dev:css": "tailwindcss -i ./src/styles/tailwind.css -o ./public/app.css --watch",
     "build:css": "tailwindcss -i ./src/styles/tailwind.css -o ./public/app.css --minify",
     "build": "npm run build:css && tsc",
