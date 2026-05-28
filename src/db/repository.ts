@@ -1,6 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
+import type { AgentProvider } from "../constants/agentProvider.js";
 
-export type Provider = "claude" | "codex";
+/** @deprecated 使用 {@link AgentProvider} */
+export type Provider = AgentProvider;
 
 export type ThreadRow = {
   id: string;

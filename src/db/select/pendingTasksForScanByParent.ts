@@ -23,7 +23,7 @@ type PendingTaskForScanSqlRow = TaskRow & {
 
 /**
  * 按父任务 `pid` 分组，每组取最早一条待执行任务；
- * 若该父任务下存在执行中或执行失败的子任务，则整组排除；
+ * 若该父任务下存在执行中、执行失败或已暂停的子任务，则整组排除；
  * 内连接 `parent_task`（仅 `pid` 非空且父任务存在），结果按任务 `created_at` 升序。
  */
 const SQL_PENDING_TASKS_FOR_SCAN_BY_PARENT = `
@@ -49,7 +49,7 @@ const SQL_PENDING_TASKS_FOR_SCAN_BY_PARENT = `
         SELECT 1
         FROM tasks blocker
         WHERE blocker.pid = tasks.pid
-          AND blocker.status IN (?, ?)
+          AND blocker.status IN (?, ?, ?)
       )
   ) t
   INNER JOIN parent_task p ON p.pid = t.pid
@@ -90,7 +90,7 @@ function mapPendingTaskForScanRow(row: PendingTaskForScanSqlRow): PendingTaskFor
   return { task, parent_task };
 }
 
-/** 扫描队列：每个父任务下仅返回最早一条 Pending 任务（含父任务信息）；父任务下有 Running/Failed 时跳过 */
+/** 扫描队列：每个父任务下仅返回最早一条 Pending 任务（含父任务信息）；父任务下有 Running/Failed/Paused 时跳过 */
 export function listPendingTasksForScanByParent(
   db: DatabaseSync,
   limit: number,
@@ -102,6 +102,7 @@ export function listPendingTasksForScanByParent(
       TASK_STATUS.Pending,
       TASK_STATUS.Running,
       TASK_STATUS.Failed,
+      TASK_STATUS.Paused,
       n,
     ) as PendingTaskForScanSqlRow[];
   return rows.map(mapPendingTaskForScanRow);

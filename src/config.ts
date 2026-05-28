@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { z } from "zod";
+import { TASK_RUN_AGENT_PROVIDER } from "./constants/agentProvider.js";
+import { zTaskAgentProviderEnum } from "./validation/agentProviderZod.js";
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
@@ -11,6 +13,9 @@ const envSchema = z.object({
   TASK_SCAN_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(1),
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
+  CURSOR_API_KEY: z.string().optional(),
+  /** 定时任务认领后使用的 Agent provider（见 {@link TASK_RUN_AGENT_PROVIDER}） */
+  TASK_AGENT_PROVIDER: zTaskAgentProviderEnum.default(TASK_RUN_AGENT_PROVIDER.Claude),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

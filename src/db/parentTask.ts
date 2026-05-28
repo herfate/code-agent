@@ -7,7 +7,19 @@ import {
   type ParentAgentType,
 } from "../constants/parentAgentType.js";
 import { PARENT_TASK_PLACEHOLDER_TITLE } from "../constants/parentTask.js";
-import { createParentTaskParam, type ParentTaskParamRow } from "./workflow.js";
+import {
+  parseTaskAgentProviderOptional,
+  TASK_RUN_AGENT_PROVIDER,
+  type TaskAgentProvider,
+} from "../constants/agentProvider.js";
+import {
+  createParentTaskParam,
+  getParentTaskParamByParentAndKey,
+  type ParentTaskParamRow,
+} from "./workflow.js";
+
+/** @deprecated 使用 {@link TaskAgentProvider} */
+export type ParentTaskAgentProvider = TaskAgentProvider;
 
 /** `param_key = init` 时 `value_json` 的对象结构 */
 export type ParentTaskInitJson = {
@@ -15,18 +27,24 @@ export type ParentTaskInitJson = {
   gitRemoteUrl: string;
   /** 测试环境标识（如 QA 环境名） */
   testEnv: string;
+  /** 子任务 Agent 线路（创建父任务时写入，优先于环境变量 `TASK_AGENT_PROVIDER`） */
+  provider?: TaskAgentProvider;
 };
 
 export function buildParentTaskInitValueJson(
   branch_version: string,
   gitRemoteUrl?: string,
   testEnv?: string,
+  provider?: TaskAgentProvider,
 ): string {
   const payload: ParentTaskInitJson = {
     branch_version,
     gitRemoteUrl: gitRemoteUrl?.trim() ?? "",
     testEnv: testEnv?.trim() ?? "",
   };
+  if (provider === TASK_RUN_AGENT_PROVIDER.Claude || provider === TASK_RUN_AGENT_PROVIDER.Cursor) {
+    payload.provider = provider;
+  }
   return JSON.stringify(payload);
 }
 
@@ -43,14 +61,27 @@ export function parseParentTaskInitJson(valueJson: string | null | undefined): P
     const o = raw as Record<string, unknown>;
     const str = (key: keyof ParentTaskInitJson): string =>
       typeof o[key] === "string" ? (o[key] as string) : "";
+    const provider = parseTaskAgentProviderOptional(o.provider) ?? undefined;
     return {
       branch_version: str("branch_version"),
       gitRemoteUrl: str("gitRemoteUrl"),
       testEnv: str("testEnv"),
+      provider,
     };
   } catch {
     return { branch_version: "", gitRemoteUrl: "", testEnv: "" };
   }
+}
+
+/** 从父任务 `init` 参数解析 Agent 线路；无有效值时返回 `fallback` */
+export function resolveParentTaskAgentProvider(
+  db: DatabaseSync,
+  parentTaskId: string,
+  fallback: TaskAgentProvider,
+): TaskAgentProvider {
+  const row = getParentTaskParamByParentAndKey(db, parentTaskId, PARENT_PARAM_KEY_INIT);
+  const init = parseParentTaskInitJson(row?.value_json);
+  return init.provider ?? fallback;
 }
 
 /** 父任务（与表 `parent_task` 对应） */
@@ -86,6 +117,8 @@ export type CreateParentTaskWithParamsInput = CreateParentTaskInput & {
   branch_version: string;
   gitRemoteUrl?: string;
   testEnv?: string;
+  /** 写入 `init` 参数的 Agent 线路 */
+  provider?: TaskAgentProvider;
   extraParams?: CreateParentTaskExtraParamInput[];
 };
 
@@ -124,12 +157,13 @@ function insertInitParentTaskParam(
   branch_version: string,
   gitRemoteUrl?: string,
   testEnv?: string,
+  provider?: TaskAgentProvider,
 ): ParentTaskParamRow {
   return createParentTaskParam(db, {
     id: randomUUID(),
     parent_task_id: parentTaskId,
     param_key: PARENT_PARAM_KEY_INIT,
-    value_json: buildParentTaskInitValueJson(branch_version, gitRemoteUrl, testEnv),
+    value_json: buildParentTaskInitValueJson(branch_version, gitRemoteUrl, testEnv, provider),
   });
 }
 
@@ -150,7 +184,14 @@ export function createParentTaskWithParamsCore(
   }
   const parent_task = createParentTask(db, input);
   const parent_task_params: ParentTaskParamRow[] = [
-    insertInitParentTaskParam(db, input.pid, input.branch_version, input.gitRemoteUrl, input.testEnv),
+    insertInitParentTaskParam(
+      db,
+      input.pid,
+      input.branch_version,
+      input.gitRemoteUrl,
+      input.testEnv,
+      input.provider,
+    ),
     ...extra.map((p) =>
       createParentTaskParam(db, {
         id: p.id ?? randomUUID(),

@@ -8,7 +8,12 @@ import {
 import { PARENT_AGENT_TYPE } from "../../../constants/parentAgentType.js";
 import type { ParentAgentType } from "../../../constants/parentAgentType.js";
 import type { TaskRow } from "../../../db/workflow.js";
-import { DEV_PARENT_TASK_TYPE, runDevParentTaskWorkflow } from "./devParentTaskCreateStrategy.js";
+import {
+  DEV_PARENT_TASK_TYPE,
+  DEV_REVIEW_NO_TEST_PARENT_TASK_TYPE,
+  runDevParentTaskWorkflow,
+  runDevReviewNoTestParentTaskWorkflow,
+} from "./devParentTaskCreateStrategy.js";
 import type {
   CreateParentTaskWorkflowInput,
   CreateParentTaskWorkflowResult,
@@ -42,6 +47,8 @@ function runWorkflowByTaskType(
   switch (taskType) {
     case DEV_PARENT_TASK_TYPE:
       return runDevParentTaskWorkflow(db, { ...ctx, taskType });
+    case DEV_REVIEW_NO_TEST_PARENT_TASK_TYPE:
+      return runDevReviewNoTestParentTaskWorkflow(db, { ...ctx, taskType });
     default:
       throw new Error(`unsupported parent task_type: ${taskType}`);
   }

@@ -3,6 +3,7 @@ import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { AGENT_PROVIDER } from "../../constants/agentProvider.js";
 import type { FastifyReply } from "fastify";
 import { appendAgentRunEvent, finishAgentRun } from "../../db/agentRun.js";
 import {
@@ -100,11 +101,13 @@ export async function streamClaudeQueryToSse(
     emitData(reply, recorder, {
       type: "meta",
       threadId: opts.threadId,
-      provider: "claude",
+      provider: AGENT_PROVIDER.Claude,
       runId: recorder.runId,
     });
   } else {
-    safeSse(reply, (r) => sendSseData(r, { type: "meta", threadId: opts.threadId, provider: "claude" }));
+    safeSse(reply, (r) =>
+      sendSseData(r, { type: "meta", threadId: opts.threadId, provider: AGENT_PROVIDER.Claude }),
+    );
   }
 
   let sessionId: string | null = null;

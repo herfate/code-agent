@@ -289,16 +289,6 @@
           .replace(/"/g, "&quot;");
       }
 
-      /** 与 `tasks.meta_json` 中服务端写入的 `claudeAgentRunId` 一致 */
-      function claudeRunIdFromMeta(meta_json) {
-        if (!meta_json || !String(meta_json).trim()) return null;
-        try {
-          var o = JSON.parse(meta_json);
-          if (o && typeof o.claudeAgentRunId === "string" && o.claudeAgentRunId.trim()) return o.claudeAgentRunId.trim();
-        } catch (e) {}
-        return null;
-      }
-
       var sseRoot = document.getElementById("adev-sse-root");
       var sseLog = document.getElementById("adev-sse-log");
       var sseSub = document.getElementById("adev-sse-sub");
@@ -353,21 +343,58 @@
         }
       }
 
-      /** 新标签全屏页续订同一任务的 Claude SSE（见 GET /agent-dev/task-stream） */
-      function openTaskStreamInNewTab(taskId) {
-        var apiBase = adevBase();
-        var pageOrigin = window.location.origin;
-        var u =
-          pageOrigin +
-          "/agent-dev/task-stream?taskId=" +
-          encodeURIComponent(taskId);
-        if (apiBase && apiBase !== pageOrigin) {
-          u += "&base=" + encodeURIComponent(apiBase);
+      /** 从父任务 `init` 参数解析 Agent 线路 */
+      function providerFromParentParams(taskParams) {
+        var row = (taskParams || []).find(function (p) {
+          return p && p.param_key === "init";
+        });
+        if (!row || !row.value_json) return "claude";
+        try {
+          var o = JSON.parse(row.value_json);
+          return o && o.provider === "cursor" ? "cursor" : "claude";
+        } catch (e) {
+          return "claude";
         }
-        window.open(u, "_blank", "noopener,noreferrer");
       }
 
-      function openTaskClaudeSse(taskId) {
+      function fetchProviderByPid(pid) {
+        if (!pid) return Promise.resolve("claude");
+        return fetch(adevBase() + "/api/parent-tasks?pid=" + encodeURIComponent(pid))
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return r.ok ? providerFromParentParams(j.parent_task_params) : "claude";
+            });
+          })
+          .catch(function () {
+            return "claude";
+          });
+      }
+
+      /** 新标签全屏页续订同一任务的 Agent SSE（见 GET /agent-dev/task-stream） */
+      function openTaskStreamInNewTab(taskId, pid) {
+        fetchProviderByPid(pid).then(function (provider) {
+          var apiBase = adevBase();
+          var pageOrigin = window.location.origin;
+          var u =
+            pageOrigin +
+            "/agent-dev/task-stream?taskId=" +
+            encodeURIComponent(taskId) +
+            "&pid=" +
+            encodeURIComponent(pid) +
+            "&provider=" +
+            encodeURIComponent(provider);
+          if (apiBase && apiBase !== pageOrigin) {
+            u += "&base=" + encodeURIComponent(apiBase);
+          }
+          window.open(u, "_blank", "noopener,noreferrer");
+        });
+      }
+
+      function taskAgentStreamPath(provider) {
+        return provider === "cursor" ? "cursor-agent-stream" : "claude-agent-stream";
+      }
+
+      function openTaskAgentSse(taskId, pid) {
         if (sseAbort) {
           try {
             sseAbort.abort();
@@ -376,48 +403,53 @@
         }
         sseLog.textContent = "";
         sseRoot.classList.remove("hidden");
-        sseSub.textContent = "task " + taskId;
-        var ac = new AbortController();
-        sseAbort = ac;
-        var lastSeq = 0;
-        var url =
-          adevBase() +
-          "/api/tasks/" +
-          encodeURIComponent(taskId) +
-          "/claude-agent-stream?afterSeq=" +
-          encodeURIComponent(String(lastSeq));
-        sseAppend("[请求] GET " + url);
-        fetch(url, { signal: ac.signal })
-          .then(function (r) {
-            if (!r.ok) {
-              return r.text().then(function (t) {
-                sseAppend("[HTTP " + r.status + "] " + t);
+        sseSub.textContent = "task " + taskId + " · 加载线路…";
+        fetchProviderByPid(pid).then(function (provider) {
+          sseSub.textContent = "task " + taskId + " (" + provider + ")";
+          var ac = new AbortController();
+          sseAbort = ac;
+          var lastSeq = 0;
+          var url =
+            adevBase() +
+            "/api/tasks/" +
+            encodeURIComponent(taskId) +
+            "/" +
+            taskAgentStreamPath(provider) +
+            "?afterSeq=" +
+            encodeURIComponent(String(lastSeq));
+          sseAppend("[请求] GET " + url);
+          fetch(url, { signal: ac.signal })
+            .then(function (r) {
+              if (!r.ok) {
+                return r.text().then(function (t) {
+                  sseAppend("[HTTP " + r.status + "] " + t);
+                });
+              }
+              return parseSseStream(r, function (eventName, payload) {
+                if (eventName === "done") {
+                  sseAppend("event:done " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
+                  return;
+                }
+                if (eventName === "error") {
+                  sseAppend("event:error " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
+                  return;
+                }
+                if (payload && typeof payload === "object" && typeof payload.seq === "number") {
+                  lastSeq = Math.max(lastSeq, payload.seq);
+                }
+                sseAppend(
+                  "data: " + (typeof payload === "string" ? payload : JSON.stringify(payload)),
+                );
               });
-            }
-            return parseSseStream(r, function (eventName, payload) {
-              if (eventName === "done") {
-                sseAppend("event:done " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
-                return;
-              }
-              if (eventName === "error") {
-                sseAppend("event:error " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
-                return;
-              }
-              if (payload && typeof payload === "object" && typeof payload.seq === "number") {
-                lastSeq = Math.max(lastSeq, payload.seq);
-              }
-              sseAppend(
-                "data: " + (typeof payload === "string" ? payload : JSON.stringify(payload)),
-              );
+            })
+            .then(function () {
+              sseAppend("[流结束]");
+            })
+            .catch(function (err) {
+              if (err && err.name === "AbortError") sseAppend("[已中止]");
+              else sseAppend("[错误] " + (err && err.message ? err.message : String(err)));
             });
-          })
-          .then(function () {
-            sseAppend("[流结束]");
-          })
-          .catch(function (err) {
-            if (err && err.name === "AbortError") sseAppend("[已中止]");
-            else sseAppend("[错误] " + (err && err.message ? err.message : String(err)));
-          });
+        });
       }
 
       sseClose.addEventListener("click", closeSseModal);
@@ -487,14 +519,17 @@
             tasks.forEach(function (t) {
               var tr = document.createElement("tr");
               tr.className = "transition-colors hover:bg-slate-50";
-              var rid = claudeRunIdFromMeta(t.meta_json);
-              var sseCell = rid
+              var sseCell = t.pid
                 ? '<td class="whitespace-nowrap px-4 py-2.5 sm:px-5"><div class="flex flex-wrap gap-1">' +
                   '<button type="button" class="adev-sse-btn cursor-pointer rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100" data-task-id="' +
                   esc(t.id) +
+                  '" data-pid="' +
+                  esc(t.pid) +
                   '">查看详情(SSE)</button>' +
                   '<button type="button" class="adev-sse-tab-btn cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50" data-task-id="' +
                   esc(t.id) +
+                  '" data-pid="' +
+                  esc(t.pid) +
                   '">新标签打开</button></div></td>'
                 : '<td class="whitespace-nowrap px-4 py-2.5 text-slate-400 sm:px-5">—</td>';
               tr.innerHTML =
@@ -761,13 +796,15 @@
         var tabBtn = e.target && e.target.closest && e.target.closest(".adev-sse-tab-btn");
         if (tabBtn) {
           var tabTid = tabBtn.getAttribute("data-task-id");
-          if (tabTid) openTaskStreamInNewTab(tabTid);
+          var tabPid = tabBtn.getAttribute("data-pid");
+          if (tabTid && tabPid) openTaskStreamInNewTab(tabTid, tabPid);
           return;
         }
         var btn = e.target && e.target.closest && e.target.closest(".adev-sse-btn");
         if (!btn) return;
         var tid = btn.getAttribute("data-task-id");
-        if (tid) openTaskClaudeSse(tid);
+        var pid = btn.getAttribute("data-pid");
+        if (tid && pid) openTaskAgentSse(tid, pid);
       });
       document.getElementById("adev-btn-reset").onclick = function () {
         document.getElementById("adev-baseUrl").value = "";

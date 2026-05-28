@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { migrateTasksSubtasksStatusToNumeric } from "./migrateTaskStatusNumeric.js";
+import { migrateProviderCursor } from "./migrateProviderCursor.js";
 
 let db: DatabaseSync | null = null;
 
@@ -17,7 +18,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS threads (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL DEFAULT '',
-  provider TEXT NOT NULL CHECK (provider IN ('claude', 'codex')),
+  provider TEXT NOT NULL CHECK (provider IN ('claude', 'codex', 'cursor')),
   external_thread_id TEXT,
   created_at INTEGER NOT NULL
 );
@@ -141,7 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_system_config_user_lookup ON system_config(scope,
 CREATE TABLE IF NOT EXISTS agent_runs (
   id TEXT PRIMARY KEY,
   thread_id TEXT NOT NULL,
-  provider TEXT NOT NULL CHECK (provider IN ('claude', 'codex')),
+  provider TEXT NOT NULL CHECK (provider IN ('claude', 'codex', 'cursor')),
   status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'failed')),
   error_message TEXT,
   started_at INTEGER NOT NULL,
@@ -170,6 +171,7 @@ export function getDb(databasePath: string): DatabaseSync {
   db = new DatabaseSync(resolved);
   db.exec(initSql);
   migrateTasksSubtasksStatusToNumeric(db);
+  migrateProviderCursor(db);
   return db;
 }
 

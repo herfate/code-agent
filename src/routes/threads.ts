@@ -1,15 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { zAgentProviderEnum, zAgentProviderEnumOptional } from "../validation/agentProviderZod.js";
 import type { DatabaseSync } from "node:sqlite";
 import { getThread, listMessages, listThreads, listThreadsFiltered, createThread } from "../db/repository.js";
 
 const createThreadBody = z.object({
   title: z.string().max(500).optional(),
-  provider: z.enum(["claude", "codex"]),
+  provider: zAgentProviderEnum,
 });
 
 const listThreadsQuery = z.object({
-  provider: z.enum(["claude", "codex"]).optional(),
+  provider: zAgentProviderEnumOptional,
   title: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });

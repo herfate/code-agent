@@ -103,6 +103,16 @@
   .chat-scroll-pre {
     @apply max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-900/5 p-2 font-mono text-[11px] leading-snug text-slate-700;
   }
+  /* 父任务工作流「放大」弹窗（?wide=1） */
+  body.ats-wide .chat-turn-assistant {
+    @apply w-full;
+  }
+  body.ats-wide .chat-turn-assistant .chat-bubble {
+    @apply w-full max-w-full;
+  }
+  body.ats-wide .chat-scroll-pre {
+    @apply max-h-[min(70vh,32rem)];
+  }
   .chat-turn-user .chat-scroll-pre {
     @apply bg-black/15 text-white/95;
   }

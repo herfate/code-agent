@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
+import { loadConfig } from "../config.js";
 import { RESERVED_PARENT_PARAM_KEYS } from "../constants/commonKey.js";
 import { getParentTask, listParentTasks, nextParentTaskPid } from "../db/parentTask.js";
 import { PARENT_AGENT_TYPE } from "../constants/parentAgentType.js";
@@ -13,6 +14,7 @@ import {
 } from "../db/workflow.js";
 import { zTaskCreator } from "../validation/taskCreatorZod.js";
 import { zParentAgentTypeOptional } from "../validation/parentAgentTypeZod.js";
+import { zTaskAgentProviderEnumOptional } from "../validation/agentProviderZod.js";
 import { createParentTaskWorkflow } from "../services/create/task/parentTaskCreateService.js";
 import {
   buildParentTaskTitleSource,
@@ -55,6 +57,8 @@ const createBody = z.object({
   branch_version: z.string().trim().min(1).max(500),
   gitRemoteUrl: z.string().trim().min(1).max(2000).optional(),
   testEnv: z.string().trim().min(1).max(200).optional(),
+  /** 写入 `init` 参数的 Agent 线路；省略时使用 `TASK_AGENT_PROVIDER` */
+  provider: zTaskAgentProviderEnumOptional,
   app: z.string().trim().min(1).max(500).optional(),
   requirement: z.string().trim().min(1).max(50_000).optional(),
   creator: zTaskCreator,
@@ -117,8 +121,20 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const { title, description, task_type, branch_version, gitRemoteUrl, testEnv, app, requirement, creator, params } =
-      parsed.data;
+    const {
+      title,
+      description,
+      task_type,
+      branch_version,
+      gitRemoteUrl,
+      testEnv,
+      provider,
+      app,
+      requirement,
+      creator,
+      params,
+    } = parsed.data;
+    const config = loadConfig();
     const pid = parsed.data.pid?.trim() || nextParentTaskPid(db);
     if (getParentTask(db, pid)) {
       return reply.status(409).send({ error: "parent task already exists" });
@@ -159,6 +175,7 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
         branch_version,
         gitRemoteUrl,
         testEnv,
+        provider: provider ?? config.TASK_AGENT_PROVIDER,
         app,
         requirement,
         creator,

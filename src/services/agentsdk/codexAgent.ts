@@ -1,6 +1,7 @@
 import { Codex } from "@openai/codex-sdk";
 import type { ThreadEvent } from "@openai/codex-sdk";
 import type { DatabaseSync } from "node:sqlite";
+import { AGENT_PROVIDER } from "../../constants/agentProvider.js";
 import type { FastifyReply } from "fastify";
 import { appendAgentRunEvent, finishAgentRun } from "../../db/agentRun.js";
 import {
@@ -77,11 +78,13 @@ export async function streamCodexTurnToSse(
     emitData(reply, recorder, {
       type: "meta",
       threadId: opts.threadId,
-      provider: "codex",
+      provider: AGENT_PROVIDER.Codex,
       runId: recorder.runId,
     });
   } else {
-    safeSse(reply, () => sendSseData(reply, { type: "meta", threadId: opts.threadId, provider: "codex" }));
+    safeSse(reply, () =>
+      sendSseData(reply, { type: "meta", threadId: opts.threadId, provider: AGENT_PROVIDER.Codex }),
+    );
   }
 
   let codexThreadId: string | null = null;

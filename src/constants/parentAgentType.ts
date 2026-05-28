@@ -4,6 +4,8 @@
 export const PARENT_AGENT_TYPE = {
   /** 开发自测编排（设计 → 开发 → 测试等子任务流水线） */
   DevSelfTest: 1,
+  /** 开发自Review编排（设计 → 开发 -> review → 部署等子任务流水线） */
+  DevReviewNoTest: 2,
 } as const;
 
 export type ParentAgentType = (typeof PARENT_AGENT_TYPE)[keyof typeof PARENT_AGENT_TYPE];
@@ -39,6 +41,8 @@ export function parentAgentTypeLabel(code: ParentAgentType | number | string): s
   switch (n) {
     case PARENT_AGENT_TYPE.DevSelfTest:
       return "开发自测Agent";
+    case PARENT_AGENT_TYPE.DevReviewNoTest:
+      return "开发自Review Agent";
     default:
       return String(code);
   }

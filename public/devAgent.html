@@ -20,6 +20,7 @@
           <select id="dag-taskType" class="form-select">
             <option value="">全部</option>
             <option value="1">1 — 开发自测Agent</option>
+            <option value="2">2 — 开发自Review Agent</option>
           </select>
         </div>
         <div class="lg:col-span-3">
@@ -82,7 +83,7 @@
       >
         <div class="shrink-0 border-b border-slate-100 px-5 py-4">
           <h3 id="dag-modal-title" class="text-sm font-semibold text-slate-800">新增父任务</h3>
-          <p class="mt-1 text-xs text-slate-500">创建后标题默认为 <code class="font-mono text-[11px]">thinking</code>，后台 AI 根据说明等自动汇总；分支版本、gitRemoteUrl、testEnv 写入 <code class="font-mono text-[11px]">param_key=init</code>。</p>
+          <p class="mt-1 text-xs text-slate-500">创建后标题默认为 <code class="font-mono text-[11px]">thinking</code>，后台 AI 根据说明等自动汇总；分支版本、gitRemoteUrl、testEnv、Agent 线路 <code class="font-mono text-[11px]">provider</code> 写入 <code class="font-mono text-[11px]">param_key=init</code>。</p>
         </div>
         <form id="dag-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -137,6 +138,14 @@
                 <label for="dag-new-taskType" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
                 <select id="dag-new-taskType" class="form-select">
                   <option value="1" selected>1 — 开发自测Agent</option>
+                  <option value="2">2 — 开发自Review Agent</option>
+                </select>
+              </div>
+              <div>
+                <label for="dag-new-provider" class="mb-1.5 block text-xs font-medium text-slate-600">Agent 线路</label>
+                <select id="dag-new-provider" class="form-select">
+                  <option value="claude" selected>claude</option>
+                  <option value="cursor">cursor</option>
                 </select>
               </div>
               <div class="sm:col-span-2">
@@ -235,25 +244,30 @@
       function parentAgentTypeLabel(code) {
         var n = Number(code);
         if (n === 1) return "开发自测Agent";
+        if (n === 2) return "开发自Review Agent";
         return String(code ?? "");
       }
 
-      /** 从 `param_key=init` 的 value_json 解析 branch_version / gitRemoteUrl / testEnv */
+      /** 从 `param_key=init` 的 value_json 解析 branch_version / gitRemoteUrl / testEnv / provider */
       function initParamFields(taskParams) {
         var row = (taskParams || []).find(function (p) {
           return p.param_key === "init";
         });
-        if (!row || !row.value_json) return { branch: "", git: "", testEnv: "" };
+        if (!row || !row.value_json) return { branch: "", git: "", testEnv: "", provider: "claude" };
         try {
           var o = JSON.parse(row.value_json);
-          if (typeof o !== "object" || o === null || Array.isArray(o)) return { branch: "", git: "", testEnv: "" };
+          if (typeof o !== "object" || o === null || Array.isArray(o)) {
+            return { branch: "", git: "", testEnv: "", provider: "claude" };
+          }
+          var prov = o.provider === "cursor" ? "cursor" : "claude";
           return {
             branch: typeof o.branch_version === "string" ? o.branch_version : "",
             git: typeof o.gitRemoteUrl === "string" ? o.gitRemoteUrl : "",
             testEnv: typeof o.testEnv === "string" ? o.testEnv : "",
+            provider: prov,
           };
         } catch (e) {
-          return { branch: "", git: "", testEnv: "" };
+          return { branch: "", git: "", testEnv: "", provider: "claude" };
         }
       }
 
@@ -499,6 +513,7 @@
           document.getElementById("dag-new-branch").value = initFields.branch;
           document.getElementById("dag-new-gitRemoteUrl").value = initFields.git;
           document.getElementById("dag-new-testEnv").value = initFields.testEnv;
+          document.getElementById("dag-new-provider").value = initFields.provider || "claude";
           document.getElementById("dag-new-description").value = pt.description || "";
           document.getElementById("dag-new-taskType").value =
             pt.task_type !== undefined && pt.task_type !== null && pt.task_type !== ""
@@ -517,6 +532,7 @@
         } else {
           titleEl.textContent = "新增父任务";
           document.getElementById("dag-new-taskType").value = "1";
+          document.getElementById("dag-new-provider").value = "claude";
         }
         modalRoot.classList.remove("hidden");
         document.body.style.overflow = "hidden";
@@ -604,10 +620,13 @@
           modalShowError("获取当前登录用户失败");
           return;
         }
+        var providerVal = document.getElementById("dag-new-provider").value.trim().toLowerCase();
+        if (providerVal !== "cursor") providerVal = "claude";
         var body = {
           branch_version: branch,
           description: document.getElementById("dag-new-description").value.trim() || undefined,
           task_type: Number(document.getElementById("dag-new-taskType").value) || 1,
+          provider: providerVal,
           creator: creator,
         };
         if (pidInput) body.pid = pidInput;

@@ -12,7 +12,7 @@ import { AppLog } from "../appLogger.js";
 import { handleClaimedAgentTask } from "../workflow/claimedTaskHandler.js";
 import { selectPendingTasksForScan } from "../select/pendingTasksForScan.js";
 import type {ParentTaskRow} from "../../db/parentTask.js";
-import {isToolTaskType} from "../../constants/taskType.js";
+import { isTestPreAnalysisTaskType, isToolTaskType } from "../../constants/taskType.js";
 import {handleTestEnvDeployToolTask} from "../workflow/toolTasks/testEnvDeployToolTask.js";
 
 export type TaskScanSchedulerHandle = { stop: () => void };
@@ -40,6 +40,7 @@ export function startTaskScanScheduler(opts: {
         if (!claimed) continue;
         try {
           await handleClaimedTask(db, claimed, parent_task);
+          pauseTestPreAnalysisIfCompleted(db, claimed.id);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           log.error({ err: e, taskId: claimed.id }, "task scan handler failed");
@@ -88,6 +89,20 @@ function handleClaimedTask(db: DatabaseSync, task: TaskRow, parentTask: ParentTa
     throw new Error(`unsupported tool task_type: ${task.task_type}`);
   }
   return handleClaimedAgentTask(db, task, parentTask);
+}
+
+/** 测试预分析执行成功落库为「完成」后改为「已暂停」，同父任务后续子任务需人工确认后再推进 */
+function pauseTestPreAnalysisIfCompleted(db: DatabaseSync, taskId: string): void {
+  const row = getTask(db, taskId);
+  if (
+    !row ||
+    row.status !== TASK_STATUS.Completed ||
+    !isTestPreAnalysisTaskType(row.task_type)
+  ) {
+    return;
+  }
+  updateTask(db, taskId, { status: TASK_STATUS.Paused });
+  AppLog.logger.info({ taskId, parentTaskId: row.pid }, "test pre-analysis paused for confirmation");
 }
 
 function failClaimedTask(db: DatabaseSync, task: TaskRow, error_message: string): void {

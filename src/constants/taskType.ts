@@ -23,6 +23,11 @@ export function isToolTaskType(taskType: TaskType): boolean {
   return (TOOL_TASK_TYPES as readonly number[]).includes(taskType);
 }
 
+/** 测试预分析（Agent 跑完后需人工确认，调度器会将「完成」改为「已暂停」） */
+export function isTestPreAnalysisTaskType(taskType: TaskType): boolean {
+  return taskType === TASK_TYPE.TestPreAnalysis;
+}
+
 export type TaskType = (typeof TASK_TYPE)[keyof typeof TASK_TYPE];
 
 /** @deprecated 使用 {@link TASK_TYPE.Dev} */

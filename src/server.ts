@@ -11,6 +11,7 @@ import { registerParentTaskRoutes } from "./routes/parentTask.js";
 import { registerSystemConfigRoutes } from "./routes/systemConfig.js";
 import { registerAgentClaudeRoutes } from "./routes/agentClaude.js";
 import { registerAgentCodexRoutes } from "./routes/agentCodex.js";
+import { registerAgentCursorRoutes } from "./routes/agentCursor.js";
 import { registerDemoPageRoute } from "./routes/demoPage.js";
 import { registerQaProxyRoutes } from "./routes/qaProxy.js";
 import { AppLog } from "./services/appLogger.js";
@@ -32,6 +33,7 @@ registerParentTaskRoutes(app, { db });
 registerSystemConfigRoutes(app, { db });
 registerAgentClaudeRoutes(app, { db });
 registerAgentCodexRoutes(app, { db });
+registerAgentCursorRoutes(app, { db });
 registerQaProxyRoutes(app, { db });
 registerDemoPageRoute(app);
 

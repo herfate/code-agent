@@ -9,7 +9,7 @@ import {
   insertMessage,
   updateThreadExternalId,
 } from "../db/repository.js";
-import { streamClaudeQueryToSse } from "../services/agentsdk/claudeAgent.js";
+import { streamCursorQueryToSse } from "../services/agentsdk/cursorAgent.js";
 import { pipeAgentRunReplayToSse } from "../sse/replayAgentRun.js";
 
 const bodySchema = z.object({
@@ -18,10 +18,10 @@ const bodySchema = z.object({
   model: z.string().optional(),
 });
 
-export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: DatabaseSync }): void {
+export function registerAgentCursorRoutes(app: FastifyInstance, deps: { db: DatabaseSync }): void {
   const { db } = deps;
 
-  app.get("/api/agents/claude/runs/:runId/stream", async (request, reply) => {
+  app.get("/api/agents/cursor/runs/:runId/stream", async (request, reply) => {
     const runIdParsed = z.string().uuid().safeParse((request.params as { runId?: string }).runId);
     if (!runIdParsed.success) {
       return reply.status(400).send({ error: "invalid runId" });
@@ -32,9 +32,10 @@ export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: Data
     await pipeAgentRunReplayToSse(reply, db, runIdParsed.data, after);
   });
 
-  app.post("/api/agents/claude/sse", async (request, reply) => {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return reply.status(503).send({ error: "ANTHROPIC_API_KEY is not configured" });
+  app.post("/api/agents/cursor/sse", async (request, reply) => {
+    const apiKey = process.env.CURSOR_API_KEY;
+    if (!apiKey) {
+      return reply.status(503).send({ error: "CURSOR_API_KEY is not configured" });
     }
 
     const parsed = bodySchema.safeParse(request.body);
@@ -47,13 +48,13 @@ export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: Data
     let threadId = existingId;
     if (!threadId) {
       threadId = crypto.randomUUID();
-      createThread(db, { id: threadId, provider: AGENT_PROVIDER.Claude, title: "Claude chat" });
+      createThread(db, { id: threadId, provider: AGENT_PROVIDER.Cursor, title: "Cursor chat" });
     } else {
       const t = getThread(db, threadId);
       if (!t) {
         return reply.status(404).send({ error: "Thread not found" });
       }
-      if (t.provider !== AGENT_PROVIDER.Claude) {
+      if (t.provider !== AGENT_PROVIDER.Cursor) {
         return reply.status(400).send({ error: "Thread provider mismatch" });
       }
     }
@@ -66,24 +67,25 @@ export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: Data
     });
 
     const threadRow = getThread(db, threadId);
-    const resumeSessionId = threadRow?.external_thread_id ?? undefined;
+    const resumeAgentId = threadRow?.external_thread_id ?? undefined;
 
     const runId = crypto.randomUUID();
-    createAgentRun(db, { id: runId, thread_id: threadId, provider: AGENT_PROVIDER.Claude });
+    createAgentRun(db, { id: runId, thread_id: threadId, provider: AGENT_PROVIDER.Cursor });
 
     reply.hijack();
 
-    const { sessionId, assistantText, sdkError } = await streamClaudeQueryToSse(reply, {
+    const { agentId, assistantText, sdkError } = await streamCursorQueryToSse(reply, {
       threadId,
       pId: "demo",
       prompt,
+      apiKey,
       model,
-      resume: resumeSessionId,
+      resume: resumeAgentId,
       runRecorder: { db, runId },
     });
 
-    if (sessionId) {
-      updateThreadExternalId(db, threadId, sessionId);
+    if (agentId) {
+      updateThreadExternalId(db, threadId, agentId);
     }
     if (assistantText) {
       insertMessage(db, {

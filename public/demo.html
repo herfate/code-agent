@@ -12,7 +12,7 @@
       <h1 class="mb-2 text-xl font-semibold">code-agent 演示</h1>
       <p class="mb-5 text-sm leading-relaxed text-slate-600">
         本页为 <strong>对话演示</strong>（管理台左侧菜单同名入口会嵌入此页）。与后端<strong>同源</strong>打开时可调试 REST 与 <strong>POST + SSE</strong> Agent；单独访问地址为 <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">/demo</code>，管理台为 <a class="text-blue-600 hover:underline" href="/">/</a>。
-        需已在服务端配置 <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">ANTHROPIC_API_KEY</code> / <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">OPENAI_API_KEY</code>。
+        需已在服务端配置 <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">ANTHROPIC_API_KEY</code> / <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">OPENAI_API_KEY</code> / <code class="rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.8125rem]">CURSOR_API_KEY</code>。
       </p>
     </div>
 
@@ -39,6 +39,7 @@
         <div class="mt-2.5 flex flex-wrap gap-2">
           <button type="button" id="btnNewClaude" class="cursor-pointer rounded-md border-0 bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">新建 Claude 会话</button>
           <button type="button" id="btnNewCodex" class="cursor-pointer rounded-md border-0 bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">新建 Codex 会话</button>
+          <button type="button" id="btnNewCursor" class="cursor-pointer rounded-md border-0 bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700">新建 Cursor 会话</button>
         </div>
       </section>
 
@@ -52,6 +53,7 @@
           <select id="provider" class="form-select">
             <option value="claude">Claude — POST /api/agents/claude/sse</option>
             <option value="codex">Codex — POST /api/agents/codex/sse</option>
+            <option value="cursor">Cursor — POST /api/agents/cursor/sse</option>
           </select>
         </div>
         <label for="model" class="mb-1 mt-2 block text-xs text-slate-600">model（可选）</label>
@@ -195,7 +197,9 @@
         const path =
           s.provider === "codex"
             ? "/api/agents/codex/runs/" + encodeURIComponent(s.runId) + "/stream"
-            : "/api/agents/claude/runs/" + encodeURIComponent(s.runId) + "/stream";
+            : s.provider === "cursor"
+              ? "/api/agents/cursor/runs/" + encodeURIComponent(s.runId) + "/stream"
+              : "/api/agents/claude/runs/" + encodeURIComponent(s.runId) + "/stream";
         const url = base() + path + "?afterSeq=" + encodeURIComponent(String(s.lastSeq != null ? s.lastSeq : 0));
         log("[续订 SSE] GET " + url, "text-violet-700");
         try {
@@ -280,11 +284,18 @@
       document.getElementById("btnNewCodex").onclick = function () {
         createThread("codex");
       };
+      document.getElementById("btnNewCursor").onclick = function () {
+        createThread("cursor");
+      };
 
       document.getElementById("btnStream").onclick = async function () {
         const provider = document.getElementById("provider").value;
         const path =
-          provider === "codex" ? "/api/agents/codex/sse" : "/api/agents/claude/sse";
+          provider === "codex"
+            ? "/api/agents/codex/sse"
+            : provider === "cursor"
+              ? "/api/agents/cursor/sse"
+              : "/api/agents/claude/sse";
         const prompt = document.getElementById("prompt").value.trim();
         if (!prompt) {
           log("请填写 prompt", "text-amber-700");

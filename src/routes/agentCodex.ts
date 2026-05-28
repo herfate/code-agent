@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DatabaseSync } from "node:sqlite";
+import { AGENT_PROVIDER } from "../constants/agentProvider.js";
 import { createAgentRun } from "../db/agentRun.js";
 import {
   createThread,
@@ -46,13 +47,13 @@ export function registerAgentCodexRoutes(app: FastifyInstance, deps: { db: Datab
     let threadId = existingId;
     if (!threadId) {
       threadId = crypto.randomUUID();
-      createThread(db, { id: threadId, provider: "codex", title: "Codex chat" });
+      createThread(db, { id: threadId, provider: AGENT_PROVIDER.Codex, title: "Codex chat" });
     } else {
       const t = getThread(db, threadId);
       if (!t) {
         return reply.status(404).send({ error: "Thread not found" });
       }
-      if (t.provider !== "codex") {
+      if (t.provider !== AGENT_PROVIDER.Codex) {
         return reply.status(400).send({ error: "Thread provider mismatch" });
       }
     }
@@ -68,7 +69,7 @@ export function registerAgentCodexRoutes(app: FastifyInstance, deps: { db: Datab
     const resumeThreadId = row?.external_thread_id ?? undefined;
 
     const runId = crypto.randomUUID();
-    createAgentRun(db, { id: runId, thread_id: threadId, provider: "codex" });
+    createAgentRun(db, { id: runId, thread_id: threadId, provider: AGENT_PROVIDER.Codex });
 
     reply.hijack();
 

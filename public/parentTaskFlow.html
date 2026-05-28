@@ -51,6 +51,37 @@
     </aside>
   </div>
 
+  <div id="ptf-expand-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div
+      id="ptf-expand-backdrop"
+      class="pointer-events-auto flex h-full w-full flex-col bg-slate-900/55 p-2 sm:p-3"
+    >
+      <div
+        id="ptf-expand-panel"
+        class="flex min-h-0 flex-1 w-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl sm:rounded-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ptf-expand-title"
+      >
+        <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <h2 id="ptf-expand-title" class="min-w-0 truncate text-sm font-semibold text-slate-800">任务 SSE</h2>
+          <button
+            type="button"
+            id="ptf-expand-close"
+            class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            关闭
+          </button>
+        </div>
+        <iframe
+          id="ptf-expand-iframe"
+          class="block min-h-0 w-full flex-1 border-0 bg-white"
+          title="任务 SSE 放大"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var subEl = document.getElementById("ptf-sub");
@@ -135,13 +166,32 @@
         );
       }
 
-      /** 构建单任务 SSE 页 URL（GET /agent-dev/task-stream），供 iframe 嵌套 */
-      function taskStreamUrl(taskId) {
+      /** 从父任务 `param_key=init` 解析 Agent 线路 */
+      function initProviderFromParams(taskParams) {
+        var row = (taskParams || []).find(function (p) {
+          return p && p.param_key === "init";
+        });
+        if (!row || !row.value_json) return "claude";
+        try {
+          var o = JSON.parse(row.value_json);
+          return o && o.provider === "cursor" ? "cursor" : "claude";
+        } catch (e) {
+          return "claude";
+        }
+      }
+
+      /** 构建单任务 SSE 页 URL；`provider` 来自已加载的父任务参数，SSE 页可免二次请求 */
+      function taskStreamUrl(taskId, pid, provider) {
         var pageOrigin = window.location.origin;
+        var prov = provider === "cursor" ? "cursor" : "claude";
         var u =
           pageOrigin +
           "/agent-dev/task-stream?taskId=" +
-          encodeURIComponent(taskId);
+          encodeURIComponent(taskId) +
+          "&pid=" +
+          encodeURIComponent(pid) +
+          "&provider=" +
+          encodeURIComponent(prov);
         var base = apiBase();
         if (base && base !== pageOrigin) {
           u += "&base=" + encodeURIComponent(base);
@@ -151,6 +201,40 @@
       }
 
       var loadedPid = "";
+      var expandRoot = document.getElementById("ptf-expand-root");
+      var expandBackdrop = document.getElementById("ptf-expand-backdrop");
+      var expandTitle = document.getElementById("ptf-expand-title");
+      var expandIframe = document.getElementById("ptf-expand-iframe");
+
+      function closeExpandModal() {
+        if (!expandRoot) return;
+        expandRoot.classList.add("hidden");
+        if (expandIframe) expandIframe.removeAttribute("src");
+      }
+
+      /** 放大视图：为 SSE 页追加 wide=1，解除对话气泡最大宽度限制 */
+      function streamUrlForExpand(src) {
+        try {
+          var u = new URL(src, window.location.href);
+          u.searchParams.set("wide", "1");
+          return u.pathname + u.search;
+        } catch (e) {
+          return src + (src.indexOf("?") >= 0 ? "&" : "?") + "wide=1";
+        }
+      }
+
+      function openExpandModal(article) {
+        if (!expandRoot || !expandIframe || !article) return;
+        var iframe = article.querySelector("iframe");
+        if (!iframe || !iframe.getAttribute("src")) return;
+        var titleEl = article.querySelector(".truncate.text-xs.font-semibold");
+        if (expandTitle) {
+          expandTitle.textContent = titleEl ? titleEl.textContent : "任务 SSE";
+        }
+        expandIframe.setAttribute("src", streamUrlForExpand(iframe.getAttribute("src")));
+        expandIframe.setAttribute("title", iframe.getAttribute("title") || "任务 SSE");
+        expandRoot.classList.remove("hidden");
+      }
 
       function resetTaskToPending(taskId, triggerBtn) {
         if (!taskId) return;
@@ -240,11 +324,12 @@
           return;
         }
 
+        var parentProvider = initProviderFromParams(data.parent_task_params);
         var html = '<div class="grid grid-cols-3 gap-3">';
         list.forEach(function (t) {
           var typeLabel = TASK_TYPE[t.task_type] || String(t.task_type);
           var stLabel = TASK_STATUS[t.status] || String(t.status);
-          var streamSrc = taskStreamUrl(t.id);
+          var streamSrc = taskStreamUrl(t.id, pt.pid, parentProvider);
           html +=
             '<article class="flex h-[50vh] min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-50/50 scroll-mt-3" data-task-id="' +
             esc(t.id) +
@@ -279,10 +364,16 @@
           html +=
             '<div class="shrink-0 self-center border-l border-slate-200 pl-2">';
           html +=
+            '<div class="flex flex-col gap-1">';
+          html +=
+            '<button type="button" class="ptf-expand-btn whitespace-nowrap rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-50" data-task-id="' +
+            esc(t.id) +
+            '">放大</button>';
+          html +=
             '<button type="button" class="ptf-reexec-btn whitespace-nowrap rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50" data-task-id="' +
             esc(t.id) +
             '">重新执行</button>';
-          html += "</div></div>";
+          html += "</div></div></div>";
           html += '<ol class="max-h-16 shrink-0 list-none overflow-y-auto border-b border-slate-100 bg-white px-2 py-1">';
           var subs = t.subtasks || [];
           if (subs.length === 0) {
@@ -333,7 +424,7 @@
           }
           html += "</ol>";
           html +=
-            '<iframe class="block min-h-0 w-full flex-1 border-0 bg-white" style="height:0" title="Claude SSE · ' +
+            '<iframe class="block min-h-0 w-full flex-1 border-0 bg-white" style="height:0" title="Agent SSE · ' +
             esc(t.id) +
             '" src="' +
             esc(streamSrc) +
@@ -415,7 +506,25 @@
         window.close();
       });
 
+      document.getElementById("ptf-expand-close").addEventListener("click", closeExpandModal);
+      if (expandBackdrop) {
+        expandBackdrop.addEventListener("click", function (e) {
+          if (e.target === expandBackdrop) closeExpandModal();
+        });
+      }
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && expandRoot && !expandRoot.classList.contains("hidden")) {
+          closeExpandModal();
+        }
+      });
+
       flowEl.addEventListener("click", function (ev) {
+        var expandBtn = ev.target.closest(".ptf-expand-btn");
+        if (expandBtn) {
+          var article = expandBtn.closest("article");
+          if (article) openExpandModal(article);
+          return;
+        }
         var btn = ev.target.closest(".ptf-reexec-btn");
         if (!btn) return;
         var taskId = btn.getAttribute("data-task-id");
