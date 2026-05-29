@@ -8,7 +8,7 @@ import { TASK_TYPE } from "../constants/taskType.js";
 import { loadConfig } from "../config.js";
 import { resolveParentTaskAgentProvider } from "../db/parentTask.js";
 import { createTask, getTask, listTasks, listTasksFiltered, updateTask } from "../db/workflow.js";
-import { stripAgentRunIdsFromTaskMeta, getClaudeAgentRunIdFromTaskMeta, getCursorAgentRunIdFromTaskMeta } from "../services/taskAgentMeta.js";
+import { stripAgentRunIdsForRequeue, getClaudeAgentRunIdFromTaskMeta, getCursorAgentRunIdFromTaskMeta } from "../services/taskAgentMeta.js";
 import { zTaskCreator } from "../validation/taskCreatorZod.js";
 import { zTaskTypeOptional } from "../validation/taskTypeZod.js";
 import { pipeAgentRunReplayToSse } from "../sse/replayAgentRun.js";
@@ -20,12 +20,18 @@ const createTaskBody = z.object({
   creator: zTaskCreator,
 });
 
-const patchTaskBody = z.object({
-  status: z.coerce
-    .number()
-    .int()
-    .refine((n): n is TaskStatus => isTaskStatus(n), { message: "invalid status" }),
-});
+const patchTaskBody = z
+  .object({
+    status: z.coerce
+      .number()
+      .int()
+      .refine((n): n is TaskStatus => isTaskStatus(n), { message: "invalid status" })
+      .optional(),
+    description: z.string().max(50_000).optional(),
+  })
+  .refine((b) => b.status !== undefined || b.description !== undefined, {
+    message: "at least one of status, description is required",
+  });
 
 const listTasksQuery = z.object({
   status: z.coerce
@@ -52,7 +58,7 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: DatabaseSyn
     }
     const config = loadConfig();
     const agent_provider = task.pid?.trim()
-      ? resolveParentTaskAgentProvider(db, task.pid.trim(), config.TASK_AGENT_PROVIDER)
+      ? resolveParentTaskAgentProvider(db, task.pid.trim(), config.TASK_AGENT_PROVIDER, task.task_type)
       : config.TASK_AGENT_PROVIDER;
     return { task, agent_provider };
   });
@@ -116,18 +122,24 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: DatabaseSyn
     if (!existing) {
       return reply.status(404).send({ error: "task not found" });
     }
-    const nextStatus = parsed.data.status;
-    const patch =
-      nextStatus === TASK_STATUS.Pending
-        ? {
-            status: TASK_STATUS.Pending,
-            error_message: null,
-            output_json: null,
-            started_at: null,
-            completed_at: null,
-            meta_json: stripAgentRunIdsFromTaskMeta(existing.meta_json),
-          }
-        : { status: nextStatus };
+    const { status: nextStatus, description: descPatch } = parsed.data;
+    if (descPatch !== undefined && !descPatch.trim()) {
+      return reply.status(400).send({ error: "description 不能为空" });
+    }
+    const patch: Parameters<typeof updateTask>[2] = {
+      ...(descPatch !== undefined ? { description: descPatch } : {}),
+      ...(nextStatus !== undefined ? { status: nextStatus } : {}),
+    };
+    if (nextStatus === TASK_STATUS.Pending) {
+      Object.assign(patch, {
+        error_message: null,
+        output_json: null,
+        started_at: null,
+        completed_at: null,
+        thread_id: null,
+        meta_json: stripAgentRunIdsForRequeue(existing.meta_json),
+      });
+    }
     const task = updateTask(db, taskIdParsed.data, patch);
     if (!task) {
       return reply.status(404).send({ error: "task not found" });
@@ -166,14 +178,12 @@ export function registerTaskRoutes(app: FastifyInstance, deps: { db: DatabaseSyn
     const { app: appName, branch_version, requirement, creator } = parsed.data;
     const id = randomUUID();
     const gitRemoteUrl = getGitlabUrlForAppLookup(appName);
-    const inputPayload: {
-      app: string;
-      branch_version: string;
-      requirement: string;
-      gitRemoteUrl?: string;
-    } = { app: appName, branch_version, requirement };
-    if (gitRemoteUrl) inputPayload.gitRemoteUrl = gitRemoteUrl;
-    const inputJson = JSON.stringify(inputPayload);
+    const gitRepos = gitRemoteUrl ? [{ gitRemoteUrl, branch_version }] : [];
+    const inputJson = JSON.stringify({
+      app: appName,
+      requirement,
+      gitRepos,
+    });
     const task = createTask(db, {
       id,
       title: `${appName} / ${branch_version}`,

@@ -7,13 +7,15 @@ import {
   type TaskRow,
   TASK_TYPE,
 } from "../../db/workflow.js";
-import { notifyTaskExecuteFailed } from "../notify/taskExecuteNotify.js";
+import { notifyTaskExecuteResult } from "../notify/taskExecuteNotify.js";
 import { AppLog } from "../appLogger.js";
 import { handleClaimedAgentTask } from "../workflow/claimedTaskHandler.js";
 import { selectPendingTasksForScan } from "../select/pendingTasksForScan.js";
-import type {ParentTaskRow} from "../../db/parentTask.js";
+import { isDirectDevAfterDesign, type ParentTaskRow } from "../../db/parentTask.js";
 import { isTestPreAnalysisTaskType, isToolTaskType } from "../../constants/taskType.js";
 import {handleTestEnvDeployToolTask} from "../workflow/toolTasks/testEnvDeployToolTask.js";
+import {handleDeployWaitToolTask} from "../workflow/toolTasks/deployWaitToolTask.js";
+import {handleTestEnvDeployResultToolTask} from "../workflow/toolTasks/testEnvDeployResultToolTask.js";
 
 export type TaskScanSchedulerHandle = { stop: () => void };
 
@@ -46,13 +48,13 @@ export function startTaskScanScheduler(opts: {
           log.error({ err: e, taskId: claimed.id }, "task scan handler failed");
           failClaimedTask(db, claimed, msg);
         } finally {
-          // 任务失败时发送通用企业微信通知
+          // 任务结束（成功/失败）时发送企业微信通知
           try {
-            await notifyIfTaskFailed(db, claimed.id, parent_task.pid);
+            await notifyTaskExecuteResult(db, parent_task.pid, claimed.id);
           } catch (notifyErr) {
             log.error(
               { err: notifyErr, taskId: claimed.id },
-              "notifyTaskExecuteFailed on task failure",
+              "notifyTaskExecuteResult failed",
             );
           }
         }
@@ -86,12 +88,18 @@ function handleClaimedTask(db: DatabaseSync, task: TaskRow, parentTask: ParentTa
     if (task.task_type === TASK_TYPE.TestEnvDeploy) {
       return handleTestEnvDeployToolTask(db, task, parentTask);
     }
+    if (task.task_type === TASK_TYPE.DeployWait) {
+      return handleDeployWaitToolTask(db, task, parentTask);
+    }
+    if (task.task_type === TASK_TYPE.TestEnvDeployResult) {
+      return handleTestEnvDeployResultToolTask(db, task, parentTask);
+    }
     throw new Error(`unsupported tool task_type: ${task.task_type}`);
   }
   return handleClaimedAgentTask(db, task, parentTask);
 }
 
-/** 测试预分析执行成功落库为「完成」后改为「已暂停」，同父任务后续子任务需人工确认后再推进 */
+/** 测试预分析执行成功落库为「完成」后改为「已暂停」，同父任务后续子任务需人工确认后再推进；`init.directDevAfterDesign` 为 true 时跳过 */
 function pauseTestPreAnalysisIfCompleted(db: DatabaseSync, taskId: string): void {
   const row = getTask(db, taskId);
   if (
@@ -99,6 +107,13 @@ function pauseTestPreAnalysisIfCompleted(db: DatabaseSync, taskId: string): void
     row.status !== TASK_STATUS.Completed ||
     !isTestPreAnalysisTaskType(row.task_type)
   ) {
+    return;
+  }
+  if (row.pid && isDirectDevAfterDesign(db, row.pid)) {
+    AppLog.logger.info(
+      { taskId, parentTaskId: row.pid },
+      "test pre-analysis completed, direct dev after design — skip pause",
+    );
     return;
   }
   updateTask(db, taskId, { status: TASK_STATUS.Paused });
@@ -114,15 +129,3 @@ function failClaimedTask(db: DatabaseSync, task: TaskRow, error_message: string)
   });
 }
 
-/** 任务已标记失败时发送通用 Webhook 通知 */
-async function notifyIfTaskFailed(
-  db: DatabaseSync,
-  taskId: string,
-  parentTaskId: string,
-): Promise<void> {
-  const row = getTask(db, taskId);
-  if (!row || row.status !== TASK_STATUS.Failed) {
-    return;
-  }
-  await notifyTaskExecuteFailed(db, parentTaskId, taskId);
-}

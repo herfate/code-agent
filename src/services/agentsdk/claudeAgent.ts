@@ -115,6 +115,7 @@ export async function streamClaudeQueryToSse(
   let sdkError: string | null = null;
 
   const taskRepoCwd = path.join(process.cwd(), "task-repo", opts.pId);
+  mkdirSync(taskRepoCwd, { recursive: true });
   const runRound = async (prompt: string, resume?: string) => {
     let roundSessionId: string | null = null;
     let roundText: string | null = null;

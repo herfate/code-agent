@@ -98,10 +98,15 @@ export const APPS = {
     gitlabUrl: "http://gitlab-code.howbuy.pa/DTMS/dtms-product-web",
     category: "海外参数-前端",
   },
-  hk_acc_online: {
-    repoId: "hk-acc-online",
+  hk_acc_online_service: {
+    repoId: "hk-acc-online-service",
     gitlabUrl: "http://gitlab-code.howbuy.pa/hk-acc/hk-acc-online",
-    category: "海外账户",
+    category: "海外账户联机",
+  },
+  hk_acc_console_web: {
+    repoId: "hk-acc-console-web",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/hk-acc/hk-acc-console",
+    category: "海外账户控制台",
   },
   acc_center: {
     repoId: "acc-center",

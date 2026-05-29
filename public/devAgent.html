@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>父任务 — 查询与新增</title>
   <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
 </head>
 <body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
   <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
@@ -16,12 +17,31 @@
       <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
         <div class="lg:col-span-2">
-          <label for="dag-taskType" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
-          <select id="dag-taskType" class="form-select">
-            <option value="">全部</option>
-            <option value="1">1 — 开发自测Agent</option>
-            <option value="2">2 — 开发自Review Agent</option>
-          </select>
+          <label id="dag-taskType-label" for="dag-taskType-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
+          <div id="dag-taskType-root" class="ui-combobox relative min-w-0">
+            <input type="hidden" id="dag-taskType" value="" autocomplete="off" />
+            <div
+              id="dag-taskType-trigger"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="dag-taskType-listbox"
+              aria-labelledby="dag-taskType-label"
+              tabindex="0"
+              class="ui-combobox-trigger"
+            >
+              <span class="ui-combobox-value min-w-0 truncate">全部</span>
+              <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="dag-taskType-listbox" role="listbox" class="ui-combobox-list hidden">
+              <div role="option" data-value="" class="ui-combobox-opt">全部</div>
+              <div role="option" data-value="1" class="ui-combobox-opt">1 — 开发自测Agent</div>
+              <div role="option" data-value="2" class="ui-combobox-opt">2 — 开发自Review Agent</div>
+              <div role="option" data-value="3" class="ui-combobox-opt">3 — 功能测试Agent</div>
+              <div role="option" data-value="4" class="ui-combobox-opt">4 — 业务Agent</div>
+            </div>
+          </div>
         </div>
         <div class="lg:col-span-3">
           <label for="dag-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题包含</label>
@@ -49,25 +69,69 @@
       <div class="min-h-0 flex-1 overflow-auto">
         <p id="dag-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700"></p>
         <div class="overflow-x-auto">
-          <table class="min-w-full border-collapse text-left text-sm">
-            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold uppercase tracking-wide text-slate-600 backdrop-blur-sm">
+          <table class="w-max min-w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold tracking-wide text-slate-600 backdrop-blur-sm">
               <tr>
-                <th class="px-4 py-3">pid</th>
-                <th class="px-4 py-3">title</th>
-                <th class="px-4 py-3">description</th>
-                <th class="px-4 py-3">branch_version</th>
-                <th class="px-4 py-3">gitRemoteUrl</th>
-                <th class="px-4 py-3">testEnv</th>
-                <th class="px-4 py-3">task_type</th>
-                <th class="px-4 py-3">created_at</th>
-                <th class="px-4 py-3">updated_at</th>
-                <th class="px-4 py-3">操作</th>
+                <th class="whitespace-nowrap px-4 py-3">编号</th>
+                <th class="whitespace-nowrap px-4 py-3">标题</th>
+                <th class="whitespace-nowrap px-4 py-3">描述</th>
+                <th class="w-12 max-w-[3rem] whitespace-nowrap px-2 py-3 text-center">类型</th>
+                <th class="whitespace-nowrap px-4 py-3">执行状态</th>
+                <th class="whitespace-nowrap px-4 py-3">创建人</th>
+                <th class="whitespace-nowrap px-4 py-3">创建时间</th>
+                <th class="whitespace-nowrap px-4 py-3">操作</th>
               </tr>
             </thead>
             <tbody id="dag-tbody" class="divide-y divide-slate-100 text-slate-800"></tbody>
           </table>
         </div>
         <p id="dag-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500">暂无数据，请调整条件后点击「查询」。</p>
+      </div>
+      <div id="dag-pagination" class="hidden shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <label id="dag-page-size-label" for="dag-page-size-trigger" class="whitespace-nowrap font-medium">每页</label>
+          <div id="dag-page-size-root" class="ui-combobox relative w-auto min-w-[4.5rem]">
+            <input type="hidden" id="dag-page-size" value="20" autocomplete="off" />
+            <div
+              id="dag-page-size-trigger"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="dag-page-size-listbox"
+              aria-labelledby="dag-page-size-label"
+              tabindex="0"
+              class="ui-combobox-trigger ui-combobox-trigger-sm"
+            >
+              <span class="ui-combobox-value min-w-0 truncate">20</span>
+              <svg class="h-3.5 w-3.5 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="dag-page-size-listbox" role="listbox" class="ui-combobox-list hidden min-w-full">
+              <div role="option" data-value="10" class="ui-combobox-opt">10</div>
+              <div role="option" data-value="20" class="ui-combobox-opt">20</div>
+              <div role="option" data-value="50" class="ui-combobox-opt">50</div>
+            </div>
+          </div>
+          <span id="dag-page-info" class="whitespace-nowrap text-slate-500"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            id="dag-btn-prev"
+            disabled
+            class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            上一页
+          </button>
+          <button
+            type="button"
+            id="dag-btn-next"
+            disabled
+            class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            下一页
+          </button>
+        </div>
       </div>
     </section>
   </div>
@@ -83,7 +147,7 @@
       >
         <div class="shrink-0 border-b border-slate-100 px-5 py-4">
           <h3 id="dag-modal-title" class="text-sm font-semibold text-slate-800">新增父任务</h3>
-          <p class="mt-1 text-xs text-slate-500">创建后标题默认为 <code class="font-mono text-[11px]">thinking</code>，后台 AI 根据说明等自动汇总；分支版本、gitRemoteUrl、testEnv、Agent 线路 <code class="font-mono text-[11px]">provider</code> 写入 <code class="font-mono text-[11px]">param_key=init</code>。</p>
+          <p class="mt-1 text-xs text-slate-500">说明必填；任务类型为 1/2/3/4 时仓库与分支（一对一）、测试环境必填（git 保存时自动去掉末尾 <code class="font-mono text-[11px]">.git</code>）。创建后标题默认为 <code class="font-mono text-[11px]">thinking</code>，后台 AI 根据说明等自动汇总；上述字段与模型 <code class="font-mono text-[11px]">provider</code> 写入 <code class="font-mono text-[11px]">param_key=init</code>。</p>
         </div>
         <form id="dag-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -100,62 +164,108 @@
                   placeholder="留空则 max(pid)+1"
                 />
               </div>
-              <div>
-                <label for="dag-new-branch" class="mb-1.5 block text-xs font-medium text-slate-600">分支版本 <span class="text-red-500">*</span></label>
-                <input
-                  id="dag-new-branch"
-                  type="text"
-                  required
-                  maxlength="500"
-                  autocomplete="off"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
-                  placeholder="例如 release/1.2 或 main"
-                />
-              </div>
               <div class="sm:col-span-2">
-                <label for="dag-new-gitRemoteUrl" class="mb-1.5 block text-xs font-medium text-slate-600">gitRemoteUrl</label>
-                <input
-                  id="dag-new-gitRemoteUrl"
-                  type="url"
-                  maxlength="2000"
-                  autocomplete="off"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
-                  placeholder="HTTPS Git 仓库地址（可选）"
-                />
+                <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-xs font-medium text-slate-600">仓库与分支 <span id="dag-req-git" class="text-red-500">*</span></span>
+                  <button
+                    type="button"
+                    id="dag-btn-add-git"
+                    class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  >
+                    添加仓库
+                  </button>
+                </div>
+                <div class="mb-1 hidden gap-2 px-0.5 sm:grid sm:grid-cols-[minmax(0,8rem)_1fr_auto]">
+                  <span class="text-[11px] font-medium text-slate-500">分支版本</span>
+                  <span class="text-[11px] font-medium text-slate-500">git 地址</span>
+                  <span class="w-14" aria-hidden="true"></span>
+                </div>
+                <div id="dag-git-list" class="space-y-2"></div>
+                <p class="mt-1.5 text-[11px] text-slate-500">每行一个仓库及其对应分支，成对填写；至少保留一行，空行提交时自动忽略。</p>
               </div>
               <div>
-                <label for="dag-new-testEnv" class="mb-1.5 block text-xs font-medium text-slate-600">测试环境 testEnv</label>
+                <label for="dag-new-testEnv" class="mb-1.5 block text-xs font-medium text-slate-600">测试环境 testEnv <span id="dag-req-testEnv" class="text-red-500">*</span></label>
                 <input
                   id="dag-new-testEnv"
                   type="text"
                   maxlength="200"
                   autocomplete="off"
                   class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
-                  placeholder="例如 qa / staging（可选）"
+                  placeholder="例如 it01/it116"
                 />
               </div>
               <div>
-                <label for="dag-new-taskType" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
-                <select id="dag-new-taskType" class="form-select">
-                  <option value="1" selected>1 — 开发自测Agent</option>
-                  <option value="2">2 — 开发自Review Agent</option>
-                </select>
+                <label id="dag-new-taskType-label" for="dag-new-taskType-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
+                <div id="dag-new-taskType-root" class="ui-combobox relative min-w-0">
+                  <input type="hidden" id="dag-new-taskType" name="task_type" value="1" autocomplete="off" />
+                  <div
+                    id="dag-new-taskType-trigger"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-controls="dag-new-taskType-listbox"
+                    aria-labelledby="dag-new-taskType-label"
+                    tabindex="0"
+                    class="ui-combobox-trigger"
+                  >
+                    <span class="ui-combobox-value min-w-0 truncate">1 — 开发自测Agent</span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  <div id="dag-new-taskType-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                    <div role="option" data-value="1" class="ui-combobox-opt">1 — 开发自测Agent</div>
+                    <div role="option" data-value="2" class="ui-combobox-opt">2 — 开发自Review Agent</div>
+                    <div role="option" data-value="3" class="ui-combobox-opt">3 — 功能测试Agent</div>
+                    <div role="option" data-value="4" class="ui-combobox-opt">4 — 业务Agent</div>
+                  </div>
+                </div>
               </div>
               <div>
-                <label for="dag-new-provider" class="mb-1.5 block text-xs font-medium text-slate-600">Agent 线路</label>
-                <select id="dag-new-provider" class="form-select">
-                  <option value="claude" selected>claude</option>
-                  <option value="cursor">cursor</option>
-                </select>
+                <label id="dag-new-provider-label" for="dag-new-provider-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">模型</label>
+                <div id="dag-new-provider-root" class="ui-combobox relative min-w-0">
+                  <input type="hidden" id="dag-new-provider" name="provider" value="claude" autocomplete="off" />
+                  <div
+                    id="dag-new-provider-trigger"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-controls="dag-new-provider-listbox"
+                    aria-labelledby="dag-new-provider-label"
+                    tabindex="0"
+                    class="ui-combobox-trigger"
+                  >
+                    <span class="ui-combobox-value min-w-0 truncate">claude</span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  <div id="dag-new-provider-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                    <div role="option" data-value="claude" class="ui-combobox-opt">claude</div>
+                    <div role="option" data-value="cursor" class="ui-combobox-opt">cursor</div>
+                  </div>
+                </div>
               </div>
               <div class="sm:col-span-2">
-                <label for="dag-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明</label>
+                <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <input
+                    id="dag-new-directDevAfterDesign"
+                    type="checkbox"
+                    class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                  />
+                  <span class="min-w-0">
+                    <span class="block text-sm font-medium text-slate-800">设计完成直接执行</span>
+                    <span class="mt-0.5 block text-xs text-slate-500">勾选后设计任务全部完成时不暂停，调度器自动继续执行后续子任务（默认需人工确认）</span>
+                  </span>
+                </label>
+              </div>
+              <div class="sm:col-span-2">
+                <label for="dag-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明 <span class="text-red-500">*</span></label>
                 <textarea
                   id="dag-new-description"
                   rows="3"
+                  required
                   maxlength="50000"
                   class="w-full resize-y rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
-                  placeholder="可选"
+                  placeholder="任务背景、需求要点等（必填）"
                 ></textarea>
               </div>
             </div>
@@ -189,12 +299,161 @@
     </div>
   </div>
 
+  <div id="dag-preview-pick-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="dag-preview-pick-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="dag-preview-pick-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dag-preview-pick-title"
+        class="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="dag-preview-pick-title" class="text-sm font-semibold text-slate-800">选择任务类型</h3>
+            <p id="dag-preview-pick-sub" class="mt-1 text-xs text-slate-500">请选择要预览的 taskType（ai_out 子目录）</p>
+          </div>
+          <button type="button" id="dag-preview-pick-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+        </div>
+        <div id="dag-preview-pick-body" class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <p id="dag-preview-pick-empty" class="hidden text-center text-sm text-slate-500">该父任务下暂无可预览文档（.md / .json / .txt）</p>
+          <div id="dag-preview-pick-list" class="grid gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dag-preview-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="dag-preview-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="dag-preview-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dag-preview-title"
+        class="flex h-[90vh] w-[80vw] max-h-[90vh] max-w-[80vw] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="dag-preview-title" class="text-sm font-semibold text-slate-800">文档预览</h3>
+            <p id="dag-preview-meta" class="mt-1 truncate font-mono text-[11px] text-slate-500"></p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button type="button" id="dag-preview-download" disabled class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">下载</button>
+            <button type="button" id="dag-preview-close" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+          </div>
+        </div>
+        <div id="dag-preview-body" class="min-h-0 flex-1 basis-0 overflow-x-auto overflow-y-auto px-5 py-4 text-sm text-slate-800"></div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    #dag-preview-panel {
+      display: flex;
+      flex-direction: column;
+      height: 90vh;
+      max-height: 90vh;
+      min-height: 0;
+    }
+    #dag-preview-body {
+      flex: 1 1 0%;
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgb(148 163 184) rgb(241 245 249);
+    }
+    #dag-preview-body::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    #dag-preview-body::-webkit-scrollbar-track {
+      background: rgb(241 245 249);
+      border-radius: 9999px;
+    }
+    #dag-preview-body::-webkit-scrollbar-thumb {
+      background: rgb(148 163 184);
+      border-radius: 9999px;
+      border: 2px solid rgb(241 245 249);
+    }
+    #dag-preview-body::-webkit-scrollbar-thumb:hover {
+      background: rgb(100 116 139);
+    }
+    #dag-preview-body h1 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+    #dag-preview-body h2 { font-size: 1.125rem; font-weight: 600; margin: 0.875rem 0 0.5rem; }
+    #dag-preview-body h3 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+    #dag-preview-body p { margin: 0.5rem 0; line-height: 1.625; }
+    #dag-preview-body ul, #dag-preview-body ol { margin: 0.5rem 0; padding-left: 1.25rem; }
+    #dag-preview-body li { margin: 0.25rem 0; }
+    #dag-preview-body pre { margin: 0.75rem 0; overflow-x: auto; border-radius: 0.5rem; background: #f1f5f9; padding: 0.75rem; font-size: 0.75rem; line-height: 1.5; }
+    #dag-preview-body code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    #dag-preview-body :not(pre) > code { background: #f1f5f9; padding: 0.125rem 0.25rem; border-radius: 0.25rem; }
+    #dag-preview-body blockquote { margin: 0.75rem 0; border-left: 3px solid #cbd5e1; padding-left: 0.75rem; color: #475569; }
+    #dag-preview-body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8125rem; }
+    #dag-preview-body th, #dag-preview-body td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
+    #dag-preview-body th { background: #f8fafc; font-weight: 600; }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/js/ui-combobox.js"></script>
   <script>
     (function () {
       var tbody = document.getElementById("dag-tbody");
       var emptyEl = document.getElementById("dag-empty");
       var errEl = document.getElementById("dag-error");
       var countEl = document.getElementById("dag-count");
+      var paginationEl = document.getElementById("dag-pagination");
+      var pageInfoEl = document.getElementById("dag-page-info");
+      var pageSizeEl = document.getElementById("dag-page-size");
+      var prevBtn = document.getElementById("dag-btn-prev");
+      var nextBtn = document.getElementById("dag-btn-next");
+      var dagPage = 1;
+      var dagTotal = 0;
+      var dagTotalPages = 0;
+      var dagQueried = false;
+
+      /** 与 `src/constants/taskStatus.ts` 一致 */
+      var TASK_STATUS_COMPLETED = 3;
+      var TASK_STATUS_PAUSED = 5;
+
+      var dagTaskTypeLabels = {
+        "": "全部",
+        "1": "1 — 开发自测Agent",
+        "2": "2 — 开发自Review Agent",
+        "3": "3 — 功能测试Agent",
+        "4": "4 — 业务Agent",
+      };
+      /** 与 `src/constants/taskType.ts` 一致（ai_out 子目录名） */
+      var dagWorkflowTaskTypeLabels = {
+        0: "设计",
+        1: "开发",
+        2: "开发规范优化",
+        3: "测试预分析",
+        4: "测试案例设计",
+        5: "测试数据分析",
+        6: "测试案例执行",
+        7: "QA平台测试脚本生成",
+        8: "Code Review",
+        9: "拆分故事",
+        10: "头脑风暴",
+        101: "测试环境发布",
+        102: "部署间隔等待",
+        103: "测试环境发布结果",
+      };
+      var dagQueryTaskTypeCombo = window.UiCombobox.attach(document.getElementById("dag-taskType-root"), {
+        labelMap: dagTaskTypeLabels,
+      });
+      var dagNewTaskTypeCombo = window.UiCombobox.attach(document.getElementById("dag-new-taskType-root"), {
+        onChange: function () {
+          updateNewFormRequiredState();
+        },
+      });
+      var dagProviderCombo = window.UiCombobox.attach(document.getElementById("dag-new-provider-root"));
+      var dagPageSizeCombo = window.UiCombobox.attach(document.getElementById("dag-page-size-root"), {
+        onChange: function () {
+          runDagQuery(true);
+        },
+      });
 
       function dagBase() {
         return window.location.origin;
@@ -245,37 +504,196 @@
         var n = Number(code);
         if (n === 1) return "开发自测Agent";
         if (n === 2) return "开发自Review Agent";
+        if (n === 3) return "功能测试Agent";
+        if (n === 4) return "业务Agent";
         return String(code ?? "");
       }
 
-      /** 从 `param_key=init` 的 value_json 解析 branch_version / gitRemoteUrl / testEnv / provider */
+      /** 任务类型 1/2/3/4 时需填写 git、分支、测试环境 */
+      function isDevAgentParentTaskType(taskType) {
+        var n = Number(taskType);
+        return n === 1 || n === 2 || n === 3 || n === 4;
+      }
+
+      /** 去掉 Git 远程地址末尾的 .git（仅去尾部一次，不改动路径中间） */
+      function normalizeGitRemoteUrl(url) {
+        var s = String(url || "").trim();
+        if (!s) return "";
+        return s.replace(/\.git\/?$/i, "");
+      }
+
+      /** 按任务类型切换 git / testEnv 的星号显示 */
+      function updateNewFormRequiredState() {
+        var required = isDevAgentParentTaskType(document.getElementById("dag-new-taskType").value);
+        var testEnvEl = document.getElementById("dag-new-testEnv");
+        if (required) testEnvEl.setAttribute("required", "required");
+        else testEnvEl.removeAttribute("required");
+        ["dag-req-git", "dag-req-testEnv"].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.classList.toggle("hidden", !required);
+        });
+        updateGitRepoRowRemoveButtons();
+      }
+
+      var gitListEl = document.getElementById("dag-git-list");
+
+      /** 创建一行「分支 + git 地址」配对输入 */
+      function createGitRepoRow(pair) {
+        var branchVal = pair && pair.branch_version ? pair.branch_version : "";
+        var urlVal = pair && pair.gitRemoteUrl ? pair.gitRemoteUrl : "";
+        var wrap = document.createElement("div");
+        wrap.className = "dag-git-row grid gap-2 sm:grid-cols-[minmax(0,8rem)_1fr_auto] sm:items-center";
+        wrap.innerHTML =
+          '<input type="text" class="dag-git-branch w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="500" autocomplete="off" placeholder="分支" value="' +
+          esc(branchVal) +
+          '" />' +
+          '<input type="url" class="dag-git-url min-w-0 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="2000" autocomplete="off" placeholder="HTTPS Git 仓库地址" value="' +
+          esc(urlVal) +
+          '" />' +
+          '<button type="button" class="dag-git-remove shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/25 sm:justify-self-end" title="移除此行">删除</button>';
+        var urlEl = wrap.querySelector(".dag-git-url");
+        urlEl.addEventListener("blur", function () {
+          var normalized = normalizeGitRemoteUrl(urlEl.value);
+          if (normalized !== urlEl.value.trim()) urlEl.value = normalized;
+        });
+        wrap.querySelector(".dag-git-remove").addEventListener("click", function () {
+          if (gitListEl.querySelectorAll(".dag-git-row").length <= 1) return;
+          wrap.remove();
+          updateGitRepoRowRemoveButtons();
+        });
+        return wrap;
+      }
+
+      /** 仅剩一行时禁用删除，避免全部删光 */
+      function updateGitRepoRowRemoveButtons() {
+        var rows = gitListEl.querySelectorAll(".dag-git-row");
+        var onlyOne = rows.length <= 1;
+        rows.forEach(function (row) {
+          var btn = row.querySelector(".dag-git-remove");
+          if (!btn) return;
+          btn.disabled = onlyOne;
+          btn.classList.toggle("cursor-not-allowed", onlyOne);
+          btn.classList.toggle("opacity-40", onlyOne);
+          btn.classList.toggle("hover:bg-red-50", !onlyOne);
+          btn.classList.toggle("hover:text-red-700", !onlyOne);
+        });
+      }
+
+      function clearGitRepoRows() {
+        gitListEl.innerHTML = "";
+      }
+
+      /** 重置或填充仓库列表（至少一行） */
+      function setGitRepos(repos) {
+        clearGitRepoRows();
+        var list = Array.isArray(repos)
+          ? repos.filter(function (p) {
+              return p && (String(p.gitRemoteUrl || "").trim() || String(p.branch_version || "").trim());
+            })
+          : [];
+        if (!list.length) list = [{ gitRemoteUrl: "", branch_version: "" }];
+        list.forEach(function (p) {
+          gitListEl.appendChild(
+            createGitRepoRow({
+              gitRemoteUrl: normalizeGitRemoteUrl(p.gitRemoteUrl),
+              branch_version: String(p.branch_version || "").trim(),
+            }),
+          );
+        });
+        updateGitRepoRowRemoveButtons();
+      }
+
+      /** 收集成对的 git 地址与分支（去重 git、保序） */
+      function collectGitRepos() {
+        var rows = gitListEl.querySelectorAll(".dag-git-row");
+        var seen = {};
+        var out = [];
+        for (var i = 0; i < rows.length; i++) {
+          var branch = rows[i].querySelector(".dag-git-branch").value.trim();
+          var url = normalizeGitRemoteUrl(rows[i].querySelector(".dag-git-url").value);
+          if (!branch && !url) continue;
+          if (!branch || !url) {
+            return { error: "第 " + (i + 1) + " 行：git 地址与分支需成对填写。" };
+          }
+          var key = url.toLowerCase();
+          if (seen[key]) continue;
+          seen[key] = true;
+          out.push({ gitRemoteUrl: url, branch_version: branch });
+        }
+        return { repos: out };
+      }
+
+      /** 写回输入框（提交校验后同步归一化结果） */
+      function applyGitReposToInputs(repos) {
+        setGitRepos(repos.length ? repos : [{ gitRemoteUrl: "", branch_version: "" }]);
+      }
+
+      /** 从 `param_key=init` 的 value_json 解析 gitRepos / testEnv / provider / directDevAfterDesign */
       function initParamFields(taskParams) {
+        var empty = { repos: [], testEnv: "", provider: "claude", directDevAfterDesign: false };
         var row = (taskParams || []).find(function (p) {
           return p.param_key === "init";
         });
-        if (!row || !row.value_json) return { branch: "", git: "", testEnv: "", provider: "claude" };
+        if (!row || !row.value_json) {
+          return empty;
+        }
         try {
           var o = JSON.parse(row.value_json);
           if (typeof o !== "object" || o === null || Array.isArray(o)) {
-            return { branch: "", git: "", testEnv: "", provider: "claude" };
+            return empty;
           }
           var prov = o.provider === "cursor" ? "cursor" : "claude";
+          var repos = [];
+          if (Array.isArray(o.gitRepos)) {
+            o.gitRepos.forEach(function (item) {
+              if (!item || typeof item !== "object") return;
+              var url = typeof item.gitRemoteUrl === "string" ? normalizeGitRemoteUrl(item.gitRemoteUrl) : "";
+              var branch = typeof item.branch_version === "string" ? item.branch_version.trim() : "";
+              if (url) repos.push({ gitRemoteUrl: url, branch_version: branch });
+            });
+          }
           return {
-            branch: typeof o.branch_version === "string" ? o.branch_version : "",
-            git: typeof o.gitRemoteUrl === "string" ? o.gitRemoteUrl : "",
+            repos: repos,
             testEnv: typeof o.testEnv === "string" ? o.testEnv : "",
             provider: prov,
+            directDevAfterDesign: o.directDevAfterDesign === true,
           };
         } catch (e) {
-          return { branch: "", git: "", testEnv: "", provider: "claude" };
+          return empty;
         }
       }
 
-      function renderRow(t, taskParams) {
-        var initFields = initParamFields(taskParams);
-        var branch = initFields.branch;
-        var git = initFields.git;
-        var testEnv = initFields.testEnv;
+      /** 父任务列表「执行状态」列样式（与 API `exec_status` 一致） */
+      function execStatusCell(label) {
+        var text = label || "—";
+        var cls = "text-slate-500";
+        if (text === "完成") cls = "text-emerald-700";
+        else if (text === "待执行") cls = "text-slate-600";
+        else if (text === "失败") cls = "text-red-700";
+        else if (text === "执行中") cls = "text-blue-700";
+        return (
+          '<td class="whitespace-nowrap px-4 py-3 text-xs font-medium ' +
+          cls +
+          '">' +
+          esc(text) +
+          "</td>"
+        );
+      }
+
+      /** 将已暂停子任务按父任务 pid 分组 */
+      function buildPausedTasksByPid(tasks) {
+        var map = {};
+        (tasks || []).forEach(function (task) {
+          var pid = task && task.pid != null ? String(task.pid).trim() : "";
+          if (!pid) return;
+          if (!map[pid]) map[pid] = [];
+          map[pid].push(task.id);
+        });
+        return map;
+      }
+
+      function renderRow(t, pausedTaskIds) {
+        var hasPaused = pausedTaskIds && pausedTaskIds.length > 0;
         var tr = document.createElement("tr");
         tr.className = "transition-colors hover:bg-slate-50";
         tr.innerHTML =
@@ -292,35 +710,23 @@
           '">' +
           esc(t.description || "—") +
           "</td>" +
-          '<td class="max-w-[8rem] truncate px-4 py-3 text-slate-700 sm:max-w-xs" title="' +
-          esc(branch) +
-          '">' +
-          esc(branch || "—") +
-          "</td>" +
-          '<td class="max-w-[10rem] truncate px-4 py-3 font-mono text-xs text-slate-600 sm:max-w-md" title="' +
-          esc(git) +
-          '">' +
-          esc(git || "—") +
-          "</td>" +
-          '<td class="max-w-[8rem] truncate px-4 py-3 text-slate-700 sm:max-w-xs" title="' +
-          esc(testEnv) +
-          '">' +
-          esc(testEnv || "—") +
-          "</td>" +
-          '<td class="whitespace-nowrap px-4 py-3 text-slate-700" title="' +
+          '<td class="w-12 max-w-[3rem] whitespace-nowrap px-2 py-3 text-center text-xs text-slate-700" title="' +
           esc(parentAgentTypeLabel(t.task_type || "")) +
           '">' +
           (function () {
             var c = t.task_type;
             if (c === undefined || c === null || c === "") return "—";
-            return esc(String(c)) + " — " + esc(parentAgentTypeLabel(c));
+            return esc(String(c));
           })() +
+          "</td>" +
+          execStatusCell(t.exec_status) +
+          '<td class="max-w-[8rem] truncate whitespace-nowrap px-4 py-3 text-slate-700" title="' +
+          esc(t.creator || "") +
+          '">' +
+          esc(t.creator || "—") +
           "</td>" +
           '<td class="whitespace-nowrap px-4 py-3 text-slate-600">' +
           esc(fmtTime(t.created_at)) +
-          "</td>" +
-          '<td class="whitespace-nowrap px-4 py-3 text-slate-600">' +
-          esc(fmtTime(t.updated_at)) +
           "</td>" +
           '<td class="whitespace-nowrap px-4 py-3">' +
           '<div class="flex flex-nowrap items-center gap-1">' +
@@ -329,17 +735,402 @@
           '">复制新增</button>' +
           '<button type="button" class="dag-flow-tab-btn shrink-0 cursor-pointer rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100" data-pid="' +
           esc(t.pid) +
-          '">‌Multi-Agent‌ View</button>' +
+          '">多Agent‌视图</button>' +
+          '<button type="button" class="dag-preview-doc-btn shrink-0 cursor-pointer rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100" data-pid="' +
+          esc(t.pid) +
+          '">预览文档</button>' +
+          (hasPaused
+            ? '<button type="button" class="dag-confirm-exec-btn shrink-0 cursor-pointer rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100" data-task-ids="' +
+              esc(pausedTaskIds.join(",")) +
+              '">确认执行</button>'
+            : "") +
           "</div></td>";
         tbody.appendChild(tr);
       }
 
-      function runDagQuery() {
+      /** 将已暂停任务标记为执行完成，以便调度器继续后续子任务 */
+      function confirmPausedTasks(taskIds, triggerBtn) {
+        var ids = (taskIds || []).filter(Boolean);
+        if (ids.length === 0) return;
+        if (
+          !window.confirm(
+            "确定将该父任务下已暂停的任务标记为「执行完成」？确认后调度器将继续执行后续任务。"
+          )
+        ) {
+          return;
+        }
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "处理中…";
+        }
+        var idx = 0;
+        function patchNext() {
+          if (idx >= ids.length) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "确认执行";
+            }
+            runDagQuery(false);
+            return;
+          }
+          var taskId = ids[idx];
+          idx += 1;
+          fetch(dagBase() + "/api/tasks/" + encodeURIComponent(taskId), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: TASK_STATUS_COMPLETED }),
+          })
+            .then(function (r) {
+              return r.json().then(function (j) {
+                return { ok: r.ok, status: r.status, body: j };
+              });
+            })
+            .then(function (res) {
+              if (!res.ok) {
+                if (triggerBtn) {
+                  triggerBtn.disabled = false;
+                  triggerBtn.textContent = "确认执行";
+                }
+                errEl.textContent =
+                  "确认执行失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+                errEl.classList.remove("hidden");
+                return;
+              }
+              patchNext();
+            })
+            .catch(function (e) {
+              if (triggerBtn) {
+                triggerBtn.disabled = false;
+                triggerBtn.textContent = "确认执行";
+              }
+              errEl.textContent = "确认执行失败: " + e.message;
+              errEl.classList.remove("hidden");
+            });
+        }
+        patchNext();
+      }
+
+      var previewRoot = document.getElementById("dag-preview-root");
+      var previewBackdrop = document.getElementById("dag-preview-backdrop");
+      var previewTitleEl = document.getElementById("dag-preview-title");
+      var previewMetaEl = document.getElementById("dag-preview-meta");
+      var previewBodyEl = document.getElementById("dag-preview-body");
+      var previewPickRoot = document.getElementById("dag-preview-pick-root");
+      var previewPickBackdrop = document.getElementById("dag-preview-pick-backdrop");
+      var previewPickTitleEl = document.getElementById("dag-preview-pick-title");
+      var previewPickSubEl = document.getElementById("dag-preview-pick-sub");
+      var previewPickListEl = document.getElementById("dag-preview-pick-list");
+      var previewPickEmptyEl = document.getElementById("dag-preview-pick-empty");
+      var previewDownloadBtn = document.getElementById("dag-preview-download");
+      var previewPickPid = "";
+      var previewCurrentDoc = null;
+
+      function setPreviewDownloadEnabled(enabled) {
+        previewDownloadBtn.disabled = !enabled;
+      }
+
+      function previewDownloadFilename(doc) {
+        var rel = doc && doc.relative_path ? String(doc.relative_path) : "";
+        var base = rel.split("/").filter(Boolean).pop();
+        if (base) return base;
+        if (doc && doc.content_kind === "json") return "document.json";
+        if (doc && doc.content_kind === "markdown") return "document.md";
+        return "document.txt";
+      }
+
+      function previewDownloadMime(doc, filename) {
+        var lower = String(filename || "").toLowerCase();
+        if (lower.endsWith(".json") || (doc && doc.content_kind === "json")) {
+          return "application/json;charset=utf-8";
+        }
+        if (
+          lower.endsWith(".md") ||
+          lower.endsWith(".markdown") ||
+          (doc && doc.content_kind === "markdown")
+        ) {
+          return "text/markdown;charset=utf-8";
+        }
+        return "text/plain;charset=utf-8";
+      }
+
+      function downloadPreviewDoc() {
+        if (!previewCurrentDoc || previewCurrentDoc.content == null) return;
+        var doc = previewCurrentDoc;
+        var filename = previewDownloadFilename(doc);
+        var blob = new Blob([doc.content], {
+          type: previewDownloadMime(doc, filename),
+        });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function closePreviewPicker() {
+        previewPickRoot.classList.add("hidden");
+        previewPickPid = "";
+        previewPickListEl.innerHTML = "";
+        previewPickEmptyEl.classList.add("hidden");
+        if (previewRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function closePreviewModal() {
+        previewRoot.classList.add("hidden");
+        previewBodyEl.innerHTML = "";
+        previewMetaEl.textContent = "";
+        previewCurrentDoc = null;
+        setPreviewDownloadEnabled(false);
+        if (previewPickRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function workflowTaskTypeLabel(code) {
+        return dagWorkflowTaskTypeLabels[code] || String(code);
+      }
+
+      function renderPreviewPickOptions(taskTypes) {
+        previewPickListEl.innerHTML = "";
+        if (!taskTypes || taskTypes.length === 0) {
+          previewPickEmptyEl.classList.remove("hidden");
+          return;
+        }
+        previewPickEmptyEl.classList.add("hidden");
+        taskTypes.forEach(function (tt) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "dag-preview-pick-opt w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm transition hover:border-violet-300 hover:bg-violet-50";
+          btn.setAttribute("data-task-type", String(tt));
+          btn.innerHTML =
+            '<span class="font-mono text-xs text-slate-500">' +
+            esc(String(tt)) +
+            '</span><span class="ml-2 font-medium text-slate-800">' +
+            esc(workflowTaskTypeLabel(tt)) +
+            "</span>";
+          previewPickListEl.appendChild(btn);
+        });
+      }
+
+      function openPreviewPicker(pid, triggerBtn) {
+        if (!pid) return;
+        previewPickPid = pid;
+        previewPickTitleEl.textContent = "选择任务类型 · pid " + pid;
+        previewPickSubEl.textContent = "请选择要预览的 taskType（ai_out/" + pid + "/<taskType>/）";
+        previewPickListEl.innerHTML =
+          '<p class="text-center text-xs text-slate-400">加载中…</p>';
+        previewPickEmptyEl.classList.add("hidden");
+        previewPickRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "加载中…";
+        }
+        fetch(
+          dagBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/ai-out/task-types",
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "预览文档";
+            }
+            if (!res.ok) {
+              closePreviewPicker();
+              errEl.textContent =
+                "加载 taskType 失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error
+                  ? JSON.stringify(res.body.error)
+                  : JSON.stringify(res.body));
+              errEl.classList.remove("hidden");
+              return;
+            }
+            renderPreviewPickOptions(res.body.task_types || []);
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "预览文档";
+            }
+            closePreviewPicker();
+            errEl.textContent = "加载 taskType 失败: " + e.message;
+            errEl.classList.remove("hidden");
+          });
+      }
+
+      function renderMarkdownHtml(md) {
+        if (window.marked && typeof window.marked.parse === "function") {
+          return window.marked.parse(String(md || ""));
+        }
+        return "<pre class=\"whitespace-pre-wrap font-mono text-xs\">" + esc(md || "") + "</pre>";
+      }
+
+      function renderPlainTextHtml(text) {
+        return "<pre class=\"whitespace-pre-wrap font-mono text-xs\">" + esc(text || "") + "</pre>";
+      }
+
+      function renderJsonHtml(raw) {
+        var text = String(raw || "");
+        try {
+          return renderPlainTextHtml(JSON.stringify(JSON.parse(text), null, 2));
+        } catch (e) {
+          return renderPlainTextHtml(text);
+        }
+      }
+
+      function detectPreviewKindFromContent(content) {
+        var t = String(content || "").trim();
+        if (!t) return "text";
+        if (t.charAt(0) === "{" || t.charAt(0) === "[") {
+          try {
+            JSON.parse(t);
+            return "json";
+          } catch (e) {
+            /* 非合法 JSON，继续判断 */
+          }
+        }
+        var signals = 0;
+        var lines = t.split(/\r?\n/).slice(0, 80);
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          var s = line.trim();
+          if (!s) continue;
+          if (/^#{1,6}\s+\S/.test(s)) signals += 2;
+          if (/^```/.test(s)) signals += 2;
+          if (/^>\s+/.test(s)) signals += 1;
+          if (/^\s*[-*+]\s+\S/.test(line)) signals += 1;
+          if (/^\s*\d+\.\s+\S/.test(line)) signals += 1;
+          if (/\[[^\]]+\]\([^)]+\)/.test(s)) signals += 1;
+          if (/(\*\*|__).+?(\*\*|__)/.test(s)) signals += 1;
+          if (/^(-{3,}|_{3,}|\*{3,})$/.test(s)) signals += 1;
+        }
+        if (signals >= 2) return "markdown";
+        return "text";
+      }
+
+      function renderPreviewContent(doc) {
+        var kind = doc && doc.content_kind ? doc.content_kind : "markdown";
+        var content = doc && doc.content != null ? doc.content : "";
+        if (kind === "text") kind = detectPreviewKindFromContent(content);
+        if (kind === "json") return renderJsonHtml(content);
+        if (kind === "text") return renderPlainTextHtml(content);
+        return renderMarkdownHtml(content);
+      }
+
+      function loadPreviewDoc(pid, taskType) {
+        if (!pid || taskType === undefined || taskType === null || taskType === "") return;
+        closePreviewPicker();
+        previewCurrentDoc = null;
+        setPreviewDownloadEnabled(false);
+        previewTitleEl.textContent = "文档预览 · pid " + pid;
+        previewMetaEl.textContent = "加载中…";
+        previewBodyEl.innerHTML =
+          '<p class="text-center text-xs text-slate-400">加载文档…</p>';
+        previewRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        fetch(
+          dagBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/ai-out/latest?task_type=" +
+            encodeURIComponent(String(taskType)),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              var msg =
+                res.status === 404
+                  ? "该 taskType 下未找到可预览文档（.md / .json / .txt）"
+                  : res.body && res.body.error
+                    ? JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body);
+              previewMetaEl.textContent = "";
+              previewBodyEl.innerHTML =
+                '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+                esc("预览失败 " + res.status + ": " + msg) +
+                "</p>";
+              return;
+            }
+            var doc = res.body;
+            var typeLabel = workflowTaskTypeLabel(doc.task_type);
+            previewTitleEl.textContent = "文档预览 · pid " + doc.pid;
+            previewMetaEl.textContent =
+              "ai_out/" +
+              doc.pid +
+              "/" +
+              doc.task_type +
+              " · " +
+              typeLabel +
+              " · " +
+              (doc.relative_path || "") +
+              " · " +
+              fmtTime(doc.updated_at);
+            previewCurrentDoc = doc;
+            setPreviewDownloadEnabled(true);
+            previewBodyEl.innerHTML = renderPreviewContent(doc);
+          })
+          .catch(function (e) {
+            previewCurrentDoc = null;
+            setPreviewDownloadEnabled(false);
+            previewMetaEl.textContent = "";
+            previewBodyEl.innerHTML =
+              '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+              esc("预览失败: " + e.message) +
+              "</p>";
+          });
+      }
+
+      function openPreviewDoc(pid, triggerBtn) {
+        openPreviewPicker(pid, triggerBtn);
+      }
+
+      function updatePaginationBar() {
+        if (!dagQueried) {
+          paginationEl.classList.add("hidden");
+          return;
+        }
+        paginationEl.classList.remove("hidden");
+        var pageSize = Number(pageSizeEl.value) || 20;
+        if (dagTotal > 0) {
+          pageInfoEl.textContent =
+            "第 " + dagPage + " / " + dagTotalPages + " 页";
+        } else {
+          pageInfoEl.textContent = "第 0 页";
+        }
+        prevBtn.disabled = dagPage <= 1;
+        nextBtn.disabled = dagTotalPages === 0 || dagPage >= dagTotalPages;
+      }
+
+      function runDagQuery(resetPage) {
+        if (resetPage) dagPage = 1;
         errEl.classList.add("hidden");
         errEl.textContent = "";
         tbody.innerHTML = "";
         emptyEl.classList.add("hidden");
-        countEl.textContent = "";
+        paginationEl.classList.add("hidden");
 
         var params = new URLSearchParams();
         var tt = document.getElementById("dag-taskType").value;
@@ -348,17 +1139,35 @@
         if (tit) params.set("title", tit);
         var creator = document.getElementById("dag-creator").value.trim();
         if (creator) params.set("creator", creator);
+        var pageSize = Number(pageSizeEl.value) || 20;
+        params.set("page", String(dagPage));
+        params.set("limit", String(pageSize));
 
-        var url = dagBase() + "/api/parent-tasks" + (params.toString() ? "?" + params.toString() : "");
+        var url = dagBase() + "/api/parent-tasks?" + params.toString();
+        var pausedUrl =
+          dagBase() +
+          "/api/tasks?status=" +
+          TASK_STATUS_PAUSED +
+          "&limit=500";
 
-        fetch(url)
-          .then(function (r) {
+        Promise.all([
+          fetch(url).then(function (r) {
             return r.json().then(function (j) {
               return { ok: r.ok, status: r.status, body: j };
             });
-          })
-          .then(function (res) {
+          }),
+          fetch(pausedUrl).then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          }),
+        ])
+          .then(function (results) {
+            var res = results[0];
+            var pausedRes = results[1];
+            dagQueried = true;
             if (!res.ok) {
+              countEl.textContent = "";
               errEl.textContent =
                 "请求失败 " +
                 res.status +
@@ -366,22 +1175,34 @@
                 (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
               errEl.classList.remove("hidden");
               emptyEl.classList.remove("hidden");
+              updatePaginationBar();
               return;
             }
             var list = res.body.parent_tasks || [];
-            countEl.textContent = "共 " + list.length + " 条";
+            dagTotal = Number(res.body.total) || 0;
+            dagTotalPages = Number(res.body.total_pages) || 0;
+            dagPage = Number(res.body.page) || dagPage;
+            countEl.textContent = "共 " + dagTotal + " 条";
+            var pausedByPid = pausedRes.ok
+              ? buildPausedTasksByPid(pausedRes.body.tasks || [])
+              : {};
             if (list.length === 0) {
               emptyEl.classList.remove("hidden");
+              updatePaginationBar();
               return;
             }
             list.forEach(function (t) {
-              renderRow(t, null);
+              renderRow(t, pausedByPid[String(t.pid)] || []);
             });
+            updatePaginationBar();
           })
           .catch(function (e) {
+            dagQueried = true;
+            countEl.textContent = "";
             errEl.textContent = "网络错误: " + e.message;
             errEl.classList.remove("hidden");
             emptyEl.classList.remove("hidden");
+            updatePaginationBar();
           });
       }
 
@@ -447,8 +1268,14 @@
         TestPreAnalysisOut: true,
         TestCaseDesignOut: true,
         TestCaseExecuteOut: true,
+        CodeReviewOut: true,
         TestCaseExecutePassRate: true,
         TestCaseExecutePassResult: true,
+        TestCaseExecuteIsCodeProblem: true,
+        CodeReviewMergeAllowed: true,
+        CodeReviewGateResult: true,
+        DevOpsDeployResult: true,
+        TestEnvDeployResult: true,
       };
 
       function formatParamJsonForRow(raw) {
@@ -481,7 +1308,7 @@
           if (!key && !jsonRaw) continue;
           if (!key) throw new Error("参数行 " + (i + 1) + "：请填写 param_key");
           if (reservedParamKeys[key]) {
-            throw new Error('参数键 "init" 由系统根据分支版本、gitRemoteUrl、testEnv 自动生成，请勿手动添加');
+            throw new Error('参数键 "init" 由系统根据分支版本、gitRemoteUrl(s)、testEnv 自动生成，请勿手动添加');
           }
           if (!jsonRaw) throw new Error("参数 " + key + "：请填写 value_json");
           if (seen[key]) throw new Error("重复的 param_key：" + key);
@@ -510,15 +1337,16 @@
           var taskParams = copyFrom.parent_task_params || [];
           titleEl.textContent = "复制新增父任务（源自 " + pt.pid + "）";
           var initFields = initParamFields(taskParams);
-          document.getElementById("dag-new-branch").value = initFields.branch;
-          document.getElementById("dag-new-gitRemoteUrl").value = initFields.git;
+          setGitRepos(initFields.repos);
           document.getElementById("dag-new-testEnv").value = initFields.testEnv;
-          document.getElementById("dag-new-provider").value = initFields.provider || "claude";
-          document.getElementById("dag-new-description").value = pt.description || "";
-          document.getElementById("dag-new-taskType").value =
+          dagNewTaskTypeCombo.setValue(
             pt.task_type !== undefined && pt.task_type !== null && pt.task_type !== ""
               ? String(pt.task_type)
-              : "1";
+              : "1",
+          );
+          dagProviderCombo.setValue(initFields.provider || "claude");
+          document.getElementById("dag-new-directDevAfterDesign").checked = !!initFields.directDevAfterDesign;
+          document.getElementById("dag-new-description").value = pt.description || "";
           taskParams.forEach(function (p) {
             if (!p || skipCopyParamKeys[p.param_key]) return;
             paramsList.appendChild(
@@ -531,13 +1359,17 @@
           });
         } else {
           titleEl.textContent = "新增父任务";
-          document.getElementById("dag-new-taskType").value = "1";
-          document.getElementById("dag-new-provider").value = "claude";
+          dagNewTaskTypeCombo.setValue("1");
+          dagProviderCombo.setValue("claude");
+          document.getElementById("dag-new-directDevAfterDesign").checked = false;
+          setGitRepos([]);
         }
+        updateNewFormRequiredState();
         modalRoot.classList.remove("hidden");
         document.body.style.overflow = "hidden";
         setTimeout(function () {
-          document.getElementById("dag-new-branch").focus();
+          var firstBranch = gitListEl.querySelector(".dag-git-branch");
+          if (firstBranch) firstBranch.focus();
         }, 0);
       }
 
@@ -589,10 +1421,35 @@
         paramsList.appendChild(createParamRow());
       };
 
+      document.getElementById("dag-btn-add-git").onclick = function () {
+        gitListEl.appendChild(createGitRepoRow({ gitRemoteUrl: "", branch_version: "" }));
+        updateGitRepoRowRemoveButtons();
+        var rows = gitListEl.querySelectorAll(".dag-git-row");
+        var lastBranch = rows[rows.length - 1].querySelector(".dag-git-branch");
+        if (lastBranch) lastBranch.focus();
+      };
+
       document.getElementById("dag-btn-new").onclick = function () {
         openNewModal();
       };
       document.getElementById("dag-modal-cancel").onclick = closeNewModal;
+      document.getElementById("dag-preview-close").onclick = closePreviewModal;
+      document.getElementById("dag-preview-download").onclick = downloadPreviewDoc;
+      document.getElementById("dag-preview-pick-close").onclick = closePreviewPicker;
+      previewBackdrop.addEventListener("click", function (e) {
+        if (e.target === previewBackdrop) closePreviewModal();
+      });
+      previewPickBackdrop.addEventListener("click", function (e) {
+        if (e.target === previewPickBackdrop) closePreviewPicker();
+      });
+      previewPickListEl.addEventListener("click", function (ev) {
+        var optBtn = ev.target.closest(".dag-preview-pick-opt");
+        if (!optBtn || !previewPickPid) return;
+        var taskType = optBtn.getAttribute("data-task-type");
+        if (taskType != null && taskType !== "") {
+          loadPreviewDoc(previewPickPid, taskType);
+        }
+      });
 
       modalBackdrop.addEventListener("click", function (e) {
         if (e.target === modalBackdrop) closeNewModal();
@@ -600,19 +1457,46 @@
 
       document.addEventListener("keydown", function (e) {
         if (e.key !== "Escape") return;
-        if (modalRoot.classList.contains("hidden")) return;
-        closeNewModal();
+        if (!modalRoot.classList.contains("hidden")) {
+          closeNewModal();
+          return;
+        }
+        if (!previewRoot.classList.contains("hidden")) {
+          closePreviewModal();
+          return;
+        }
+        if (!previewPickRoot.classList.contains("hidden")) closePreviewPicker();
       });
 
       modalForm.addEventListener("submit", function (e) {
         e.preventDefault();
         modalClearError();
         var pidInput = document.getElementById("dag-new-pid").value.trim();
-        var branch = document.getElementById("dag-new-branch").value.trim();
-        var gitRemoteUrl = document.getElementById("dag-new-gitRemoteUrl").value.trim();
+        var taskType = Number(document.getElementById("dag-new-taskType").value) || 1;
+        var description = document.getElementById("dag-new-description").value.trim();
+        var collected = collectGitRepos();
+        if (collected.error) {
+          modalShowError(collected.error);
+          return;
+        }
+        var gitRepos = collected.repos;
+        applyGitReposToInputs(gitRepos);
         var testEnv = document.getElementById("dag-new-testEnv").value.trim();
-        if (!branch) {
-          modalShowError("请填写分支版本。");
+        if (!description) {
+          modalShowError("请填写说明。");
+          return;
+        }
+        if (isDevAgentParentTaskType(taskType)) {
+          if (!gitRepos.length) {
+            modalShowError("任务类型为 1/2/3/4 时，请至少填写一组仓库与分支。");
+            return;
+          }
+          if (!testEnv) {
+            modalShowError("任务类型为 1/2/3/4 时，请填写测试环境。");
+            return;
+          }
+        } else if (!gitRepos.length) {
+          modalShowError("请至少填写一组仓库与分支。");
           return;
         }
         var creator = dagCurrentLoginUser();
@@ -623,14 +1507,16 @@
         var providerVal = document.getElementById("dag-new-provider").value.trim().toLowerCase();
         if (providerVal !== "cursor") providerVal = "claude";
         var body = {
-          branch_version: branch,
-          description: document.getElementById("dag-new-description").value.trim() || undefined,
-          task_type: Number(document.getElementById("dag-new-taskType").value) || 1,
+          description: description,
+          task_type: taskType,
           provider: providerVal,
           creator: creator,
         };
+        if (gitRepos.length) body.gitRepos = gitRepos;
+        if (document.getElementById("dag-new-directDevAfterDesign").checked) {
+          body.directDevAfterDesign = true;
+        }
         if (pidInput) body.pid = pidInput;
-        if (gitRemoteUrl) body.gitRemoteUrl = gitRemoteUrl;
         if (testEnv) body.testEnv = testEnv;
         try {
           var params = collectParams();
@@ -662,7 +1548,7 @@
               return;
             }
             closeNewModal();
-            runDagQuery();
+            runDagQuery(true);
           })
           .catch(function (err) {
             submitBtn.disabled = false;
@@ -670,7 +1556,19 @@
           });
       });
 
-      document.getElementById("dag-btn-query").onclick = runDagQuery;
+      document.getElementById("dag-btn-query").onclick = function () {
+        runDagQuery(true);
+      };
+      prevBtn.addEventListener("click", function () {
+        if (dagPage <= 1) return;
+        dagPage -= 1;
+        runDagQuery(false);
+      });
+      nextBtn.addEventListener("click", function () {
+        if (dagTotalPages === 0 || dagPage >= dagTotalPages) return;
+        dagPage += 1;
+        runDagQuery(false);
+      });
       tbody.addEventListener("click", function (ev) {
         var copyBtn = ev.target.closest(".dag-copy-new-btn");
         if (copyBtn) {
@@ -679,9 +1577,24 @@
           return;
         }
         var flowBtn = ev.target.closest(".dag-flow-tab-btn");
-        if (!flowBtn) return;
-        var flowPid = flowBtn.getAttribute("data-pid");
-        if (flowPid) openParentFlowInNewTab(flowPid);
+        if (flowBtn) {
+          var flowPid = flowBtn.getAttribute("data-pid");
+          if (flowPid) openParentFlowInNewTab(flowPid);
+          return;
+        }
+        var previewBtn = ev.target.closest(".dag-preview-doc-btn");
+        if (previewBtn) {
+          var previewPid = previewBtn.getAttribute("data-pid");
+          if (previewPid) openPreviewDoc(previewPid, previewBtn);
+          return;
+        }
+        var confirmBtn = ev.target.closest(".dag-confirm-exec-btn");
+        if (!confirmBtn) return;
+        var rawIds = confirmBtn.getAttribute("data-task-ids") || "";
+        var taskIds = rawIds.split(",").map(function (s) {
+          return s.trim();
+        }).filter(Boolean);
+        if (taskIds.length) confirmPausedTasks(taskIds, confirmBtn);
       });
       var dagCreatorDefault = dagCurrentLoginUser();
       if (dagCreatorDefault) {

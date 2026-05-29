@@ -8,6 +8,7 @@ export default {
     "./public/parentTaskFlow.html",
     "./public/devAgent.html",
     "./public/userConfig.html",
+    "./public/wikiAgent.html",
     "./public/js/claude-sse-render.js",
   ],
   theme: {

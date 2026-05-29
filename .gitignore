@@ -7,4 +7,6 @@ data/
 tmp-*.json
 .idea/
 ai_out/
+confluence_out/
+*.zip
 task-repo/

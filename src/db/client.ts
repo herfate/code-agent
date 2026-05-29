@@ -162,7 +162,23 @@ CREATE TABLE IF NOT EXISTS agent_run_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_run_events_run ON agent_run_events(run_id, seq);
+
+CREATE TABLE IF NOT EXISTS wiki_source (
+  id TEXT PRIMARY KEY,
+  category_id TEXT NOT NULL CHECK (category_id IN ('1', '2', '3', '4')),
+  wiki_url TEXT NOT NULL,
+  source_type TEXT NOT NULL CHECK (source_type IN ('基线文档', '迭代文档', 'spec文档', '代码地址', '代码地址2', '代码地址3', '代码地址4', '代码地址5')),
+  creator TEXT NOT NULL,
+  synced_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (category_id, source_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wiki_source_category ON wiki_source(category_id);
+CREATE INDEX IF NOT EXISTS idx_wiki_source_synced ON wiki_source(synced_at DESC);
 `;
+
 
 export function getDb(databasePath: string): DatabaseSync {
   if (db) return db;

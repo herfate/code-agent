@@ -4,6 +4,8 @@ import { TASK_TYPE, type TaskType } from "./taskType.js";
 export const TEST_PASS_RATE_PARAM_KEY = {
   TestCaseExecutePassRate: "TestCaseExecutePassRate",
   TestCaseExecutePassResult: "TestCaseExecutePassResult",
+  /** Agent 输出「是否代码问题」（boolean） */
+  TestCaseExecuteIsCodeProblem: "TestCaseExecuteIsCodeProblem",
 } as const;
 
 export type TestPassRateParamKey =
@@ -21,6 +23,8 @@ export function testPassRateParamKeyLabel(code: TestPassRateParamKey | string): 
       return "测试用例执行通过率";
     case TEST_PASS_RATE_PARAM_KEY.TestCaseExecutePassResult:
       return "测试用例执行结果";
+    case TEST_PASS_RATE_PARAM_KEY.TestCaseExecuteIsCodeProblem:
+      return "是否代码问题";
     default:
       return String(code);
   }
@@ -33,6 +37,7 @@ export function testPassParamKeysForTaskType(taskType: TaskType): readonly TestP
       return [
         TEST_PASS_RATE_PARAM_KEY.TestCaseExecutePassRate,
         TEST_PASS_RATE_PARAM_KEY.TestCaseExecutePassResult,
+        TEST_PASS_RATE_PARAM_KEY.TestCaseExecuteIsCodeProblem,
       ];
     default:
       return [];

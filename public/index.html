@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>code-agent 管理台</title>
   <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { 'primaryColor': '#dbeafe', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#93c5fd', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e2e8f0', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#3b82f6', 'clusterBkg': '#f8fafc', 'clusterBorder': '#cbd5e1', 'titleColor': '#1e293b', 'edgeLabelBackground': '#ffffff', 'fontSize': '14px' } });
+  </script>
 </head>
 <body class="h-screen overflow-hidden bg-slate-100 text-slate-900 antialiased">
   <div class="flex h-full">
@@ -20,14 +25,18 @@
         <button type="button" data-nav-page="home" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           工作台
         </button>
-        <div class="mt-4 px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">开发与调试</div>
+        <div class="mt-4 px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">^-^每天都有好心情</div>
+        <!-- 暂时不展示
         <button type="button" data-nav-page="demo" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           对话演示
-        </button>
+        </button> -->
         <!-- 暂时不展示
         <button type="button" data-nav-page="adev" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           开发 Agent
         </button> -->
+        <button type="button" data-nav-page="wagent" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          Wiki Agent
+        </button>
         <button type="button" data-nav-page="dagent" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           开发自测Agent
         </button>
@@ -45,9 +54,10 @@
         <h1 id="page-title" class="text-base font-semibold text-slate-800">工作台</h1>
         <div class="flex items-center gap-3 text-xs text-slate-500">
           <span id="page-badge" class="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">概览</span>
-          <a id="header-demo-link" href="/demo" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">新窗口打开演示</a>
+          <a id="header-demo-link" href="/demo" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开演示</a>
           <a id="header-agentdev-link" href="/agent-dev" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开开发 Agent</a>
           <a id="header-devagent-link" href="/dev-agent" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开父任务</a>
+          <a id="header-wikiagent-link" href="/wiki-agent" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开 Wiki Agent</a>
           <a id="header-ucfg-link" href="/user-config" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开用户配置</a>
         </div>
       </header>
@@ -56,24 +66,59 @@
         <div id="view-home" class="h-full overflow-y-auto p-6">
           <div class="mx-auto max-w-5xl space-y-6">
             <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 class="text-lg font-semibold text-slate-800">欢迎使用</h2>
-              <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-                本管理台用于本地调试 <strong class="font-medium text-slate-800">code-agent</strong>：左侧 <strong class="font-medium text-slate-800">对话演示</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/demo</code>；<strong class="font-medium text-slate-800">开发 Agent</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/agent-dev</code> 查询任务；<strong class="font-medium text-slate-800">父任务</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/dev-agent</code>；<strong class="font-medium text-slate-800">用户配置</strong> 嵌入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/user-config</code> 查询 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">system_config</code>。
-              </p>
+              <h2 class="text-lg font-semibold text-slate-800">多Agent工作流循环</h2>
+              <div class="mt-4 mermaid">
+graph LR
+    A[开发设计] --> B[测试设计]
+    B --> C[代码开发]
+    C --> D[部署平台发布]
+    D --> E[Code Review]
+    E -.->|失败重试| C
+    E --> F[测试案例设计]
+    F --> G[基线数据设计]
+    G --> H[测试案例执行]
+    H -.->|失败重试 默认3次| C
+              </div>
             </div>
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">健康</div>
-                <p class="mt-2 text-sm text-slate-600">启动后可通过 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">GET /health</code> 检查服务与数据库。</p>
-              </div>
-              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">会话</div>
-                <p class="mt-2 text-sm text-slate-600">SQLite 持久化线程与消息；REST 见 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">/api/threads</code>。</p>
-              </div>
-              <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:col-span-2 lg:col-span-1">
-                <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Agent</div>
-                <p class="mt-2 text-sm text-slate-600">Claude / Codex 线路均为 SSE；请在「对话演示」内使用浏览器 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-800">fetch</code> 流式解析。</p>
-              </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 class="text-lg font-semibold text-slate-800">流程说明</h2>
+              <p class="mt-2 text-sm font-medium text-slate-700">完整闭环流程（自愈循环，默认3次）：</p>
+              <pre class="mt-3 overflow-x-auto rounded-lg bg-slate-100 p-4 text-xs text-slate-800 leading-relaxed border border-slate-200">
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                                                                               │
+│    开发设计 ──→ 测试设计 ──→ 代码开发 ──→ 部署平台发布                        │
+│                               ↑                      │                        │
+│                               │                      ↓                        │
+│    测试案例执行 ──失败──┐   Code Review                              │
+│         │               │          │                     │                  │
+│         成功            │          └────── 失败重试 ──────┘                  │
+│         ↓               │                                                     │
+│    基线数据设计 ←── 测试案例设计 ←────────── 成功 ──────────┘                 │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+              </pre>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 class="text-lg font-semibold text-slate-800">核心特性</h2>
+              <ul class="mt-3 space-y-3 text-sm text-slate-600">
+                <li class="flex items-start gap-2">
+                  <span class="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"></span>
+                  <div><strong class="text-slate-800">双重自愈循环</strong>：
+                    <ul class="mt-1 ml-4 space-y-1 list-disc list-inside">
+                      <li>Code Review 失败 → 回退到代码开发节点</li>
+                      <li>测试案例执行失败 → 回退到代码开发节点（默认重试 3 次）</li>
+                    </ul>
+                  </div>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500"></span>
+                  <div><strong class="text-slate-800">全流程覆盖</strong>：从需求到上线的完整自动化流程</div>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500"></span>
+                  <div><strong class="text-slate-800">多Agent协同</strong>：各环节由不同的 AI Agent 协作完成</div>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -85,6 +130,9 @@
         </div>
         <div id="view-dagent" class="absolute inset-0 hidden bg-white">
           <iframe id="dagent-frame" class="h-full w-full border-0" title="开发自测Agent"></iframe>
+        </div>
+        <div id="view-wagent" class="absolute inset-0 hidden bg-white">
+          <iframe id="wagent-frame" class="h-full w-full border-0" title="Wiki Agent"></iframe>
         </div>
         <div id="view-ucfg" class="absolute inset-0 hidden bg-white">
           <iframe id="ucfg-frame" class="h-full w-full border-0" title="用户配置"></iframe>
@@ -98,16 +146,19 @@
       var demo = document.getElementById("view-demo");
       var adev = document.getElementById("view-adev");
       var dagent = document.getElementById("view-dagent");
+      var wagent = document.getElementById("view-wagent");
       var ucfg = document.getElementById("view-ucfg");
       var frame = document.getElementById("demo-frame");
       var adevFrame = document.getElementById("adev-frame");
       var dagentFrame = document.getElementById("dagent-frame");
+      var wagentFrame = document.getElementById("wagent-frame");
       var ucfgFrame = document.getElementById("ucfg-frame");
       var title = document.getElementById("page-title");
       var badge = document.getElementById("page-badge");
       var headerDemoLink = document.getElementById("header-demo-link");
       var headerAgentDevLink = document.getElementById("header-agentdev-link");
       var headerDevAgentLink = document.getElementById("header-devagent-link");
+      var headerWikiAgentLink = document.getElementById("header-wikiagent-link");
       var headerUcfgLink = document.getElementById("header-ucfg-link");
       var navBtns = document.querySelectorAll("[data-nav-page]");
 
@@ -120,9 +171,11 @@
               ? "/?page=adev"
               : page === "dagent"
                 ? "/?page=dagent"
-                : page === "ucfg"
-                  ? "/?page=ucfg"
-                  : "/";
+                : page === "wagent"
+                  ? "/?page=wagent"
+                  : page === "ucfg"
+                    ? "/?page=ucfg"
+                    : "/";
         if (location.pathname + location.search !== target) {
           history.replaceState({}, "", target);
         }
@@ -145,10 +198,12 @@
         demo.classList.toggle("hidden", page !== "demo");
         adev.classList.toggle("hidden", page !== "adev");
         dagent.classList.toggle("hidden", page !== "dagent");
+        wagent.classList.toggle("hidden", page !== "wagent");
         ucfg.classList.toggle("hidden", page !== "ucfg");
-        headerDemoLink.classList.toggle("hidden", page === "adev" || page === "dagent" || page === "ucfg");
+        headerDemoLink.classList.add("hidden");
         headerAgentDevLink.classList.toggle("hidden", page !== "adev");
         headerDevAgentLink.classList.toggle("hidden", page !== "dagent");
+        headerWikiAgentLink.classList.toggle("hidden", page !== "wagent");
         headerUcfgLink.classList.toggle("hidden", page !== "ucfg");
 
         if (page === "demo") {
@@ -175,6 +230,14 @@
           if (!dagentFrame.getAttribute("src") || dagentFrame.getAttribute("src") === "about:blank") {
             dagentFrame.src = "/dev-agent";
           }
+        } else if (page === "wagent") {
+          title.textContent = "Wiki Agent";
+          badge.textContent = "嵌入 /wiki-agent";
+          badge.className =
+            "rounded-full bg-cyan-50 px-2 py-0.5 font-medium text-cyan-800";
+          if (!wagentFrame.getAttribute("src") || wagentFrame.getAttribute("src") === "about:blank") {
+            wagentFrame.src = "/wiki-agent";
+          }
         } else if (page === "ucfg") {
           title.textContent = "用户配置";
           badge.textContent = "嵌入 /user-config";
@@ -200,7 +263,7 @@
 
       var q = new URLSearchParams(location.search).get("page");
       var initial =
-        q === "demo" ? "demo" : q === "adev" ? "adev" : q === "dagent" ? "dagent" : q === "ucfg" ? "ucfg" : "home";
+        q === "adev" ? "adev" : q === "dagent" ? "dagent" : q === "wagent" ? "wagent" : q === "ucfg" ? "ucfg" : "home";
       show(initial);
     })();
   </script>
@@ -241,7 +304,11 @@
       if (typeof window === "undefined") {
         return false;
       }
-      return window.localStorage.setItem(key, val);
+      window.localStorage.setItem(key, val);
+      if (key === "userName" && val) {
+        document.cookie = "userName=" + encodeURIComponent(String(val)) + "; path=/; SameSite=Lax";
+      }
+      return true;
     }
   </script>
 </body>

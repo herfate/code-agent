@@ -4,8 +4,12 @@
 export const PARENT_AGENT_TYPE = {
   /** 开发自测编排（设计 → 开发 → 测试等子任务流水线） */
   DevSelfTest: 1,
-  /** 开发自Review编排（设计 → 开发 -> review → 部署等子任务流水线） */
+  /** 开发自Review编排（设计 → 开发 → 测试环境发布 → Code Review 等子任务流水线） */
   DevReviewNoTest: 2,
+  /** 功能测试编排（测试环境发布 → 测试设计-> 测试案例设计-> 测试数据分析-> 测试案例执行） */
+  FuncTest: 3,
+  /** 业务编排（业务相关子任务流水线） */
+  BizAgent: 4,
 } as const;
 
 export type ParentAgentType = (typeof PARENT_AGENT_TYPE)[keyof typeof PARENT_AGENT_TYPE];
@@ -43,6 +47,10 @@ export function parentAgentTypeLabel(code: ParentAgentType | number | string): s
       return "开发自测Agent";
     case PARENT_AGENT_TYPE.DevReviewNoTest:
       return "开发自Review Agent";
+    case PARENT_AGENT_TYPE.FuncTest:
+      return "功能测试Agent";
+    case PARENT_AGENT_TYPE.BizAgent:
+      return "业务Agent";
     default:
       return String(code);
   }

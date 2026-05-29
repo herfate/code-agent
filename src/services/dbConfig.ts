@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
+  ANTHROPIC_CONFIG_KEY_API_KEY,
   MAX_RETRY_COUNT_CONFIG_KEY,
   OPENAI_CONFIG_KEY_API_KEY,
   OPENAI_CONFIG_KEY_BASE_URL,
@@ -96,6 +97,13 @@ export type QaProxyCredentials = {
   userName: string;
   passWord: string;
 };
+
+/** 从 `system_config` 读取 `anthropic_api_key`（先用户行，再全局；`username` 为空则仅全局） */
+export function resolveAnthropicAuthToken(db: DatabaseSync, username?: string | null): string {
+  const hit = resolveConfigByKey(db, username, ANTHROPIC_CONFIG_KEY_API_KEY);
+  if (!hit) return "";
+  return parseConfigStringValue(hit.row.value_json).trim();
+}
 
 /** OpenAI 兼容 chat 配置（环境变量优先，未设置时回退全局 `system_config`） */
 export type OpenAiChatSettings = {

@@ -1,8 +1,14 @@
 import { Agent, CursorAgentError } from "@cursor/sdk";
-import type { ConversationStep, SDKAgent } from "@cursor/sdk";
+import type { ConversationStep, McpServerConfig, SDKAgent } from "@cursor/sdk";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { AGENT_PROVIDER } from "../../constants/agentProvider.js";
+import {
+  getMcpServersByCfgKey,
+  getMcpServersByTaskType,
+  type McpCfgKey,
+} from "../../constants/mcpCfg.js";
+import type { TaskType } from "../../constants/taskType.js";
 import type { FastifyReply } from "fastify";
 import { appendAgentRunEvent, finishAgentRun } from "../../db/agentRun.js";
 import {
@@ -15,6 +21,12 @@ import {
 } from "../../sse/helpers.js";
 
 const DEFAULT_MODEL = "composer-2.5";
+
+function resolveCursorMcpServers(opts: CursorSseOptions): Record<string, McpServerConfig> | undefined {
+  if (opts.mcpCfgKey != null) return getMcpServersByCfgKey(opts.mcpCfgKey);
+  if (opts.taskType != null) return getMcpServersByTaskType(opts.taskType);
+  return undefined;
+}
 
 /** 将 onStep 的 ConversationStep 转为前端可渲染的 payload（按步骤，非 token 级） */
 function summarizeCursorStep(
@@ -74,6 +86,10 @@ export type CursorSseOptions = {
   followUpPrompt?: string;
   clientSignal?: AbortSignal;
   runRecorder?: { db: DatabaseSync; runId: string };
+  /** 任务类型 → 自动解析 MCP（见 {@link mcpCfg.ts}） */
+  taskType?: TaskType;
+  /** 显式指定 MCP 配置档（优先于 taskType） */
+  mcpCfgKey?: McpCfgKey;
 };
 
 function safeSse(reply: FastifyReply | null, fn: (r: FastifyReply) => void): void {
@@ -115,6 +131,7 @@ async function runSendRound(
   reply: FastifyReply | null,
   recorder: CursorSseOptions["runRecorder"],
   abortSignal: AbortSignal,
+  mcpServers?: Record<string, McpServerConfig>,
 ): Promise<RoundResult> {
   let assistantText: string | null = null;
   let sdkError: string | null = null;
@@ -123,6 +140,7 @@ async function runSendRound(
   const runHolder = { id: "" };
 
   const run = await agent.send(prompt, {
+    ...(mcpServers ? { mcpServers } : {}),
     onStep: async ({ step }) => {
       emitData(reply, recorder, {
         channel: "cursor",
@@ -195,10 +213,12 @@ export async function streamCursorQueryToSse(
 
   const cwd = resolveAgentCwd(opts.pId);
   const modelId = opts.model?.trim() || DEFAULT_MODEL;
+  const mcpServers = resolveCursorMcpServers(opts);
   const agentOpts = {
     apiKey: opts.apiKey,
     model: { id: modelId },
     local: { cwd, settingSources: [] },
+    ...(mcpServers ? { mcpServers } : {}),
   };
 
   let agent: SDKAgent | null = null;
@@ -212,12 +232,19 @@ export async function streamCursorQueryToSse(
       : await Agent.create(agentOpts);
     agentId = agent.agentId;
 
-    const first = await runSendRound(agent, opts.prompt, reply, recorder, controller.signal);
+    const first = await runSendRound(agent, opts.prompt, reply, recorder, controller.signal, mcpServers);
     assistantText = first.assistantText;
     sdkError = first.sdkError;
 
     if (!sdkError && opts.followUpPrompt?.trim()) {
-      const follow = await runSendRound(agent, opts.followUpPrompt.trim(), reply, recorder, controller.signal);
+      const follow = await runSendRound(
+        agent,
+        opts.followUpPrompt.trim(),
+        reply,
+        recorder,
+        controller.signal,
+        mcpServers,
+      );
       if (follow.assistantText) {
         assistantText = [assistantText, follow.assistantText].filter(Boolean).join("\n\n");
       }

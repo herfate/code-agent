@@ -24,7 +24,7 @@ type PendingTaskForScanSqlRow = TaskRow & {
 /**
  * 按父任务 `pid` 分组，每组取最早一条待执行任务；
  * 若该父任务下存在执行中、执行失败或已暂停的子任务，则整组排除；
- * 内连接 `parent_task`（仅 `pid` 非空且父任务存在），结果按任务 `created_at` 升序。
+ * 内连接 `parent_task`（仅 `pid` 非空且父任务存在），结果按父任务 `created_at`、子任务 `created_at` 升序。
  */
 const SQL_PENDING_TASKS_FOR_SCAN_BY_PARENT = `
   SELECT
@@ -54,7 +54,7 @@ const SQL_PENDING_TASKS_FOR_SCAN_BY_PARENT = `
   ) t
   INNER JOIN parent_task p ON p.pid = t.pid
   WHERE t.rn = 1
-  ORDER BY t.created_at ASC
+  ORDER BY p.created_at ASC, t.created_at ASC
   LIMIT ?
 `;
 

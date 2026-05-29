@@ -1,0 +1,1712 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wiki Agent</title>
+  <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
+  <script src="/js/claude-sse-render.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="h-full min-h-0 overflow-hidden bg-slate-50 text-slate-900 antialiased">
+  <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
+    <header class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+      <div class="flex items-center gap-3">
+        <button type="button" id="wa-btn-back" class="hidden shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">返回</button>
+        <div class="min-w-0">
+          <h1 id="wa-title" class="text-base font-semibold text-slate-800">Wiki Agent</h1>
+          <p id="wa-subtitle" class="mt-0.5 text-xs text-slate-500">选择业务分类，浏览 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">wiki_base</code> 下的知识库文档</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- 分类卡片 -->
+    <div id="wa-view-home" class="min-h-0 flex-1 overflow-y-auto">
+      <div id="wa-cards" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"></div>
+    </div>
+
+    <!-- 父故事列表（业务 Agent） -->
+    <section id="wa-view-stories" class="hidden flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+        <h2 id="wa-stories-heading" class="text-xs font-semibold uppercase tracking-wide text-slate-500">父故事列表</h2>
+        <span id="wa-stories-count" class="text-xs font-medium text-slate-500"></span>
+      </div>
+      <div class="min-h-0 flex-1 overflow-auto">
+        <p id="wa-stories-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700"></p>
+        <p id="wa-stories-loading" class="hidden px-4 py-10 text-center text-sm text-slate-500">加载中…</p>
+        <p id="wa-stories-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500">暂无父故事</p>
+        <div class="overflow-x-auto">
+          <table class="w-max min-w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold tracking-wide text-slate-600 backdrop-blur-sm">
+              <tr>
+                <th class="whitespace-nowrap px-4 py-3">编号</th>
+                <th class="whitespace-nowrap px-4 py-3">标题</th>
+                <th class="whitespace-nowrap px-4 py-3">描述</th>
+                <th class="whitespace-nowrap px-4 py-3">执行状态</th>
+                <th class="whitespace-nowrap px-4 py-3">创建人</th>
+                <th class="whitespace-nowrap px-4 py-3">创建时间</th>
+                <th class="whitespace-nowrap px-4 py-3">操作</th>
+              </tr>
+            </thead>
+            <tbody id="wa-stories-tbody" class="divide-y divide-slate-100 text-slate-800"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 文件列表 -->
+    <section id="wa-view-files" class="hidden flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+        <h2 id="wa-files-heading" class="text-xs font-semibold uppercase tracking-wide text-slate-500">文档列表</h2>
+        <span id="wa-files-count" class="text-xs font-medium text-slate-500"></span>
+      </div>
+      <div id="wa-files-breadcrumb" class="hidden shrink-0 border-b border-slate-100 bg-white px-4 py-2 text-xs text-slate-600"></div>
+      <div id="wa-files-scroll" class="min-h-0 flex-1 overflow-auto">
+        <p id="wa-files-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700"></p>
+        <p id="wa-files-loading" class="hidden px-4 py-10 text-center text-sm text-slate-500">加载中…</p>
+        <p id="wa-files-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500">该目录下暂无内容</p>
+        <div id="wa-files-list" class="divide-y divide-slate-100"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 文档源配置 -->
+  <div id="wa-source-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="wa-source-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="wa-source-panel" role="dialog" aria-modal="true" aria-labelledby="wa-source-title" class="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="wa-source-title" class="text-sm font-semibold text-slate-800">文档源配置</h3>
+            <p id="wa-source-sub" class="mt-1 text-xs text-slate-500"></p>
+          </div>
+          <button type="button" id="wa-source-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+        </div>
+        <div id="wa-source-body" class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm text-slate-800"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 父故事 ai_out 任务类型选择 -->
+  <div id="wa-story-pick-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="wa-story-pick-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="wa-story-pick-panel" role="dialog" aria-modal="true" aria-labelledby="wa-story-pick-title" class="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="wa-story-pick-title" class="text-sm font-semibold text-slate-800">选择任务类型</h3>
+            <p id="wa-story-pick-sub" class="mt-1 text-xs text-slate-500">请选择要预览的 taskType（ai_out 子目录）</p>
+          </div>
+          <button type="button" id="wa-story-pick-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <p id="wa-story-pick-empty" class="hidden text-center text-sm text-slate-500">该父任务下暂无可预览文档</p>
+          <div id="wa-story-pick-list" class="grid gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 父故事 ai_out 文档预览 -->
+  <div id="wa-story-ai-preview-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="wa-story-ai-preview-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="wa-story-ai-preview-panel" role="dialog" aria-modal="true" aria-labelledby="wa-story-ai-preview-title" class="flex h-[90vh] w-[80vw] max-h-[90vh] max-w-[80vw] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="wa-story-ai-preview-title" class="text-sm font-semibold text-slate-800">文档预览</h3>
+            <p id="wa-story-ai-preview-meta" class="mt-1 truncate font-mono text-[11px] text-slate-500"></p>
+          </div>
+          <button type="button" id="wa-story-ai-preview-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+        </div>
+        <div id="wa-story-ai-preview-body" class="min-h-0 flex-1 overflow-x-auto overflow-y-auto px-5 py-4 text-sm text-slate-800"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 智能问答准备（勾选上下文来源） -->
+  <div id="wa-qa-prep-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="wa-qa-prep-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="wa-qa-prep-panel" role="dialog" aria-modal="true" aria-labelledby="wa-qa-prep-title" class="flex w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="wa-qa-prep-title" class="text-sm font-semibold text-slate-800">智能问答 · 准备上下文</h3>
+            <p id="wa-qa-prep-sub" class="mt-1 text-xs text-slate-500">选择要载入 Agent 工作区的内容</p>
+          </div>
+          <button type="button" id="wa-qa-prep-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+        </div>
+        <div class="px-5 py-4">
+          <div class="grid gap-3">
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-3 transition hover:border-emerald-200 hover:bg-emerald-50/40">
+              <input type="checkbox" id="wa-qa-prep-confluence" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" checked />
+              <span class="min-w-0">
+                <span class="block text-sm font-medium text-slate-800">添加 Confluence 文档</span>
+                <span class="mt-0.5 block text-xs text-slate-500">将 wiki_base 下已同步的知识库文档复制到工作区</span>
+              </span>
+            </label>
+            <div id="wa-qa-prep-code-list" class="grid gap-3"></div>
+          </div>
+          <p id="wa-qa-prep-error" class="mt-3 hidden text-xs text-red-600"></p>
+        </div>
+        <div class="flex shrink-0 justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          <button type="button" id="wa-qa-prep-cancel" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+          <button type="button" id="wa-qa-prep-start" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">开始问答</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 智能问答（Claude SSE） -->
+  <div id="wa-qa-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="wa-qa-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="wa-qa-panel" role="dialog" aria-modal="true" aria-labelledby="wa-qa-title" class="flex h-[90vh] w-[80vw] max-h-[90vh] max-w-[80vw] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="wa-qa-title" class="text-sm font-semibold text-slate-800">智能问答</h3>
+            <p id="wa-qa-sub" class="mt-1 text-xs text-slate-500">基于 Claude 实时回答，关闭窗口将中断当前对话</p>
+          </div>
+          <button type="button" id="wa-qa-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+        </div>
+        <main id="wa-qa-log" class="chat-log min-h-0 flex-1 overflow-y-auto px-5 py-4" role="log" aria-live="polite"></main>
+        <footer class="shrink-0 border-t border-slate-200 bg-white px-5 py-4">
+          <textarea
+            id="wa-qa-input"
+            rows="3"
+            maxlength="50000"
+            placeholder="输入问题，Enter 发送，Shift+Enter 换行…"
+            class="mb-2 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+          ></textarea>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="wa-qa-send" class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">发送</button>
+            <span id="wa-qa-hint" class="text-xs text-slate-500"></span>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wiki 文档预览 -->
+  <div id="wa-preview-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="wa-preview-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="wa-preview-panel" role="dialog" aria-modal="true" aria-labelledby="wa-preview-title" class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="wa-preview-title" class="truncate text-sm font-semibold text-slate-800">文档预览</h3>
+            <p id="wa-preview-meta" class="mt-1 truncate font-mono text-[11px] text-slate-500"></p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button type="button" id="wa-preview-split" disabled class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50">拆分故事</button>
+            <button type="button" id="wa-preview-close" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+          </div>
+        </div>
+        <div id="wa-preview-body" class="min-h-0 flex-1 overflow-x-auto overflow-y-auto px-5 py-4 text-sm text-slate-800"></div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    #wa-preview-body h1 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+    #wa-preview-body h2 { font-size: 1.125rem; font-weight: 600; margin: 0.875rem 0 0.5rem; }
+    #wa-preview-body h3 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+    #wa-preview-body p { margin: 0.5rem 0; line-height: 1.625; }
+    #wa-preview-body ul, #wa-preview-body ol { margin: 0.5rem 0; padding-left: 1.25rem; }
+    #wa-preview-body pre { margin: 0.75rem 0; overflow-x: auto; rounded: 0.5rem; background: #f1f5f9; padding: 0.75rem; font-size: 0.75rem; }
+    #wa-preview-body code { font-size: 0.85em; background: #f1f5f9; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+    #wa-preview-body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.875rem; }
+    #wa-preview-body th, #wa-preview-body td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
+    #wa-preview-body th { background: #f8fafc; font-weight: 600; }
+    #wa-story-ai-preview-body h1 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+    #wa-story-ai-preview-body h2 { font-size: 1.125rem; font-weight: 600; margin: 0.875rem 0 0.5rem; }
+    #wa-story-ai-preview-body h3 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+    #wa-story-ai-preview-body p { margin: 0.5rem 0; line-height: 1.625; }
+    #wa-story-ai-preview-body ul, #wa-story-ai-preview-body ol { margin: 0.5rem 0; padding-left: 1.25rem; }
+    #wa-story-ai-preview-body pre { margin: 0.75rem 0; overflow-x: auto; border-radius: 0.5rem; background: #f1f5f9; padding: 0.75rem; font-size: 0.75rem; }
+    #wa-story-ai-preview-body code { font-size: 0.85em; background: #f1f5f9; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+    #wa-story-ai-preview-body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.875rem; }
+    #wa-story-ai-preview-body th, #wa-story-ai-preview-body td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
+    #wa-story-ai-preview-body th { background: #f8fafc; font-weight: 600; }
+    .wa-card-accent-1 { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+    .wa-card-accent-2 { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
+    .wa-card-accent-3 { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+    .wa-card-accent-4 { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); }
+  </style>
+
+  <script>
+    (function () {
+      var CATEGORIES = [
+        { id: "1", label: "大陆清算" },
+        { id: "2", label: "大陆资金" },
+        { id: "3", label: "大陆账户" },
+        { id: "4", label: "大陆支付" },
+      ];
+
+      /** 与后端 `WIKI_CODE_REPO_SLOT_COUNT` 一致 */
+      var WIKI_CODE_REPO_SLOT_COUNT = 5;
+
+      var WORKFLOW_TASK_TYPE_LABELS = {
+        0: "设计",
+        1: "开发",
+        2: "开发规范优化",
+        3: "测试预分析",
+        4: "测试案例设计",
+        5: "测试数据分析",
+        6: "测试案例执行",
+        7: "QA平台测试脚本生成",
+        8: "Code Review",
+        9: "拆分故事",
+        10: "头脑风暴",
+        101: "测试环境发布",
+        102: "部署间隔等待",
+        103: "测试环境发布结果",
+      };
+
+      var viewHome = document.getElementById("wa-view-home");
+      var viewFiles = document.getElementById("wa-view-files");
+      var viewStories = document.getElementById("wa-view-stories");
+      var storiesTbody = document.getElementById("wa-stories-tbody");
+      var storiesHeading = document.getElementById("wa-stories-heading");
+      var storiesCountEl = document.getElementById("wa-stories-count");
+      var storiesErrorEl = document.getElementById("wa-stories-error");
+      var storiesLoadingEl = document.getElementById("wa-stories-loading");
+      var storiesEmptyEl = document.getElementById("wa-stories-empty");
+      var storyPickRoot = document.getElementById("wa-story-pick-root");
+      var storyPickTitle = document.getElementById("wa-story-pick-title");
+      var storyPickSub = document.getElementById("wa-story-pick-sub");
+      var storyPickList = document.getElementById("wa-story-pick-list");
+      var storyPickEmpty = document.getElementById("wa-story-pick-empty");
+      var storyAiPreviewRoot = document.getElementById("wa-story-ai-preview-root");
+      var storyAiPreviewTitle = document.getElementById("wa-story-ai-preview-title");
+      var storyAiPreviewMeta = document.getElementById("wa-story-ai-preview-meta");
+      var storyAiPreviewBody = document.getElementById("wa-story-ai-preview-body");
+      var cardsEl = document.getElementById("wa-cards");
+      var btnBack = document.getElementById("wa-btn-back");
+      var titleEl = document.getElementById("wa-title");
+      var subtitleEl = document.getElementById("wa-subtitle");
+      var filesHeading = document.getElementById("wa-files-heading");
+      var filesCountEl = document.getElementById("wa-files-count");
+      var filesErrorEl = document.getElementById("wa-files-error");
+      var filesLoadingEl = document.getElementById("wa-files-loading");
+      var filesEmptyEl = document.getElementById("wa-files-empty");
+      var filesListEl = document.getElementById("wa-files-list");
+      var filesBreadcrumbEl = document.getElementById("wa-files-breadcrumb");
+      var previewRoot = document.getElementById("wa-preview-root");
+      var previewTitle = document.getElementById("wa-preview-title");
+      var previewMeta = document.getElementById("wa-preview-meta");
+      var previewBody = document.getElementById("wa-preview-body");
+      var previewSplitBtn = document.getElementById("wa-preview-split");
+      var sourceRoot = document.getElementById("wa-source-root");
+      var sourceTitle = document.getElementById("wa-source-title");
+      var sourceSub = document.getElementById("wa-source-sub");
+      var sourceBody = document.getElementById("wa-source-body");
+      var qaRoot = document.getElementById("wa-qa-root");
+      var qaTitle = document.getElementById("wa-qa-title");
+      var qaSub = document.getElementById("wa-qa-sub");
+      var qaLog = document.getElementById("wa-qa-log");
+      var qaInput = document.getElementById("wa-qa-input");
+      var qaSendBtn = document.getElementById("wa-qa-send");
+      var qaHint = document.getElementById("wa-qa-hint");
+      var qaPrepRoot = document.getElementById("wa-qa-prep-root");
+      var qaPrepSub = document.getElementById("wa-qa-prep-sub");
+      var qaPrepConfluence = document.getElementById("wa-qa-prep-confluence");
+      var qaPrepCodeList = document.getElementById("wa-qa-prep-code-list");
+      var qaPrepError = document.getElementById("wa-qa-prep-error");
+      var qaPrepStartBtn = document.getElementById("wa-qa-prep-start");
+
+      var currentCategory = null;
+      var currentDir = "";
+      var previewCurrentDoc = null;
+      var storyPickPid = "";
+      var qaCategoryId = "";
+      var qaThreadId = "";
+      var qaStreamAbort = null;
+      var qaStreaming = false;
+      var qaPreparing = false;
+      var qaPrepCategoryId = "";
+      var qaPrepTriggerBtn = null;
+
+      function renderQaPrepCodeCheckboxes(codeRepos) {
+        if (!qaPrepCodeList) return;
+        var html = "";
+        for (var slot = 1; slot <= WIKI_CODE_REPO_SLOT_COUNT; slot++) {
+          var row = codeRepos && codeRepos[slot - 1] ? codeRepos[slot - 1] : null;
+          var url = row && row.gitRemoteUrl ? String(row.gitRemoteUrl).trim() : "";
+          if (!url) continue;
+          html +=
+            '<label class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-3 transition hover:border-blue-200 hover:bg-blue-50/40">' +
+            '<input type="checkbox" id="wa-qa-prep-code' +
+            slot +
+            '" data-slot="' +
+            slot +
+            '" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />' +
+            '<span class="min-w-0">' +
+            '<span class="block text-sm font-medium text-slate-800">添加代码库 ' +
+            slot +
+            "</span>" +
+            '<span class="mt-0.5 block break-all text-xs text-slate-500">' +
+            esc(url) +
+            "</span></span></label>";
+        }
+        qaPrepCodeList.innerHTML = html;
+      }
+
+      function waBase() {
+        return window.location.origin;
+      }
+
+      function workflowTaskTypeLabel(code) {
+        return WORKFLOW_TASK_TYPE_LABELS[code] || String(code);
+      }
+
+      function openParentFlowInNewTab(pid) {
+        if (!pid) return;
+        var pageOrigin = window.location.origin;
+        var u = pageOrigin + "/dev-agent/parent-flow?pid=" + encodeURIComponent(pid);
+        window.open(u, "_blank", "noopener,noreferrer");
+      }
+
+      function currentLoginUser() {
+        try {
+          var u = window.localStorage.getItem("userName");
+          return u && String(u).trim() ? String(u).trim() : "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function setPreviewSplitEnabled(enabled) {
+        previewSplitBtn.disabled = !enabled;
+      }
+
+      function esc(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function fmtTime(ms) {
+        if (!ms) return "—";
+        try {
+          return new Date(ms).toLocaleString("zh-CN");
+        } catch (e) {
+          return String(ms);
+        }
+      }
+
+      function fmtSize(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+        return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+      }
+
+      function categoryLabel(id) {
+        for (var i = 0; i < CATEGORIES.length; i++) {
+          if (CATEGORIES[i].id === id) return CATEGORIES[i].label;
+        }
+        return id;
+      }
+
+      function renderMarkdownHtml(md) {
+        if (window.marked && typeof window.marked.parse === "function") {
+          return window.marked.parse(String(md || ""));
+        }
+        return '<pre class="whitespace-pre-wrap font-mono text-xs">' + esc(md || "") + "</pre>";
+      }
+
+      function renderPlainTextHtml(text) {
+        return '<pre class="whitespace-pre-wrap font-mono text-xs">' + esc(text || "") + "</pre>";
+      }
+
+      function renderJsonHtml(raw) {
+        var text = String(raw || "");
+        try {
+          return renderPlainTextHtml(JSON.stringify(JSON.parse(text), null, 2));
+        } catch (e) {
+          return renderPlainTextHtml(text);
+        }
+      }
+
+      function renderPreviewContent(doc) {
+        var kind = doc && doc.content_kind ? doc.content_kind : "markdown";
+        var content = doc && doc.content != null ? doc.content : "";
+        if (kind === "json") return renderJsonHtml(content);
+        if (kind === "text") return renderPlainTextHtml(content);
+        return renderMarkdownHtml(content);
+      }
+
+      function renderCardActions() {
+        return (
+          '<div class="mt-4 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">' +
+          '<button type="button" data-action="source-config" class="wa-card-action shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium leading-tight text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-100">文档源配置</button>' +
+          '<button type="button" data-action="sync-now" class="wa-card-action shrink-0 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium leading-tight text-sky-800 shadow-sm transition hover:border-sky-300 hover:bg-sky-100">立即同步</button>' +
+          '<button type="button" data-action="drive-requirement" class="wa-card-action shrink-0 rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-[11px] font-medium leading-tight text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-100">需求列表</button>' +
+          '<button type="button" data-action="smart-qa" class="wa-card-action shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium leading-tight text-emerald-800 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100">智能问答</button>' +
+          "</div>"
+        );
+      }
+
+      function renderCards(categories) {
+        cardsEl.innerHTML = categories
+          .map(function (c) {
+            return (
+              '<div data-category-id="' +
+              esc(c.id) +
+              '" class="wa-card group flex cursor-pointer flex-col rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md">' +
+              '<div class="wa-card-accent-' +
+              esc(c.id) +
+              ' mb-4 flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-slate-700">' +
+              esc(c.id) +
+              "</div>" +
+              '<div class="text-sm font-semibold text-slate-800 group-hover:text-blue-700">' +
+              esc(c.label) +
+              "</div>" +
+              '<div class="mt-1 text-xs text-slate-500">wiki_base/' +
+              esc(c.id) +
+              "/</div>" +
+              '<div class="mt-3 text-xs font-medium text-slate-400">' +
+              (c.file_count > 0 ? c.file_count + " 个文档" : "暂无文档") +
+              "</div>" +
+              renderCardActions() +
+              "</div>"
+            );
+          })
+          .join("");
+      }
+
+      function wikiDirPath(categoryId, dir) {
+        return "wiki_base/" + categoryId + "/" + (dir ? dir + "/" : "");
+      }
+
+      function renderFilesBreadcrumb(categoryId, dir) {
+        if (!dir) {
+          filesBreadcrumbEl.classList.add("hidden");
+          filesBreadcrumbEl.innerHTML = "";
+          return;
+        }
+        filesBreadcrumbEl.classList.remove("hidden");
+        var parts = dir.split("/").filter(Boolean);
+        var html =
+          '<button type="button" class="wa-dir-crumb font-medium text-blue-700 hover:underline" data-dir="">' +
+          esc("wiki_base/" + categoryId) +
+          "</button>";
+        var acc = "";
+        parts.forEach(function (name, idx) {
+          acc = acc ? acc + "/" + name : name;
+          var isLast = idx === parts.length - 1;
+          html += '<span class="mx-1 text-slate-400">/</span>';
+          if (isLast) {
+            html += '<span class="font-medium text-slate-700">' + esc(name) + "</span>";
+          } else {
+            html +=
+              '<button type="button" class="wa-dir-crumb font-medium text-blue-700 hover:underline" data-dir="' +
+              esc(acc) +
+              '">' +
+              esc(name) +
+              "</button>";
+          }
+        });
+        filesBreadcrumbEl.innerHTML = html;
+      }
+
+      function renderDirListing(listing) {
+        filesListEl.innerHTML = "";
+        var dirs = (listing && listing.directories) || [];
+        var files = (listing && listing.files) || [];
+        var dir = (listing && listing.dir) || "";
+        var categoryId = listing && listing.category_id;
+
+        renderFilesBreadcrumb(categoryId, dir);
+
+        if (dirs.length === 0 && files.length === 0) {
+          filesEmptyEl.classList.remove("hidden");
+          filesCountEl.textContent = "空目录";
+          return;
+        }
+        filesEmptyEl.classList.add("hidden");
+        var countParts = [];
+        if (dirs.length > 0) countParts.push(dirs.length + " 个文件夹");
+        if (files.length > 0) countParts.push(files.length + " 个文档");
+        filesCountEl.textContent = countParts.join(" · ");
+
+        dirs.forEach(function (d) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "wa-dir-btn flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition hover:bg-amber-50/70";
+          btn.setAttribute("data-dir", d.relative_path);
+          btn.innerHTML =
+            '<span class="flex min-w-0 flex-1 items-center gap-2 truncate font-medium text-slate-800">' +
+            '<span class="shrink-0 text-base leading-none text-amber-500" aria-hidden="true">📁</span>' +
+            esc(d.name) +
+            '</span><span class="shrink-0 text-[11px] text-slate-400">文件夹</span>';
+          filesListEl.appendChild(btn);
+        });
+
+        files.forEach(function (f) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "wa-file-btn flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition hover:bg-blue-50/60";
+          btn.setAttribute("data-path", f.relative_path);
+          btn.innerHTML =
+            '<span class="min-w-0 flex-1 truncate font-medium text-slate-800">' +
+            esc(f.name) +
+            '</span><span class="shrink-0 text-[11px] text-slate-400">' +
+            fmtSize(f.size) +
+            " · " +
+            fmtTime(f.updated_at) +
+            "</span>";
+          filesListEl.appendChild(btn);
+        });
+      }
+
+      /** 父任务列表「执行状态」列样式（与 API `exec_status` 一致） */
+      function execStatusCell(label) {
+        var text = label || "—";
+        var cls = "text-slate-500";
+        if (text === "完成") cls = "text-emerald-700";
+        else if (text === "待执行") cls = "text-slate-600";
+        else if (text === "失败") cls = "text-red-700";
+        else if (text === "执行中") cls = "text-blue-700";
+        return (
+          '<td class="whitespace-nowrap px-4 py-3 text-xs font-medium ' +
+          cls +
+          '">' +
+          esc(text) +
+          "</td>"
+        );
+      }
+
+      function renderStoryRow(t) {
+        var tr = document.createElement("tr");
+        tr.className = "transition-colors hover:bg-slate-50";
+        tr.innerHTML =
+          '<td class="whitespace-nowrap px-4 py-3 font-mono text-xs">' +
+          esc(t.pid) +
+          "</td>" +
+          '<td class="max-w-xs truncate px-4 py-3 sm:max-w-md" title="' +
+          esc(t.title || "") +
+          '">' +
+          esc(t.title || "—") +
+          "</td>" +
+          '<td class="max-w-md truncate px-4 py-3 text-slate-600 sm:max-w-xl" title="' +
+          esc(t.description || "") +
+          '">' +
+          esc(t.description || "—") +
+          "</td>" +
+          execStatusCell(t.exec_status) +
+          '<td class="max-w-[8rem] truncate whitespace-nowrap px-4 py-3 text-slate-700" title="' +
+          esc(t.creator || "") +
+          '">' +
+          esc(t.creator || "—") +
+          "</td>" +
+          '<td class="whitespace-nowrap px-4 py-3 text-slate-600">' +
+          esc(fmtTime(t.created_at)) +
+          "</td>" +
+          '<td class="whitespace-nowrap px-4 py-3">' +
+          '<div class="flex flex-nowrap items-center gap-1">' +
+          '<button type="button" class="wa-story-flow-btn shrink-0 cursor-pointer rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100" data-pid="' +
+          esc(t.pid) +
+          '">多Agent视图</button>' +
+          '<button type="button" class="wa-story-preview-btn shrink-0 cursor-pointer rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100" data-pid="' +
+          esc(t.pid) +
+          '">预览文档</button>' +
+          "</div></td>";
+        storiesTbody.appendChild(tr);
+      }
+
+      function filterStoriesByCategory(list, categoryId) {
+        var marker = "wiki_base/" + categoryId + "/";
+        var filtered = (list || []).filter(function (t) {
+          var desc = String(t.description || "");
+          return desc.indexOf(marker) >= 0;
+        });
+        return filtered.length > 0 ? filtered : list || [];
+      }
+
+      function showStories(categoryId) {
+        currentCategory = categoryId;
+        viewHome.classList.add("hidden");
+        viewFiles.classList.add("hidden");
+        viewStories.classList.remove("hidden");
+        btnBack.classList.remove("hidden");
+        titleEl.textContent = "需求列表 · " + categoryLabel(categoryId);
+        subtitleEl.textContent = "业务 Agent 父故事（task_type=4）";
+        storiesHeading.textContent = "父故事列表";
+        storiesErrorEl.classList.add("hidden");
+        storiesEmptyEl.classList.add("hidden");
+        storiesLoadingEl.classList.remove("hidden");
+        storiesTbody.innerHTML = "";
+        storiesCountEl.textContent = "";
+
+        var params = new URLSearchParams();
+        params.set("task_type", "4");
+        params.set("limit", "100");
+        params.set("page", "1");
+
+        fetch("/api/parent-tasks?" + params.toString())
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            storiesLoadingEl.classList.add("hidden");
+            if (!res.ok) {
+              storiesErrorEl.textContent =
+                "加载失败 " + res.status + ": " + (res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+              storiesErrorEl.classList.remove("hidden");
+              return;
+            }
+            var list = filterStoriesByCategory(res.body.parent_tasks || [], categoryId);
+            storiesCountEl.textContent = "共 " + list.length + " 条";
+            if (list.length === 0) {
+              storiesEmptyEl.classList.remove("hidden");
+              return;
+            }
+            list.forEach(renderStoryRow);
+          })
+          .catch(function (e) {
+            storiesLoadingEl.classList.add("hidden");
+            storiesErrorEl.textContent = "加载失败: " + e.message;
+            storiesErrorEl.classList.remove("hidden");
+          });
+      }
+
+      function closeStoryPick() {
+        storyPickRoot.classList.add("hidden");
+        storyPickPid = "";
+        storyPickList.innerHTML = "";
+        storyPickEmpty.classList.add("hidden");
+        if (storyAiPreviewRoot.classList.contains("hidden") && previewRoot.classList.contains("hidden") && sourceRoot.classList.contains("hidden") && qaRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function closeStoryAiPreview() {
+        storyAiPreviewRoot.classList.add("hidden");
+        storyAiPreviewBody.innerHTML = "";
+        storyAiPreviewMeta.textContent = "";
+        if (storyPickRoot.classList.contains("hidden") && previewRoot.classList.contains("hidden") && sourceRoot.classList.contains("hidden") && qaRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function renderStoryPickOptions(taskTypes) {
+        storyPickList.innerHTML = "";
+        if (!taskTypes || taskTypes.length === 0) {
+          storyPickEmpty.classList.remove("hidden");
+          return;
+        }
+        storyPickEmpty.classList.add("hidden");
+        taskTypes.forEach(function (tt) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "wa-story-pick-opt w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm transition hover:border-violet-300 hover:bg-violet-50";
+          btn.setAttribute("data-task-type", String(tt));
+          btn.innerHTML =
+            '<span class="font-mono text-xs text-slate-500">' +
+            esc(String(tt)) +
+            '</span><span class="ml-2 font-medium text-slate-800">' +
+            esc(workflowTaskTypeLabel(tt)) +
+            "</span>";
+          storyPickList.appendChild(btn);
+        });
+      }
+
+      function openStoryPreviewPicker(pid, triggerBtn) {
+        if (!pid) return;
+        storyPickPid = pid;
+        storyPickTitle.textContent = "选择任务类型 · pid " + pid;
+        storyPickSub.textContent = "请选择要预览的 taskType（ai_out/" + pid + "/<taskType>/）";
+        storyPickList.innerHTML = '<p class="text-center text-xs text-slate-400">加载中…</p>';
+        storyPickEmpty.classList.add("hidden");
+        storyPickRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "加载中…";
+        }
+        fetch(waBase() + "/api/parent-tasks/" + encodeURIComponent(pid) + "/ai-out/task-types")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "预览文档";
+            }
+            if (!res.ok) {
+              closeStoryPick();
+              storiesErrorEl.textContent =
+                "加载 taskType 失败 " + res.status + ": " + (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+              storiesErrorEl.classList.remove("hidden");
+              return;
+            }
+            renderStoryPickOptions(res.body.task_types || []);
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "预览文档";
+            }
+            closeStoryPick();
+            storiesErrorEl.textContent = "加载 taskType 失败: " + e.message;
+            storiesErrorEl.classList.remove("hidden");
+          });
+      }
+
+      function detectPreviewKindFromContent(content) {
+        var t = String(content || "").trim();
+        if (!t) return "text";
+        if (t.charAt(0) === "{" || t.charAt(0) === "[") {
+          try {
+            JSON.parse(t);
+            return "json";
+          } catch (e) {
+            /* continue */
+          }
+        }
+        var signals = 0;
+        var lines = t.split(/\r?\n/).slice(0, 80);
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          var s = line.trim();
+          if (!s) continue;
+          if (/^#{1,6}\s+\S/.test(s)) signals += 2;
+          if (/^```/.test(s)) signals += 2;
+          if (/^>\s+/.test(s)) signals += 1;
+          if (/^\s*[-*+]\s+\S/.test(line)) signals += 1;
+          if (/^\s*\d+\.\s+\S/.test(line)) signals += 1;
+        }
+        if (signals >= 2) return "markdown";
+        return "text";
+      }
+
+      function loadStoryAiPreviewDoc(pid, taskType) {
+        if (!pid || taskType === undefined || taskType === null || taskType === "") return;
+        closeStoryPick();
+        storyAiPreviewTitle.textContent = "文档预览 · pid " + pid;
+        storyAiPreviewMeta.textContent = "加载中…";
+        storyAiPreviewBody.innerHTML = '<p class="text-center text-xs text-slate-400">加载文档…</p>';
+        storyAiPreviewRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        fetch(
+          waBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/ai-out/latest?task_type=" +
+            encodeURIComponent(String(taskType)),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              var msg =
+                res.status === 404
+                  ? "该 taskType 下未找到可预览文档（.md / .json / .txt）"
+                  : res.body && res.body.error
+                    ? JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body);
+              storyAiPreviewMeta.textContent = "";
+              storyAiPreviewBody.innerHTML =
+                '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+                esc("预览失败 " + res.status + ": " + msg) +
+                "</p>";
+              return;
+            }
+            var doc = res.body;
+            var typeLabel = workflowTaskTypeLabel(doc.task_type);
+            storyAiPreviewTitle.textContent = "文档预览 · pid " + doc.pid;
+            storyAiPreviewMeta.textContent =
+              "ai_out/" + doc.pid + "/" + doc.task_type + " · " + typeLabel + " · " + (doc.relative_path || "") + " · " + fmtTime(doc.updated_at);
+            var kind = doc.content_kind || "markdown";
+            if (kind === "text") kind = detectPreviewKindFromContent(doc.content);
+            storyAiPreviewBody.innerHTML = renderPreviewContent({ content: doc.content, content_kind: kind });
+          })
+          .catch(function (e) {
+            storyAiPreviewMeta.textContent = "";
+            storyAiPreviewBody.innerHTML =
+              '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+              esc("预览失败: " + e.message) +
+              "</p>";
+          });
+      }
+
+      function showHome() {
+        currentCategory = null;
+        currentDir = "";
+        viewHome.classList.remove("hidden");
+        viewFiles.classList.add("hidden");
+        viewStories.classList.add("hidden");
+        btnBack.classList.add("hidden");
+        titleEl.textContent = "Wiki Agent";
+        subtitleEl.textContent = "选择业务分类，浏览 wiki_base 下的知识库文档";
+        subtitleEl.classList.remove("hidden");
+        loadCategories();
+      }
+
+      function showFiles(categoryId, dir) {
+        currentCategory = categoryId;
+        currentDir = dir || "";
+        viewHome.classList.add("hidden");
+        viewStories.classList.add("hidden");
+        viewFiles.classList.remove("hidden");
+        btnBack.classList.remove("hidden");
+        titleEl.textContent = categoryLabel(categoryId);
+        subtitleEl.textContent = wikiDirPath(categoryId, currentDir);
+        filesHeading.textContent = currentDir ? "当前目录" : "文档列表";
+        filesErrorEl.classList.add("hidden");
+        filesEmptyEl.classList.add("hidden");
+        filesLoadingEl.classList.remove("hidden");
+        filesListEl.innerHTML = "";
+        filesCountEl.textContent = "";
+        filesBreadcrumbEl.classList.add("hidden");
+
+        var url = "/api/wiki-base/" + encodeURIComponent(categoryId) + "/files";
+        if (currentDir) url += "?dir=" + encodeURIComponent(currentDir);
+
+        fetch(url)
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            filesLoadingEl.classList.add("hidden");
+            if (!res.ok) {
+              filesErrorEl.textContent = "加载失败 " + res.status + ": " + (res.body.error || JSON.stringify(res.body));
+              filesErrorEl.classList.remove("hidden");
+              return;
+            }
+            renderDirListing(res.body);
+          })
+          .catch(function (e) {
+            filesLoadingEl.classList.add("hidden");
+            filesErrorEl.textContent = "加载失败: " + e.message;
+            filesErrorEl.classList.remove("hidden");
+          });
+      }
+
+      function openPreview(categoryId, relPath) {
+        previewCurrentDoc = null;
+        setPreviewSplitEnabled(false);
+        previewTitle.textContent = relPath.split("/").pop() || relPath;
+        previewMeta.textContent = "wiki_base/" + categoryId + "/" + relPath + " · 加载中…";
+        previewBody.innerHTML = '<p class="text-center text-xs text-slate-400">加载文档…</p>';
+        previewRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+
+        fetch(
+          "/api/wiki-base/" +
+            encodeURIComponent(categoryId) +
+            "/file?path=" +
+            encodeURIComponent(relPath),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              previewMeta.textContent = "";
+              previewBody.innerHTML =
+                '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+                esc("预览失败 " + res.status + ": " + (res.body.error || "")) +
+                "</p>";
+              return;
+            }
+            var doc = res.body;
+            previewCurrentDoc = doc;
+            setPreviewSplitEnabled(!!(doc.content && String(doc.content).trim()));
+            previewMeta.textContent =
+              "wiki_base/" + doc.category_id + "/" + doc.relative_path + " · " + fmtTime(doc.updated_at);
+            previewBody.innerHTML = renderPreviewContent(doc);
+          })
+          .catch(function (e) {
+            previewCurrentDoc = null;
+            setPreviewSplitEnabled(false);
+            previewMeta.textContent = "";
+            previewBody.innerHTML =
+              '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+              esc("预览失败: " + e.message) +
+              "</p>";
+          });
+      }
+
+      function closePreview() {
+        previewRoot.classList.add("hidden");
+        previewCurrentDoc = null;
+        setPreviewSplitEnabled(false);
+        if (sourceRoot.classList.contains("hidden") && qaRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function submitSplitStory() {
+        if (!previewCurrentDoc || !previewCurrentDoc.content) {
+          window.alert("文档内容为空，无法拆分故事");
+          return;
+        }
+        var creator = currentLoginUser();
+        if (!creator) {
+          window.alert("未获取到当前登录用户，请先通过管理台完成 Keycloak 登录");
+          return;
+        }
+        var doc = previewCurrentDoc;
+        var fileName = (doc.relative_path || "").split("/").pop() || "wiki-doc";
+        var wikiPath = "wiki_base/" + doc.category_id + "/" + doc.relative_path;
+        var confirmed = window.confirm(
+          "确认将当前 Wiki 文档提交为业务 Agent（类型 4）父任务并拆分故事？\n\n" +
+            "文档：" +
+            fileName +
+            "\n业务：" +
+            categoryLabel(doc.category_id) +
+            "\n创建人：" +
+            creator,
+        );
+        if (!confirmed) return;
+
+        previewSplitBtn.disabled = true;
+        var prevText = previewSplitBtn.textContent;
+        previewSplitBtn.textContent = "提交中…";
+
+        fetch("/api/wiki-base/" + encodeURIComponent(doc.category_id) + "/sources")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (srcRes) {
+            if (!srcRes.ok) {
+              throw new Error("读取文档源配置失败 " + srcRes.status);
+            }
+            var codeRepo = srcRes.body && srcRes.body.code_repo ? srcRes.body.code_repo : null;
+            var gitRemoteUrl = codeRepo && codeRepo.gitRemoteUrl ? String(codeRepo.gitRemoteUrl).trim() : "";
+            var branch_version =
+              codeRepo && codeRepo.branch_version
+                ? String(codeRepo.branch_version).trim()
+                : "master";
+            if (!gitRemoteUrl) {
+              throw new Error("请先在「文档源配置」中配置该业务的代码地址");
+            }
+            var body = {
+              task_type: 4,
+              provider: "claude",
+              creator: creator,
+              description: "Wiki拆分故事: " + wikiPath,
+              requirement: String(doc.content),
+              title: fileName.replace(/\.(md|markdown|txt|json)$/i, ""),
+              gitRepos: [{ gitRemoteUrl: gitRemoteUrl, branch_version: branch_version }],
+              testEnv: "wiki",
+              params: [
+                {
+                  param_key: "wiki_doc",
+                  value_json: {
+                    category_id: doc.category_id,
+                    category_label: categoryLabel(doc.category_id),
+                    relative_path: doc.relative_path,
+                    wiki_path: wikiPath,
+                  },
+                  description: "Wiki 文档来源",
+                },
+              ],
+            };
+            return fetch("/api/parent-tasks", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+          })
+          .then(function (r) {
+            if (!r) return null;
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            previewSplitBtn.textContent = prevText;
+            setPreviewSplitEnabled(true);
+            if (!res) return;
+            if (!res.ok) {
+              var errMsg =
+                res.body && res.body.error
+                  ? typeof res.body.error === "string"
+                    ? res.body.error
+                    : JSON.stringify(res.body.error)
+                  : JSON.stringify(res.body);
+              window.alert("拆分故事提交失败 " + res.status + ": " + errMsg);
+              return;
+            }
+            var pid =
+              res.body && res.body.parent_task && res.body.parent_task.pid
+                ? res.body.parent_task.pid
+                : "";
+            window.alert(pid ? "拆分故事已提交，父任务编号：" + pid : "拆分故事已提交");
+          })
+          .catch(function (e) {
+            previewSplitBtn.textContent = prevText;
+            setPreviewSplitEnabled(true);
+            window.alert("拆分故事提交失败: " + e.message);
+          });
+      }
+
+      function renderCodeRepoBlock(title, row) {
+        if (!row || !row.gitRemoteUrl) {
+          return (
+            '<div class="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3">' +
+            '<div class="text-xs font-semibold text-slate-600">' +
+            esc(title) +
+            '</div><p class="mt-2 text-xs text-slate-400">未配置</p></div>'
+          );
+        }
+        var branch = row.branch_version ? String(row.branch_version) : "master";
+        return (
+          '<div class="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">' +
+          '<div class="text-xs font-semibold text-slate-700">' +
+          esc(title) +
+          "</div>" +
+          '<p class="mt-2 break-all font-mono text-[11px] text-slate-600">' +
+          esc(row.gitRemoteUrl) +
+          " @ " +
+          esc(branch) +
+          "</p>" +
+          '<dl class="mt-3 grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-1 text-[11px] text-slate-500">' +
+          "<dt>创建人</dt><dd>" +
+          esc(row.creator || "—") +
+          "</dd>" +
+          "<dt>更新时间</dt><dd>" +
+          esc(fmtTime(row.updated_at)) +
+          "</dd></dl></div>"
+        );
+      }
+
+      function renderSourceBlock(title, row) {
+        if (!row) {
+          return (
+            '<div class="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3">' +
+            '<div class="text-xs font-semibold text-slate-600">' +
+            esc(title) +
+            '</div><p class="mt-2 text-xs text-slate-400">未配置</p></div>'
+          );
+        }
+        return (
+          '<div class="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">' +
+          '<div class="text-xs font-semibold text-slate-700">' +
+          esc(title) +
+          "</div>" +
+          '<a href="' +
+          esc(row.wiki_url) +
+          '" target="_blank" rel="noopener noreferrer" class="mt-2 block break-all text-xs text-blue-600 hover:underline">' +
+          esc(row.wiki_url) +
+          "</a>" +
+          '<dl class="mt-3 grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-1 text-[11px] text-slate-500">' +
+          "<dt>创建人</dt><dd>" +
+          esc(row.creator || "—") +
+          "</dd>" +
+          "<dt>同步时间</dt><dd>" +
+          esc(fmtTime(row.synced_at)) +
+          "</dd>" +
+          "<dt>更新时间</dt><dd>" +
+          esc(fmtTime(row.updated_at)) +
+          "</dd></dl></div>"
+        );
+      }
+
+      function openSourceConfig(categoryId) {
+        sourceTitle.textContent = "文档源配置 · " + categoryLabel(categoryId);
+        sourceSub.textContent = "基线文档、迭代文档与代码仓库地址（代码库 1～" + WIKI_CODE_REPO_SLOT_COUNT + "）";
+        sourceBody.innerHTML = '<p class="text-center text-xs text-slate-400">加载中…</p>';
+        sourceRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+
+        fetch("/api/wiki-base/" + encodeURIComponent(categoryId) + "/sources")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              sourceBody.innerHTML =
+                '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+                esc("查询失败 " + res.status + ": " + (res.body.error || "")) +
+                "</p>";
+              return;
+            }
+            var data = res.body;
+            var codeRepoBlocks = "";
+            var codeRepos =
+              data && Array.isArray(data.code_repos)
+                ? data.code_repos
+                : data && data.code_repo
+                  ? [data.code_repo]
+                  : [];
+            for (var i = 0; i < WIKI_CODE_REPO_SLOT_COUNT; i++) {
+              codeRepoBlocks += renderCodeRepoBlock("代码库 " + (i + 1), codeRepos[i] || null);
+            }
+            sourceBody.innerHTML =
+              '<div class="space-y-4">' +
+              renderSourceBlock("基线文档", data.baseline_doc) +
+              renderSourceBlock("迭代文档", data.requirement_iteration_doc) +
+              codeRepoBlocks +
+              "</div>";
+          })
+          .catch(function (e) {
+            sourceBody.innerHTML =
+              '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+              esc("查询失败: " + e.message) +
+              "</p>";
+          });
+      }
+
+      function closeSourceConfig() {
+        sourceRoot.classList.add("hidden");
+        if (previewRoot.classList.contains("hidden") && qaRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function setQaHint(text, variant) {
+        qaHint.textContent = text || "";
+        qaHint.className =
+          "text-xs " +
+          (variant === "error" ? "text-red-600" : variant === "success" ? "text-emerald-600" : "text-slate-500");
+      }
+
+      function setQaStreaming(active) {
+        qaStreaming = !!active;
+        qaSendBtn.disabled = active;
+        qaInput.disabled = active;
+      }
+
+      function abortQaStream() {
+        if (qaStreamAbort) {
+          qaStreamAbort.abort();
+          qaStreamAbort = null;
+        }
+        setQaStreaming(false);
+      }
+
+      function appendQaUserMessage(text) {
+        var turn = document.createElement("div");
+        turn.className = "chat-turn chat-turn-user";
+        var bubble = document.createElement("div");
+        bubble.className = "chat-bubble";
+        var textEl = document.createElement("div");
+        textEl.className = "chat-text";
+        textEl.textContent = text;
+        bubble.appendChild(textEl);
+        turn.appendChild(bubble);
+        qaLog.appendChild(turn);
+        qaLog.scrollTop = qaLog.scrollHeight;
+      }
+
+      function parseQaSseStream(response, onEvent) {
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = "";
+        function pump() {
+          return reader.read().then(function (chunk) {
+            if (chunk.done) return;
+            buffer += decoder.decode(chunk.value, { stream: true });
+            var sep;
+            while ((sep = buffer.indexOf("\n\n")) !== -1) {
+              var block = buffer.slice(0, sep);
+              buffer = buffer.slice(sep + 2);
+              var eventName = "message";
+              var dataLines = [];
+              block.split(/\r?\n/).forEach(function (line) {
+                if (line.startsWith("event:")) eventName = line.slice(6).trim();
+                else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+              });
+              var dataStr = dataLines.join("\n");
+              if (!dataStr) continue;
+              var payload;
+              try {
+                payload = JSON.parse(dataStr);
+              } catch (e) {
+                payload = dataStr;
+              }
+              onEvent(eventName, payload);
+            }
+            return pump();
+          });
+        }
+        return pump();
+      }
+
+      function setQaPrepError(msg) {
+        if (!msg) {
+          qaPrepError.textContent = "";
+          qaPrepError.classList.add("hidden");
+          return;
+        }
+        qaPrepError.textContent = msg;
+        qaPrepError.classList.remove("hidden");
+      }
+
+      function getSelectedQaPrepCodeRepoSlots() {
+        var slots = [];
+        if (!qaPrepCodeList) return slots;
+        var boxes = qaPrepCodeList.querySelectorAll('input[type="checkbox"][data-slot]');
+        for (var i = 0; i < boxes.length; i++) {
+          var box = boxes[i];
+          if (!box.checked) continue;
+          var slot = parseInt(box.getAttribute("data-slot"), 10);
+          if (slot >= 1 && slot <= WIKI_CODE_REPO_SLOT_COUNT) slots.push(slot);
+        }
+        return slots;
+      }
+
+      function closeQaPrepDialog() {
+        qaPrepRoot.classList.add("hidden");
+        qaPrepCategoryId = "";
+        qaPrepTriggerBtn = null;
+        setQaPrepError("");
+        if (
+          qaRoot.classList.contains("hidden") &&
+          previewRoot.classList.contains("hidden") &&
+          sourceRoot.classList.contains("hidden")
+        ) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function openQaPrepDialog(categoryId, triggerBtn) {
+        if (qaPreparing) return;
+        qaPrepCategoryId = categoryId;
+        qaPrepTriggerBtn = triggerBtn || null;
+        qaPrepConfluence.checked = true;
+        setQaPrepError("");
+        qaPrepSub.textContent = categoryLabel(categoryId) + " · 选择要载入 Agent 工作区的内容";
+        if (qaPrepCodeList) qaPrepCodeList.innerHTML = '<p class="text-xs text-slate-400">加载代码库配置…</p>';
+        qaPrepStartBtn.disabled = false;
+        qaPrepStartBtn.textContent = "开始问答";
+        qaPrepRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+
+        fetch("/api/wiki-base/" + encodeURIComponent(categoryId) + "/sources")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok || qaPrepCategoryId !== categoryId) return;
+            var codeRepos =
+              res.body && Array.isArray(res.body.code_repos)
+                ? res.body.code_repos
+                : res.body && res.body.code_repo
+                  ? [res.body.code_repo]
+                  : null;
+            renderQaPrepCodeCheckboxes(codeRepos);
+          })
+          .catch(function () {
+            if (qaPrepCategoryId === categoryId) {
+              renderQaPrepCodeCheckboxes(null);
+            }
+          });
+      }
+
+      function startQaFromPrep() {
+        var categoryId = qaPrepCategoryId;
+        if (!categoryId || qaPreparing) return;
+
+        var includeConfluence = !!qaPrepConfluence.checked;
+        var includeCodeRepoSlots = getSelectedQaPrepCodeRepoSlots();
+        if (!includeConfluence && includeCodeRepoSlots.length === 0) {
+          setQaPrepError("请至少勾选一项");
+          return;
+        }
+
+        var triggerBtn = qaPrepTriggerBtn;
+        abortQaStream();
+        qaPreparing = true;
+        qaPrepStartBtn.disabled = true;
+        qaPrepStartBtn.textContent = "准备中…";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "准备中…";
+        }
+        setQaPrepError("");
+
+        var creator = currentLoginUser();
+        fetch("/api/wiki-base/" + encodeURIComponent(categoryId) + "/prepare-qa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            include_confluence_docs: includeConfluence,
+            include_code_repo_slots: includeCodeRepoSlots,
+            creator: creator || undefined,
+          }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              setQaPrepError(res.body.error || "知识库准备失败 " + res.status);
+              return;
+            }
+            closeQaPrepDialog();
+            qaCategoryId = categoryId;
+            qaThreadId = "";
+            qaTitle.textContent = "智能问答 · " + categoryLabel(categoryId);
+            var copied = res.body.copied != null ? res.body.copied : 0;
+            var cloneStarted = !!res.body.clone_started;
+            var parts = [];
+            if (includeConfluence) {
+              parts.push("Confluence 文档 " + copied + " 个");
+            }
+            if (cloneStarted) {
+              parts.push("代码库后台克隆中");
+            }
+            qaSub.textContent =
+              "task-repo/demo · " +
+              (parts.length ? parts.join("、") : "工作区已就绪") +
+              " · 关闭窗口将中断当前对话";
+            if (window.ClaudeSseRender) window.ClaudeSseRender.clearLog(qaLog);
+            else qaLog.innerHTML = "";
+            qaInput.value = "";
+            var hasContext = (includeConfluence && copied > 0) || cloneStarted;
+            setQaHint(
+              hasContext
+                ? cloneStarted
+                  ? "代码库正在后台克隆，问答时可能尚未就绪"
+                  : ""
+                : "未载入文档或代码，回答可能缺少业务上下文",
+              hasContext ? "" : "error",
+            );
+            setQaStreaming(false);
+            qaRoot.classList.remove("hidden");
+            document.body.style.overflow = "hidden";
+            qaInput.focus();
+          })
+          .catch(function (e) {
+            setQaPrepError("知识库准备失败: " + (e.message || String(e)));
+          })
+          .finally(function () {
+            qaPreparing = false;
+            qaPrepStartBtn.disabled = false;
+            qaPrepStartBtn.textContent = "开始问答";
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "智能问答";
+            }
+          });
+      }
+
+      function openQaChat(categoryId, triggerBtn) {
+        openQaPrepDialog(categoryId, triggerBtn);
+      }
+
+      function closeQaChat() {
+        abortQaStream();
+        qaRoot.classList.add("hidden");
+        qaCategoryId = "";
+        qaThreadId = "";
+        if (previewRoot.classList.contains("hidden") && sourceRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function sendQaMessage() {
+        var prompt = qaInput.value.trim();
+        if (!prompt) {
+          setQaHint("请先输入问题", "error");
+          return;
+        }
+        if (qaStreaming) return;
+
+        appendQaUserMessage(prompt);
+        qaInput.value = "";
+        setQaHint("回答生成中…");
+        setQaStreaming(true);
+
+        var ac = new AbortController();
+        qaStreamAbort = ac;
+        var body = { prompt: prompt };
+        if (qaThreadId) body.threadId = qaThreadId;
+
+        fetch(waBase() + "/api/agents/claude/sse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: ac.signal,
+        })
+          .then(function (r) {
+            if (!r.ok) {
+              return r.text().then(function (t) {
+                throw new Error("HTTP " + r.status + (t ? ": " + t : ""));
+              });
+            }
+            return parseQaSseStream(r, function (eventName, payload) {
+              if (payload && payload.type === "meta" && payload.threadId) {
+                qaThreadId = payload.threadId;
+              }
+              if (window.ClaudeSseRender) {
+                window.ClaudeSseRender.appendEvent(qaLog, eventName, payload);
+              }
+            });
+          })
+          .then(function () {
+            if (qaStreamAbort === ac) setQaHint("");
+          })
+          .catch(function (e) {
+            if (e && e.name === "AbortError") {
+              if (window.ClaudeSseRender) {
+                window.ClaudeSseRender.appendSystemLine(qaLog, "— 对话已中断 —", "error");
+              }
+              setQaHint("对话已中断");
+              return;
+            }
+            if (window.ClaudeSseRender) {
+              window.ClaudeSseRender.appendSystemLine(qaLog, e.message || String(e), "error");
+            }
+            setQaHint(e.message || String(e), "error");
+          })
+          .finally(function () {
+            if (qaStreamAbort === ac) {
+              qaStreamAbort = null;
+              setQaStreaming(false);
+            }
+          });
+      }
+
+      function formatSyncResult(body) {
+        var lines = [];
+        (body.sources || []).forEach(function (s) {
+          if (s.skipped) {
+            lines.push(s.source_type_label + "：跳过（" + (s.skip_reason || "未配置") + "）");
+            return;
+          }
+          var errPart = s.failed > 0 ? "，失败 " + s.failed + " 页" : "";
+          lines.push(
+            s.source_type_label +
+              "：成功 " +
+              s.saved +
+              "/" +
+              s.total +
+              " 页 → " +
+              s.output_dir +
+              errPart,
+          );
+        });
+        return lines.join("\n");
+      }
+
+      function runSyncNow(categoryId, triggerBtn) {
+        var label = categoryLabel(categoryId);
+        if (
+          !window.confirm(
+            "将从「" +
+              label +
+              "」已配置的 Confluence 地址同步到 wiki_base/" +
+              categoryId +
+              "/<文档类型>/（全部子孙页面），可能耗时较长。继续？",
+          )
+        ) {
+          return;
+        }
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "同步中…";
+        }
+        fetch("/api/wiki-base/" + encodeURIComponent(categoryId) + "/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope: "descendants" }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "立即同步";
+            }
+            if (!res.ok) {
+              window.alert("同步失败 " + res.status + "：\n" + (res.body.error || JSON.stringify(res.body)));
+              return;
+            }
+            loadCategories();
+            window.alert("同步完成：\n" + formatSyncResult(res.body));
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "立即同步";
+            }
+            window.alert("同步失败: " + e.message);
+          });
+      }
+
+      function loadCategories() {
+        fetch("/api/wiki-base/categories")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            if (res.ok && res.body.categories) {
+              renderCards(res.body.categories);
+            } else {
+              renderCards(
+                CATEGORIES.map(function (c) {
+                  return { id: c.id, label: c.label, file_count: 0 };
+                }),
+              );
+            }
+          })
+          .catch(function () {
+            renderCards(
+              CATEGORIES.map(function (c) {
+                return { id: c.id, label: c.label, file_count: 0 };
+              }),
+            );
+          });
+      }
+
+      cardsEl.addEventListener("click", function (e) {
+        var actionBtn = e.target && e.target.closest && e.target.closest(".wa-card-action");
+        if (actionBtn) {
+          e.stopPropagation();
+          var card = actionBtn.closest(".wa-card");
+          var categoryId = card && card.getAttribute("data-category-id");
+          if (!categoryId) return;
+          if (actionBtn.getAttribute("data-action") === "source-config") {
+            openSourceConfig(categoryId);
+          } else if (actionBtn.getAttribute("data-action") === "sync-now") {
+            runSyncNow(categoryId, actionBtn);
+          } else if (actionBtn.getAttribute("data-action") === "drive-requirement") {
+            showStories(categoryId);
+          } else if (actionBtn.getAttribute("data-action") === "smart-qa") {
+            openQaChat(categoryId, actionBtn);
+          }
+          return;
+        }
+        var card = e.target && e.target.closest && e.target.closest(".wa-card");
+        if (!card) return;
+        var id = card.getAttribute("data-category-id");
+        if (id) showFiles(id);
+      });
+
+      filesListEl.addEventListener("click", function (e) {
+        var dirBtn = e.target && e.target.closest && e.target.closest(".wa-dir-btn");
+        if (dirBtn && currentCategory) {
+          var subDir = dirBtn.getAttribute("data-dir");
+          if (subDir !== null && subDir !== undefined) showFiles(currentCategory, subDir);
+          return;
+        }
+        var btn = e.target && e.target.closest && e.target.closest(".wa-file-btn");
+        if (!btn || !currentCategory) return;
+        var path = btn.getAttribute("data-path");
+        if (path) openPreview(currentCategory, path);
+      });
+
+      filesBreadcrumbEl.addEventListener("click", function (e) {
+        var crumb = e.target && e.target.closest && e.target.closest(".wa-dir-crumb");
+        if (!crumb || !currentCategory) return;
+        var targetDir = crumb.getAttribute("data-dir");
+        if (targetDir !== null && targetDir !== undefined) showFiles(currentCategory, targetDir);
+      });
+
+      storiesTbody.addEventListener("click", function (e) {
+        var flowBtn = e.target && e.target.closest && e.target.closest(".wa-story-flow-btn");
+        if (flowBtn) {
+          var flowPid = flowBtn.getAttribute("data-pid");
+          if (flowPid) openParentFlowInNewTab(flowPid);
+          return;
+        }
+        var previewBtn = e.target && e.target.closest && e.target.closest(".wa-story-preview-btn");
+        if (previewBtn) {
+          var previewPid = previewBtn.getAttribute("data-pid");
+          if (previewPid) openStoryPreviewPicker(previewPid, previewBtn);
+        }
+      });
+
+      storyPickList.addEventListener("click", function (e) {
+        var opt = e.target && e.target.closest && e.target.closest(".wa-story-pick-opt");
+        if (!opt || !storyPickPid) return;
+        var taskType = opt.getAttribute("data-task-type");
+        if (taskType !== null && taskType !== "") loadStoryAiPreviewDoc(storyPickPid, taskType);
+      });
+
+      btnBack.addEventListener("click", function () {
+        if (!viewFiles.classList.contains("hidden") && currentCategory && currentDir) {
+          var parent = currentDir.split("/").slice(0, -1).join("/");
+          showFiles(currentCategory, parent);
+          return;
+        }
+        showHome();
+      });
+      document.getElementById("wa-story-pick-close").addEventListener("click", closeStoryPick);
+      document.getElementById("wa-story-pick-backdrop").addEventListener("click", function (e) {
+        if (e.target.id === "wa-story-pick-backdrop") closeStoryPick();
+      });
+      document.getElementById("wa-story-pick-panel").addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+      document.getElementById("wa-story-ai-preview-close").addEventListener("click", closeStoryAiPreview);
+      document.getElementById("wa-story-ai-preview-backdrop").addEventListener("click", function (e) {
+        if (e.target.id === "wa-story-ai-preview-backdrop") closeStoryAiPreview();
+      });
+      document.getElementById("wa-story-ai-preview-panel").addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+      document.getElementById("wa-source-close").addEventListener("click", closeSourceConfig);
+      document.getElementById("wa-source-backdrop").addEventListener("click", function (e) {
+        if (e.target.id === "wa-source-backdrop") closeSourceConfig();
+      });
+      document.getElementById("wa-source-panel").addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+      document.getElementById("wa-qa-prep-close").addEventListener("click", closeQaPrepDialog);
+      document.getElementById("wa-qa-prep-cancel").addEventListener("click", closeQaPrepDialog);
+      document.getElementById("wa-qa-prep-start").addEventListener("click", startQaFromPrep);
+      document.getElementById("wa-qa-prep-backdrop").addEventListener("click", function (e) {
+        if (e.target.id === "wa-qa-prep-backdrop") closeQaPrepDialog();
+      });
+      document.getElementById("wa-qa-prep-panel").addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+      document.getElementById("wa-qa-close").addEventListener("click", closeQaChat);
+      document.getElementById("wa-qa-backdrop").addEventListener("click", function (e) {
+        if (e.target.id === "wa-qa-backdrop") closeQaChat();
+      });
+      document.getElementById("wa-qa-panel").addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+      qaSendBtn.addEventListener("click", sendQaMessage);
+      qaInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendQaMessage();
+        }
+      });
+      previewSplitBtn.addEventListener("click", submitSplitStory);
+      document.getElementById("wa-preview-close").addEventListener("click", closePreview);
+      document.getElementById("wa-preview-backdrop").addEventListener("click", function (e) {
+        if (e.target.id === "wa-preview-backdrop") closePreview();
+      });
+      document.getElementById("wa-preview-panel").addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+
+      showHome();
+    })();
+  </script>
+</body>
+</html>

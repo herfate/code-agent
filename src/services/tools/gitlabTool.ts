@@ -7,9 +7,15 @@ import {
   GITLAB_CONFIG_KEY_HOST,
   GITLAB_CONFIG_KEY_TOKEN,
 } from "../../constants/systemConfigKeys.js";
-import { parseTaskInputJson, type TaskInputJson } from "../../db/taskInputJson.js";
+import { parseTaskInputJson, listTaskInputGitRepos, type TaskInputJson } from "../../db/taskInputJson.js";
 import { getGlobalConfigByKey, getUserConfigByKey } from "../../db/systemConfig.js";
+import { TASK_TYPE, type TaskType } from "../../constants/taskType.js";
+import { copyWikiCategoryToDir, resolveWikiCategoryIdFromParent } from "../file/prepareWikiQaDemoWorkspace.js";
 import { AppLog } from "../appLogger.js";
+import {
+  planGitRepoWorkspaceDirs,
+  resolveGitRepoWorkspacePath,
+} from "./gitRepoWorkspace.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -229,6 +235,10 @@ export async function cloneRepo(input: CloneRepoInput): Promise<void> {
   await runGit(args, { cwd: parent, signal: input.signal });
 }
 
+function isWikiBizTaskType(taskType: TaskType | undefined): boolean {
+  return taskType === TASK_TYPE.StorySplit || taskType === TASK_TYPE.Brainstorm;
+}
+
 /** 认领任务：根据 `input_json.gitlab` 克隆或建空目录；含从 DB 拼 HTTPS；失败时 `onClonePrepFailed` 并返回 `false` */
 export type PrepareClaimedTaskRepoWorkspaceInput = {
   db: DatabaseSync;
@@ -238,6 +248,8 @@ export type PrepareClaimedTaskRepoWorkspaceInput = {
   creator: string | null;
   taskRepoCwd: string;
   taskId: string;
+  /** 拆分故事 / 头脑风暴时复制 wiki 文档（见 `parent_task_params.wiki_doc`） */
+  taskType?: TaskType;
   /** 拼不出地址或 `git clone` 抛错 */
   onClonePrepFailed: (errorMessage: string) => void;
 };
@@ -245,28 +257,56 @@ export type PrepareClaimedTaskRepoWorkspaceInput = {
 export async function prepareClaimedTaskRepoWorkspace(
   input: PrepareClaimedTaskRepoWorkspaceInput,
 ): Promise<boolean> {
-  const { db, taskInputJson, creator, taskRepoCwd, taskId, onClonePrepFailed } = input;
-  if (!taskInputJson.gitRemoteUrl) {
+  const { db, taskInputJson, creator, taskRepoCwd, taskId, taskType, onClonePrepFailed } = input;
+  const repos = listTaskInputGitRepos(taskInputJson);
+  const wikiBizTask = isWikiBizTaskType(taskType);
+  const wikiCategoryId = wikiBizTask ? resolveWikiCategoryIdFromParent(db, taskId) : null;
+
+  if (repos.length === 0) {
     mkdirSync(taskRepoCwd, { recursive: true });
-    return true;
+  } else {
+    try {
+      await removeTaskRepoDirIfExists(taskRepoCwd);
+      const token = getGitlabUserToken(db, creator);
+      const plans = planGitRepoWorkspaceDirs(repos);
+      for (const plan of plans) {
+        const targetPath = resolveGitRepoWorkspacePath(taskRepoCwd, plan.relDir);
+        await cloneRepo({
+          remoteUrl: plan.gitRemoteUrl,
+          targetPath,
+          branch: plan.branch_version,
+          token,
+          httpsTokenUsername: creator?.trim() || undefined,
+        });
+      }
+      AppLog.logger.info(
+        { taskId, taskRepoCwd, repoCount: repos.length },
+        "claimed task: git clone finished",
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onClonePrepFailed(msg);
+      return false;
+    }
   }
-  try {
-    await removeTaskRepoDirIfExists(taskRepoCwd);
-    const token = getGitlabUserToken(db, creator);
-    await cloneRepo({
-      remoteUrl: taskInputJson.gitRemoteUrl,
-      targetPath: taskRepoCwd,
-      branch: taskInputJson.branch_version,
-      token,
-      httpsTokenUsername: creator?.trim() || undefined,
-    });
-    AppLog.logger.info({ taskId, taskRepoCwd }, "claimed task: git clone finished");
-    return true;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    onClonePrepFailed(msg);
-    return false;
+
+  if (wikiCategoryId) {
+    try {
+      const copied = copyWikiCategoryToDir(wikiCategoryId, taskRepoCwd);
+      AppLog.logger.info(
+        { taskId, taskRepoCwd, wikiCategoryId, copied },
+        "claimed task: wiki files copied",
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onClonePrepFailed(msg);
+      return false;
+    }
+  } else if (wikiBizTask) {
+    AppLog.logger.warn({ taskId, taskType }, "claimed task: wiki_doc category_id missing, skip wiki copy");
   }
+
+  return true;
 }
 
 /** 在 `repoPath` 下执行 `git checkout -b`（或带起点的等价行为） */

@@ -1,82 +1,208 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="h-full">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>系统配置</title>
+  <title>用户配置</title>
   <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
 </head>
-<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
-  <div class="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
-    <header class="shrink-0 border-b border-slate-200 pb-6">
-      <p class="mt-2 text-sm leading-relaxed text-slate-600">
-        读取数据库表 <code class="rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-xs text-slate-800">system_config</code>（<code class="rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-xs">GET /api/system-config</code>）。作用域选「全部」且填写用户名时，仅返回该用户的 <span class="font-mono text-xs">user</span> 行；选「user」且不填用户名时返回全部用户级项。
-      </p>
-      <p class="mt-2 text-xs text-slate-500">
-        独立页 <a class="text-blue-600 hover:underline" href="/user-config">/user-config</a> · 管理台 <a class="text-blue-600 hover:underline" href="/?page=ucfg">/?page=ucfg</a>
-      </p>
+<body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
+  <div class="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col gap-4 overflow-y-auto p-4 sm:p-6 lg:p-8">
+    <header class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5 sm:py-5">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+          <h1 class="text-base font-semibold text-slate-800">用户配置</h1>
+          <p class="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
+            为当前登录用户保存 GitLab Token 与 Claude Auth Token；已保存内容仅以脱敏摘要展示。
+          </p>
+        </div>
+        <div class="w-full shrink-0 sm:w-auto sm:min-w-[220px]">
+          <span class="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">当前用户</span>
+          <p id="ucfg-username" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">—</p>
+          <p id="ucfg-username-hint" class="mt-1.5 hidden text-[11px] leading-relaxed text-amber-700">
+            未获取到登录用户，请通过管理台完成 Keycloak 登录后再打开本页。
+          </p>
+        </div>
+      </div>
     </header>
 
-    <section class="shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div class="border-b border-slate-200 bg-slate-50/90 px-5 py-3">
-        <h2 class="text-sm font-semibold text-slate-800">连接与筛选</h2>
-        <p class="mt-0.5 text-xs text-slate-500">设置数据源后点击「加载配置」刷新下方列表。</p>
-      </div>
-      <div class="divide-y divide-slate-100">
-        <div class="px-5 py-4">
-          <label for="ucfg-baseUrl" class="mb-1.5 block text-xs font-medium text-slate-600">API 基地址</label>
-          <input id="ucfg-baseUrl" type="url" placeholder="留空则使用当前站点 origin" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-        </div>
-        <div class="grid gap-4 px-5 py-4 sm:grid-cols-2">
-          <div>
-            <label for="ucfg-scope" class="mb-1.5 block text-xs font-medium text-slate-600">作用域</label>
-            <select id="ucfg-scope" class="form-select w-full">
-              <option value="">全部（global + user）</option>
-              <option value="global">仅全局 global</option>
-              <option value="user">仅用户 user</option>
-            </select>
-          </div>
-          <div>
-            <label for="ucfg-username" class="mb-1.5 block text-xs font-medium text-slate-600">用户名</label>
-            <input id="ucfg-username" type="text" placeholder="可选，见页头说明" maxlength="256" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-          </div>
-        </div>
-        <div class="grid gap-4 px-5 py-4 sm:grid-cols-2">
-          <div>
-            <label for="ucfg-configKey" class="mb-1.5 block text-xs font-medium text-slate-600">配置键包含</label>
-            <input id="ucfg-configKey" type="text" placeholder="模糊匹配 config_key" maxlength="256" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-          </div>
-          <div>
-            <label for="ucfg-limit" class="mb-1.5 block text-xs font-medium text-slate-600">最多加载条数</label>
-            <input id="ucfg-limit" type="number" min="1" max="500" value="200" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-          </div>
-        </div>
-        <div class="flex flex-wrap items-center gap-2 bg-slate-50/50 px-5 py-4">
-          <button type="button" id="ucfg-btn-query" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/35">加载配置</button>
-          <button type="button" id="ucfg-btn-reset" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300/60">重置筛选</button>
-        </div>
-      </div>
-    </section>
-
-    <div class="min-h-0 flex-1">
-      <p id="ucfg-error" class="mb-4 hidden rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"></p>
-      <div id="ucfg-results" class="space-y-8"></div>
-      <p id="ucfg-empty" class="hidden rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">暂无配置项。请调整筛选条件后点击「加载配置」。</p>
+    <div class="shrink-0 space-y-3">
+      <p id="ucfg-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800"></p>
+      <p id="ucfg-success" class="hidden rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800"></p>
     </div>
+
+    <div class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
+      <section class="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
+          <h2 class="text-sm font-semibold text-slate-800">GitLab Token</h2>
+          <p class="mt-0.5 text-[11px] text-slate-500">用于任务认领后按创建人克隆私有仓库</p>
+        </div>
+        <div class="flex flex-1 flex-col gap-4 px-4 py-4 sm:px-5">
+          <div>
+            <label for="ucfg-token" class="mb-1.5 block text-xs font-medium text-slate-600">Personal Access Token</label>
+            <input
+              id="ucfg-token"
+              type="password"
+              placeholder="粘贴 GitLab Token"
+              maxlength="500"
+              autocomplete="off"
+              class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 shadow-sm placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+            <p class="mt-1.5 text-[11px] leading-relaxed text-slate-500">留空并保存可清除已有配置。</p>
+          </div>
+          <dl class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <dt class="text-slate-500">配置状态</dt>
+              <dd id="ucfg-status-configured" class="mt-0.5 font-medium text-slate-800">—</dd>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <dt class="text-slate-500">Token 摘要</dt>
+              <dd id="ucfg-status-masked" class="mt-0.5 truncate font-mono text-slate-800" title="">—</dd>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2 sm:col-span-1">
+              <dt class="text-slate-500">最近更新</dt>
+              <dd id="ucfg-status-updated" class="mt-0.5 text-slate-800">—</dd>
+            </div>
+          </dl>
+          <div class="mt-auto pt-1">
+            <button
+              type="button"
+              id="ucfg-btn-save"
+              class="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/35 sm:w-auto"
+            >
+              保存 GitLab Token
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
+          <h2 class="text-sm font-semibold text-slate-800">Claude Auth Token</h2>
+          <p class="mt-0.5 text-[11px] text-slate-500">任务执行时写入 <code class="rounded bg-slate-100 px-1 font-mono text-[10px]">~/.claude.json</code></p>
+        </div>
+        <div class="flex flex-1 flex-col gap-4 px-4 py-4 sm:px-5">
+          <div>
+            <label for="ucfg-anth-token" class="mb-1.5 block text-xs font-medium text-slate-600">Anthropic Auth Token</label>
+            <input
+              id="ucfg-anth-token"
+              type="password"
+              placeholder="Bearer Token"
+              maxlength="500"
+              autocomplete="off"
+              class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 shadow-sm placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+            <p class="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+              写入 <code class="rounded bg-slate-100 px-1 font-mono text-[10px]">env.ANTHROPIC_AUTH_TOKEN</code>；留空并保存可清除。
+            </p>
+          </div>
+          <dl class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <dt class="text-slate-500">配置状态</dt>
+              <dd id="ucfg-anth-status-configured" class="mt-0.5 font-medium text-slate-800">—</dd>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <dt class="text-slate-500">Token 摘要</dt>
+              <dd id="ucfg-anth-status-masked" class="mt-0.5 truncate font-mono text-slate-800" title="">—</dd>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <dt class="text-slate-500">最近更新</dt>
+              <dd id="ucfg-anth-status-updated" class="mt-0.5 text-slate-800">—</dd>
+            </div>
+          </dl>
+          <div class="mt-auto pt-1">
+            <button
+              type="button"
+              id="ucfg-anth-btn-save"
+              class="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/35 sm:w-auto"
+            >
+              保存 Claude Token
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <p id="ucfg-hint" class="shrink-0 pb-2 text-center text-[11px] text-slate-400 sm:text-left">
+      页面加载后自动读取配置；修改 Token 后点击对应保存按钮。
+    </p>
   </div>
 
   <script>
     (function () {
-      var listEl = document.getElementById("ucfg-results");
-      var emptyEl = document.getElementById("ucfg-empty");
       var errEl = document.getElementById("ucfg-error");
+      var okEl = document.getElementById("ucfg-success");
+      var usernameEl = document.getElementById("ucfg-username");
+      var usernameHintEl = document.getElementById("ucfg-username-hint");
 
-      function ucfgBase() {
-        var v = document.getElementById("ucfg-baseUrl").value.trim();
-        return v || window.location.origin;
+      var SECRET_CONFIGS = [
+        {
+          apiPath: "/api/user-config/gitlab-token",
+          bodyKey: "gitlab_token",
+          inputId: "ucfg-token",
+          saveBtnId: "ucfg-btn-save",
+          saveLabel: "GitLab Token",
+          statusPrefix: "ucfg-status",
+        },
+        {
+          apiPath: "/api/user-config/anthropic-api-key",
+          bodyKey: "anthropic_api_key",
+          inputId: "ucfg-anth-token",
+          saveBtnId: "ucfg-anth-btn-save",
+          saveLabel: "Claude Auth Token",
+          statusPrefix: "ucfg-anth-status",
+        },
+      ];
+
+      function apiBase() {
+        return window.location.origin;
+      }
+
+      function ucfgCurrentLoginUser() {
+        try {
+          var u = window.localStorage.getItem("userName");
+          return u && String(u).trim() ? String(u).trim() : "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function renderCurrentUser() {
+        var username = ucfgCurrentLoginUser();
+        if (username) {
+          usernameEl.textContent = username;
+          usernameHintEl.classList.add("hidden");
+          return username;
+        }
+        usernameEl.textContent = "（未登录）";
+        usernameHintEl.classList.remove("hidden");
+        return "";
+      }
+
+      function clearMessages() {
+        errEl.classList.add("hidden");
+        errEl.textContent = "";
+        okEl.classList.add("hidden");
+        okEl.textContent = "";
+      }
+
+      function showError(msg) {
+        okEl.classList.add("hidden");
+        okEl.textContent = "";
+        errEl.textContent = msg;
+        errEl.classList.remove("hidden");
+      }
+
+      function showSuccess(msg) {
+        errEl.classList.add("hidden");
+        errEl.textContent = "";
+        okEl.textContent = msg;
+        okEl.classList.remove("hidden");
       }
 
       function fmtTime(ms) {
+        if (ms == null || ms === "") return "—";
         try {
           return new Date(ms).toLocaleString();
         } catch (e) {
@@ -84,199 +210,127 @@
         }
       }
 
-      function esc(s) {
-        return String(s)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/"/g, "&quot;");
+      function getUsername() {
+        return ucfgCurrentLoginUser();
       }
 
-      function badgeClass(scope) {
-        return scope === "global"
-          ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/80"
-          : "bg-violet-50 text-violet-800 ring-1 ring-violet-200/80";
-      }
-
-      function appendSection(container, title, rows) {
-        var sec = document.createElement("section");
-        sec.className = "ucfg-section";
-
-        var head = document.createElement("div");
-        head.className = "mb-3 flex flex-wrap items-end justify-between gap-2";
-        var h2 = document.createElement("h2");
-        h2.className = "text-sm font-semibold text-slate-800";
-        h2.textContent = title;
-        head.appendChild(h2);
-        var count = document.createElement("span");
-        count.className = "text-xs tabular-nums text-slate-500";
-        count.textContent = rows.length + " 项";
-        head.appendChild(count);
-        sec.appendChild(head);
-
-        var stack = document.createElement("div");
-        stack.className = "space-y-4";
-
-        rows.forEach(function (row) {
-          var card = document.createElement("article");
-          card.className =
-            "overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5";
-
-          var top = document.createElement("div");
-          top.className = "flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5";
-          var left = document.createElement("div");
-          left.className = "min-w-0 flex-1";
-          var h3 = document.createElement("h3");
-          h3.className = "break-all font-mono text-sm font-semibold text-slate-900";
-          h3.textContent = row.config_key || "";
-          left.appendChild(h3);
-          var desc = row.description && String(row.description).trim();
-          if (desc) {
-            var p = document.createElement("p");
-            p.className = "mt-1 text-xs leading-relaxed text-slate-600";
-            p.textContent = desc;
-            left.appendChild(p);
-          }
-          top.appendChild(left);
-          var badges = document.createElement("div");
-          badges.className = "flex shrink-0 flex-wrap items-center gap-1.5";
-          var b1 = document.createElement("span");
-          b1.className =
-            "rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide " + badgeClass(row.scope);
-          b1.textContent = row.scope || "";
-          badges.appendChild(b1);
-          if (row.scope === "user" && row.username) {
-            var b2 = document.createElement("span");
-            b2.className =
-              "rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-700 ring-1 ring-slate-200/80";
-            b2.textContent = row.username;
-            badges.appendChild(b2);
-          }
-          top.appendChild(badges);
-          card.appendChild(top);
-
-          var body = document.createElement("div");
-          body.className = "px-4 py-3 sm:px-5";
-          var lab = document.createElement("label");
-          lab.className = "mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400";
-          lab.textContent = "值（JSON）";
-          body.appendChild(lab);
-          var pre = document.createElement("pre");
-          pre.className =
-            "max-h-56 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-800";
-          pre.textContent = row.value_json != null ? String(row.value_json) : "";
-          body.appendChild(pre);
-          card.appendChild(body);
-
-          var foot = document.createElement("div");
-          foot.className =
-            "flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 bg-slate-50/60 px-4 py-2.5 text-[11px] text-slate-500 sm:px-5";
-          foot.innerHTML =
-            '<span class="font-mono text-slate-600" title="id">' +
-            esc(row.id || "") +
-            "</span>" +
-            '<span class="text-slate-400">·</span><span>更新 ' +
-            esc(fmtTime(row.updated_at)) +
-            "</span>" +
-            '<span class="text-slate-400">·</span><span>创建 ' +
-            esc(fmtTime(row.created_at)) +
-            "</span>";
-          card.appendChild(foot);
-
-          stack.appendChild(card);
-        });
-
-        sec.appendChild(stack);
-        container.appendChild(sec);
-      }
-
-      function renderList(rows) {
-        listEl.innerHTML = "";
-        var globals = rows.filter(function (r) {
-          return r.scope === "global";
-        });
-        var users = rows.filter(function (r) {
-          return r.scope === "user";
-        });
-
-        if (globals.length) {
-          appendSection(listEl, "全局配置", globals);
+      function renderStatus(body, statusPrefix) {
+        var configuredEl = document.getElementById(statusPrefix + "-configured");
+        var maskedEl = document.getElementById(statusPrefix + "-masked");
+        var updatedEl = document.getElementById(statusPrefix + "-updated");
+        if (!body) {
+          configuredEl.textContent = "—";
+          configuredEl.className = "mt-0.5 font-medium text-slate-800";
+          maskedEl.textContent = "—";
+          maskedEl.title = "";
+          updatedEl.textContent = "—";
+          return;
         }
-
-        var byUser = {};
-        users.forEach(function (r) {
-          var u = r.username != null ? String(r.username) : "";
-          if (!byUser[u]) byUser[u] = [];
-          byUser[u].push(r);
-        });
-        var keys = Object.keys(byUser).sort();
-        keys.forEach(function (u) {
-          var list = byUser[u];
-          var title = u ? "用户配置 · " + u : "用户配置（用户名为空）";
-          appendSection(listEl, title, list);
-        });
-
-        if (!globals.length && !users.length && rows.length) {
-          appendSection(listEl, "配置项", rows);
-        }
+        configuredEl.textContent = body.configured ? "已配置" : "未配置";
+        configuredEl.className = body.configured
+          ? "mt-0.5 font-medium text-emerald-700"
+          : "mt-0.5 font-medium text-slate-600";
+        var masked = body.token_masked || (body.configured ? "（已隐藏）" : "—");
+        maskedEl.textContent = masked;
+        maskedEl.title = masked;
+        updatedEl.textContent = body.updated_at ? fmtTime(body.updated_at) : "—";
       }
 
-      function runUcfgQuery() {
-        errEl.classList.add("hidden");
-        errEl.textContent = "";
-        listEl.innerHTML = "";
-        emptyEl.classList.add("hidden");
+      function parseJsonResponse(r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, status: r.status, body: j };
+        });
+      }
 
-        var params = new URLSearchParams();
-        var sc = document.getElementById("ucfg-scope").value;
-        if (sc) params.set("scope", sc);
-        var un = document.getElementById("ucfg-username").value.trim();
-        if (un) params.set("username", un);
-        var ck = document.getElementById("ucfg-configKey").value.trim();
-        if (ck) params.set("config_key", ck);
-        var lim = document.getElementById("ucfg-limit").value.trim();
-        if (lim) params.set("limit", lim);
+      function formatApiError(res) {
+        if (res.body && res.body.error) {
+          return JSON.stringify(res.body.error);
+        }
+        if (res.body && res.body.message) {
+          return res.body.message;
+        }
+        return JSON.stringify(res.body);
+      }
 
-        var url = ucfgBase() + "/api/system-config" + (params.toString() ? "?" + params.toString() : "");
-
-        fetch(url)
-          .then(function (r) {
-            return r.json().then(function (j) {
-              return { ok: r.ok, status: r.status, body: j };
-            });
-          })
+      function loadSecretConfig(cfg, silent) {
+        if (!silent) clearMessages();
+        var username = getUsername();
+        if (!username) {
+          if (!silent) showError("获取当前登录用户失败");
+          return Promise.resolve();
+        }
+        var url =
+          apiBase() +
+          cfg.apiPath +
+          "?" +
+          new URLSearchParams({ username: username }).toString();
+        return fetch(url)
+          .then(parseJsonResponse)
           .then(function (res) {
             if (!res.ok) {
-              errEl.textContent =
-                "请求失败 " +
-                res.status +
-                ": " +
-                (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
-              errEl.classList.remove("hidden");
-              emptyEl.classList.remove("hidden");
+              if (!silent) showError("加载 " + cfg.saveLabel + " 失败 " + res.status + ": " + formatApiError(res));
               return;
             }
-            var rows = res.body.configs || [];
-            if (rows.length === 0) {
-              emptyEl.classList.remove("hidden");
-              return;
-            }
-            renderList(rows);
+            renderStatus(res.body, cfg.statusPrefix);
+            document.getElementById(cfg.inputId).value = "";
+            if (!silent) showSuccess("已加载 " + username + " 的 " + cfg.saveLabel + " 状态");
           })
           .catch(function (e) {
-            errEl.textContent = "网络错误: " + e.message;
-            errEl.classList.remove("hidden");
-            emptyEl.classList.remove("hidden");
+            if (!silent) showError("网络错误: " + e.message);
           });
       }
 
-      document.getElementById("ucfg-btn-query").onclick = runUcfgQuery;
-      document.getElementById("ucfg-btn-reset").onclick = function () {
-        document.getElementById("ucfg-baseUrl").value = "";
-        document.getElementById("ucfg-scope").value = "";
-        document.getElementById("ucfg-username").value = "";
-        document.getElementById("ucfg-configKey").value = "";
-        document.getElementById("ucfg-limit").value = "200";
-      };
+      function saveSecretConfig(cfg) {
+        clearMessages();
+        var username = getUsername();
+        if (!username) {
+          showError("获取当前登录用户失败");
+          return;
+        }
+        var payload = { username: username };
+        payload[cfg.bodyKey] = document.getElementById(cfg.inputId).value;
+        fetch(apiBase() + cfg.apiPath, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then(parseJsonResponse)
+          .then(function (res) {
+            if (!res.ok) {
+              showError("保存 " + cfg.saveLabel + " 失败 " + res.status + ": " + formatApiError(res));
+              return;
+            }
+            renderStatus(res.body, cfg.statusPrefix);
+            document.getElementById(cfg.inputId).value = "";
+            showSuccess(
+              res.body.configured
+                ? "已保存 " + username + " 的 " + cfg.saveLabel
+                : "已清除 " + username + " 的 " + cfg.saveLabel,
+            );
+          })
+          .catch(function (e) {
+            showError("网络错误: " + e.message);
+          });
+      }
+
+      function loadAllConfigs(silent) {
+        return SECRET_CONFIGS.reduce(function (chain, cfg) {
+          return chain.then(function () {
+            return loadSecretConfig(cfg, silent);
+          });
+        }, Promise.resolve());
+      }
+
+      SECRET_CONFIGS.forEach(function (cfg) {
+        document.getElementById(cfg.saveBtnId).onclick = function () {
+          saveSecretConfig(cfg);
+        };
+      });
+
+      renderCurrentUser();
+      if (ucfgCurrentLoginUser()) {
+        loadAllConfigs(true);
+      }
     })();
   </script>
 </body>

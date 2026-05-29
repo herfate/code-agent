@@ -1,4 +1,5 @@
 import { TASK_RUN_AGENT_PROVIDER, type TaskAgentProvider } from "../constants/agentProvider.js";
+import { clearFollowUpMessagesFromTaskMeta } from "./taskFollowUpPrompt.js";
 
 export type { TaskAgentProvider } from "../constants/agentProvider.js";
 
@@ -51,6 +52,11 @@ export function stripAgentRunIdsFromTaskMeta(meta_json: string | null): string |
   const keys = Object.keys(meta);
   if (keys.length === 0) return null;
   return JSON.stringify(meta);
+}
+
+/** 仅重新执行（无新追加对话）时清空追加队列，下一轮发送完整 description */
+export function stripAgentRunIdsForRequeue(meta_json: string | null): string | null {
+  return clearFollowUpMessagesFromTaskMeta(stripAgentRunIdsFromTaskMeta(meta_json));
 }
 
 /** @deprecated 使用 mergeTaskMetaWithAgentRunId */

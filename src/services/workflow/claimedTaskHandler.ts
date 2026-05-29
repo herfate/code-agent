@@ -25,6 +25,7 @@ import { failClaimedTaskAfterRunStart } from "../scheduler/taskService.js";
 import { mergeTaskMetaWithAgentRunId, type TaskAgentProvider } from "../taskAgentMeta.js";
 import { resolveParentTaskAgentProvider, type ParentTaskRow } from "../../db/parentTask.js";
 import { buildClaimedTaskFollowUpPrompt } from "../prompt/buildClaimedTaskFollowUpPrompt.js";
+import { switchClaudeAuthAccountFromDb } from "../claude/updateClaudeJsonAuthToken.js";
 
 type AgentRunOutcome = {
   externalId: string | null;
@@ -46,6 +47,7 @@ export async function handleClaimedAgentTask(
     db,
     parentTask.pid,
     config.TASK_AGENT_PROVIDER,
+    task.task_type,
   );
   const taskInputJson = parseTaskInputJson(task.input_json);
   // 步骤 1：从任务描述得到提示词，并准备写入 completed_at 等字段用的时间戳
@@ -78,7 +80,7 @@ export async function handleClaimedAgentTask(
       taskId: task.id,
       title: task.title,
       app: taskInputJson.app,
-      branch_version: taskInputJson.branch_version,
+      gitRepos: taskInputJson.gitRepos,
       agentProvider,
     },
     "定时任务 running task",
@@ -135,6 +137,7 @@ export async function handleClaimedAgentTask(
     creator: task.creator,
     taskRepoCwd,
     taskId: parentTask.pid,
+    taskType: task.task_type,
     onClonePrepFailed: (errorMessage) =>
       failClaimedTaskAfterRunStart({
         db,
@@ -147,7 +150,6 @@ export async function handleClaimedAgentTask(
       }),
   });
   if (!repoOk) return;
-
 
   // 步骤 7.2：description 写入 task_prompt.md；Agent 提示词为 init 模板（优先具体用户）
   const agentPrompt = writeClaimedTaskPromptFile(db, task, taskRepoCwd);
@@ -168,12 +170,15 @@ export async function handleClaimedAgentTask(
       prompt: agentPrompt,
       apiKey: config.CURSOR_API_KEY!,
       model: undefined,
+      taskType: task.task_type,
       resume: resumeExternalId,
       followUpPrompt,
       runRecorder: { db, runId },
     });
     outcome = { externalId: agentId, assistantText, sdkError };
   } else {
+    // claude, 切换账号,修改.claude.json文件, 替换ANTHROPIC_AUTH_TOKEN字段值
+    switchClaudeAuthAccountFromDb(db, task.creator, log);
     const { sessionId, assistantText, sdkError } = await streamClaudeQueryToSse(null, {
       threadId,
       pId: parentTask.pid,
@@ -194,7 +199,7 @@ export async function handleClaimedAgentTask(
     runId,
   };
 
-// 步骤 10：若本轮拿到新的 SDK session_id，回写到 threads.external_thread_id，下次同线程可 resume
+  // 步骤 10：若本轮拿到新的 SDK session_id，回写到 threads.external_thread_id，下次同线程可 resume
   if (outcome.externalId) {
     updateThreadExternalId(db, threadId, outcome.externalId);
   }

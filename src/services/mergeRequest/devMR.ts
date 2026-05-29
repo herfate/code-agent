@@ -5,12 +5,18 @@ import { promisify } from "node:util";
 import type { DatabaseSync } from "node:sqlite";
 import { TASK_TYPE, type TaskType } from "../../constants/taskType.js";
 import { getParentTask } from "../../db/parentTask.js";
-import type { TaskInputJson } from "../../db/taskInputJson.js";
+import { listTaskInputGitRepos, type TaskInputJson } from "../../db/taskInputJson.js";
 import { AppLog } from "../appLogger.js";
+import { filterRepoSourceRelPaths } from "../file/repoArtifactFilter.js";
 import {
   applyHttpsTokenToRemoteUrl,
   getGitlabUserToken,
 } from "../tools/gitlabTool.js";
+import {
+  groupChangedPathsByRepoWorkspace,
+  planGitRepoWorkspaceDirs,
+  resolveGitRepoWorkspacePath,
+} from "../tools/gitRepoWorkspace.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,11 +44,12 @@ type GitLabProjectRef = {
 
 async function runGit(
   args: string[],
-  opts: { cwd: string },
+  opts: { cwd: string; env?: NodeJS.ProcessEnv },
 ): Promise<{ stdout: string; stderr: string }> {
   try {
     const r = await execFileAsync("git", args, {
       cwd: opts.cwd,
+      env: opts.env ? { ...process.env, ...opts.env } : process.env,
       maxBuffer: 50 * 1024 * 1024,
       windowsHide: true,
     });
@@ -59,7 +66,7 @@ async function runGit(
   }
 }
 
-/** 从 `taskInputJson.gitRemoteUrl` 解析 GitLab 项目路径与 API 根地址 */
+/** 从 git 远程地址解析 GitLab 项目路径与 API 根地址 */
 function parseGitLabProjectFromRemote(gitRemoteUrl: string): GitLabProjectRef | null {
   const raw = gitRemoteUrl.trim();
   if (!raw) return null;
@@ -75,13 +82,9 @@ function parseGitLabProjectFromRemote(gitRemoteUrl: string): GitLabProjectRef | 
   return { apiOrigin: `${u.protocol}//${u.host}`, projectPath };
 }
 
-/** 基于克隆时的目标分支（`branch_version`）生成 MR 源分支：`{baseBranch}-ai-{timestamp}` */
-function buildSourceBranchName(baseBranch: string): string {
-  const safe = baseBranch.replace(/[^a-zA-Z0-9/._-]/g, "-");
-  const suffix = `-ai-${Date.now()}`;
-  const maxBaseLen = Math.max(1, 255 - suffix.length);
-  const base = safe.length > maxBaseLen ? safe.slice(0, maxBaseLen) : safe;
-  return `${base}${suffix}`;
+/** 由任务创建人构造 git author 邮箱（仅用于 commit 元数据） */
+function buildAuthorEmail(creator: string): string {
+  return `${creator}@howbuy.com`;
 }
 
 async function commitAndPushDevBranch(input: {
@@ -89,6 +92,8 @@ async function commitAndPushDevBranch(input: {
   gitRemoteUrl: string;
   token: string;
   httpsTokenUsername?: string;
+  /** 任务 `creator`，作为 git commit 的 author / committer 用户名 */
+  authorName?: string;
   sourceBranch: string;
   relativePaths: string[];
   commitMessage: string;
@@ -98,12 +103,23 @@ async function commitAndPushDevBranch(input: {
     throw new Error(`不是 git 仓库: ${repo}`);
   }
 
-  // 因为不需要mr了, 移除
-  // await runGit(["checkout", "-b", input.sourceBranch], { cwd: repo });
-  for (const rel of input.relativePaths) {
+  const pathsToStage = filterRepoSourceRelPaths(input.relativePaths);
+  if (pathsToStage.length === 0) {
+    throw new Error("无有效源码变更可提交（已排除 target/build 等构建产物）");
+  }
+  for (const rel of pathsToStage) {
     await runGit(["add", "--", rel], { cwd: repo });
   }
-  await runGit(["commit", "-m", input.commitMessage], { cwd: repo });
+  const authorName = input.authorName?.trim();
+  const commitEnv = authorName
+    ? {
+        GIT_AUTHOR_NAME: authorName,
+        GIT_AUTHOR_EMAIL: buildAuthorEmail(authorName),
+        GIT_COMMITTER_NAME: authorName,
+        GIT_COMMITTER_EMAIL: buildAuthorEmail(authorName),
+      }
+    : undefined;
+  await runGit(["commit", "-m", input.commitMessage], { cwd: repo, env: commitEnv });
 
   const pushRemote = applyHttpsTokenToRemoteUrl(
     input.gitRemoteUrl.trim(),
@@ -114,46 +130,9 @@ async function commitAndPushDevBranch(input: {
   await runGit(["push", "-u", "origin", input.sourceBranch], { cwd: repo });
 }
 
-async function createGitLabMergeRequest(input: {
-  apiOrigin: string;
-  projectPath: string;
-  token: string;
-  sourceBranch: string;
-  targetBranch: string;
-  title: string;
-  description: string;
-}): Promise<{ iid: number; web_url: string }> {
-  const encoded = encodeURIComponent(input.projectPath);
-  const url = `${input.apiOrigin.replace(/\/+$/, "")}/api/v4/projects/${encoded}/merge_requests`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "PRIVATE-TOKEN": input.token,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      source_branch: input.sourceBranch,
-      target_branch: input.targetBranch,
-      title: input.title,
-      description: input.description,
-      remove_source_branch: false,
-    }),
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`GitLab 创建 MR 失败 HTTP ${res.status}: ${text.slice(0, 500)}`);
-  }
-  const body = JSON.parse(text) as { iid?: number; web_url?: string };
-  if (typeof body.iid !== "number" || !body.web_url) {
-    throw new Error("GitLab 创建 MR 响应缺少 iid 或 web_url");
-  }
-  return { iid: body.iid, web_url: body.web_url };
-}
-
 /**
- * 开发任务（task_type = 1）完成后发起 MR。
- * 仓库地址、目标分支与 {@link prepareClaimedTaskRepoWorkspace} 相同（`input_json`）；
- * `gitlab_token` 仅从 `system_config` 用户配置读取（`getGitlabUserToken`）。失败仅记日志。
+ * 开发任务（task_type = 1）完成后按仓库提交变更。
+ * 单仓库提交到工作区根；多仓库按子目录分别 commit/push，路径规划与 {@link prepareClaimedTaskRepoWorkspace} 一致。
  */
 export async function tryCreateDevMergeRequest(input: TryCreateDevMrInput): Promise<void> {
   const log = AppLog.logger;
@@ -166,20 +145,9 @@ export async function tryCreateDevMergeRequest(input: TryCreateDevMrInput): Prom
     return;
   }
 
-  const gitRemoteUrl = taskInputJson.gitRemoteUrl?.trim() ?? "";
-  const targetBranch = taskInputJson.branch_version?.trim() ?? "";
-  if (!gitRemoteUrl) {
-    log.info({ parentTaskId }, "dev MR: 无 gitRemoteUrl（与 clone 跳过一致），跳过");
-    return;
-  }
-  if (!targetBranch) {
-    log.warn({ parentTaskId }, "dev MR: 缺少 branch_version，跳过");
-    return;
-  }
-
-  const project = parseGitLabProjectFromRemote(gitRemoteUrl);
-  if (!project) {
-    log.warn({ parentTaskId }, "dev MR: 无法解析 GitLab 项目路径，跳过");
+  const repos = listTaskInputGitRepos(taskInputJson);
+  if (repos.length === 0) {
+    log.info({ parentTaskId }, "dev MR: 无 gitRepos（与 clone 跳过一致），跳过");
     return;
   }
 
@@ -189,41 +157,49 @@ export async function tryCreateDevMergeRequest(input: TryCreateDevMrInput): Prom
     return;
   }
 
-  // const sourceBranch = buildSourceBranchName(targetBranch);
+  const httpsTokenUsername = creator?.trim() || undefined;
   const parent = getParentTask(db, parentTaskId);
   const taskTitle = parent?.title?.trim() || parentTaskId;
-  const commitMessage = `feat(${targetBranch}): ${taskTitle.replace(/\s+/g, " ")}`;
-  const httpsTokenUsername = creator?.trim() || undefined;
+  const plans = planGitRepoWorkspaceDirs(repos);
+  const pathsByRepo = groupChangedPathsByRepoWorkspace(relativePaths, plans);
 
-  try {
-    // 直接提交该分支代码
-    await commitAndPushDevBranch({
-      repoPath: taskRepoCwd,
-      gitRemoteUrl,
-      token,
-      httpsTokenUsername,
-      sourceBranch: targetBranch,
-      relativePaths,
-      commitMessage,
-    });
+  for (const plan of plans) {
+    const repoPaths = pathsByRepo.get(plan.relDir) ?? [];
+    if (repoPaths.length === 0) continue;
 
-    // 移除mr, 直接提交代码
-  /*  const mr = await createGitLabMergeRequest({
-      apiOrigin: project.apiOrigin,
-      projectPath: project.projectPath,
-      token,
-      sourceBranch,
-      targetBranch,
-      title: commitMessage,
-      description: `由 code-agent 开发任务自动提交。\n\n父任务: ${parentTaskId}\n变更文件数: ${relativePaths.length}`,
-    });
+    if (!plan.branch_version.trim()) {
+      log.warn({ parentTaskId, gitRemoteUrl: plan.gitRemoteUrl }, "dev MR: 缺少 branch_version，跳过该仓库");
+      continue;
+    }
 
-    log.info(
-      { parentTaskId, sourceBranch, targetBranch, mrIid: mr.iid, mrUrl: mr.web_url },
-      "dev MR: 已创建 Merge Request",
-    );*/
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.error({ parentTaskId, err: msg }, "dev git: 提交git 失败");
+    const project = parseGitLabProjectFromRemote(plan.gitRemoteUrl);
+    if (!project) {
+      log.warn({ parentTaskId, gitRemoteUrl: plan.gitRemoteUrl }, "dev MR: 无法解析 GitLab 项目路径，跳过该仓库");
+      continue;
+    }
+
+    const targetBranch = plan.branch_version.trim();
+    const commitMessage = `feat(${targetBranch}): ${taskTitle.replace(/\s+/g, " ")}`;
+    const repoPath = resolveGitRepoWorkspacePath(taskRepoCwd, plan.relDir);
+
+    try {
+      await commitAndPushDevBranch({
+        repoPath,
+        gitRemoteUrl: plan.gitRemoteUrl,
+        token,
+        httpsTokenUsername,
+        authorName: httpsTokenUsername,
+        sourceBranch: targetBranch,
+        relativePaths: repoPaths,
+        commitMessage,
+      });
+      log.info(
+        { parentTaskId, gitRemoteUrl: plan.gitRemoteUrl, targetBranch, fileCount: repoPaths.length },
+        "dev git: 已提交并推送",
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.error({ parentTaskId, gitRemoteUrl: plan.gitRemoteUrl, err: msg }, "dev git: 提交 git 失败");
+    }
   }
 }

@@ -4,12 +4,19 @@ import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { loadConfig } from "../config.js";
 import { RESERVED_PARENT_PARAM_KEYS } from "../constants/commonKey.js";
-import { getParentTask, listParentTasks, nextParentTaskPid } from "../db/parentTask.js";
+import {
+  countParentTasks,
+  getParentTask,
+  listParentTasks,
+  nextParentTaskPid,
+} from "../db/parentTask.js";
 import { PARENT_AGENT_TYPE } from "../constants/parentAgentType.js";
 import { TASK_TYPE } from "../constants/taskType.js";
+import { aggregateParentExecStatus } from "../constants/taskStatus.js";
 import {
   listParentTaskParamsByParentId,
   listSubTasksByTaskId,
+  listTaskStatusesByPids,
   listTasksByPid,
 } from "../db/workflow.js";
 import { zTaskCreator } from "../validation/taskCreatorZod.js";
@@ -21,6 +28,8 @@ import {
   summarizeParentTaskTitleAsync,
 } from "../services/create/task/parentTaskTitleAsync.js";
 import { PARENT_TASK_PLACEHOLDER_TITLE } from "../constants/parentTask.js";
+import { readLatestAiOutMarkdown, listAiOutMarkdownTaskTypes } from "../services/file/readLatestAiOutMarkdown.js";
+import { zTaskTypeOptional } from "../validation/taskTypeZod.js";
 
 const listQuery = z.object({
   /** 按主键精确查询单条；有值时忽略其它筛选并只返回该条 */
@@ -29,7 +38,10 @@ const listQuery = z.object({
   title: z.string().max(200).optional(),
   /** 精确匹配关联 `tasks.creator`（存在至少一条子任务命中） */
   creator: z.string().trim().min(1).max(200).optional(),
-  limit: z.coerce.number().int().min(1).max(500).optional(),
+  /** 页码，从 1 开始；列表查询时默认 1 */
+  page: z.coerce.number().int().min(1).optional(),
+  /** 每页条数；列表查询时默认 20，最大 100 */
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 const valueJsonField = z.union([
@@ -48,17 +60,24 @@ const createParamItem = z.object({
   description: z.string().max(2000).optional(),
 });
 
+const gitRepoPair = z.object({
+  gitRemoteUrl: z.string().trim().min(1).max(2000),
+  branch_version: z.string().trim().min(1).max(500),
+});
+
 const createBody = z.object({
   /** 省略时由服务端分配为 max(数值型 pid)+1 */
   pid: z.string().trim().min(1).max(200).optional(),
   title: z.string().max(500).optional(),
   description: z.string().max(50_000).optional(),
   task_type: zParentAgentTypeOptional,
-  branch_version: z.string().trim().min(1).max(500),
-  gitRemoteUrl: z.string().trim().min(1).max(2000).optional(),
+  /** 仓库与分支一对一列表（单仓库时长度为 1） */
+  gitRepos: z.array(gitRepoPair).min(1).max(20),
   testEnv: z.string().trim().min(1).max(200).optional(),
   /** 写入 `init` 参数的 Agent 线路；省略时使用 `TASK_AGENT_PROVIDER` */
   provider: zTaskAgentProviderEnumOptional,
+  /** 设计完成直接执行：测试预分析完成后不暂停，自动推进后续子任务 */
+  directDevAfterDesign: z.boolean().optional(),
   app: z.string().trim().min(1).max(500).optional(),
   requirement: z.string().trim().min(1).max(50_000).optional(),
   creator: zTaskCreator,
@@ -75,6 +94,10 @@ function normalizeValueJson(raw: z.infer<typeof valueJsonField>): string {
   }
   return JSON.stringify(raw);
 }
+
+const aiOutLatestQuery = z.object({
+  task_type: zTaskTypeOptional,
+});
 
 export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: DatabaseSync }): void {
   const { db } = deps;
@@ -107,13 +130,85 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
         tasks_with_subtasks,
       };
     }
-    const rows = listParentTasks(db, {
+    const listFilters = {
       task_type: q.task_type,
       titleContains: q.title?.trim() || undefined,
       creator: q.creator,
-      limit: q.limit,
+    };
+    const pageSize = q.limit ?? 20;
+    const page = q.page ?? 1;
+    const total = countParentTasks(db, listFilters);
+    const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0;
+    const rows = listParentTasks(db, {
+      ...listFilters,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
     });
-    return { parent_tasks: rows };
+    const statusByPid = listTaskStatusesByPids(
+      db,
+      rows.map((row) => row.pid),
+    );
+    const parent_tasks = rows.map((row) => ({
+      ...row,
+      exec_status: aggregateParentExecStatus(statusByPid.get(row.pid) ?? []),
+    }));
+    return {
+      parent_tasks,
+      total,
+      page,
+      page_size: pageSize,
+      total_pages: totalPages,
+    };
+  });
+
+  /** 列出 `ai_out/<pid>/` 下存在 markdown 的 taskType 目录 */
+  app.get("/api/parent-tasks/:pid/ai-out/task-types", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      return { pid, task_types: listAiOutMarkdownTaskTypes(pid) };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("invalid pid") || msg.includes("path outside")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "list ai_out task types failed");
+      return reply.status(500).send({ error: "list ai_out task types failed" });
+    }
+  });
+
+  /** 读取 `ai_out/<pid>/<taskType>/` 下最新的 markdown 文档（供预览） */
+  app.get("/api/parent-tasks/:pid/ai-out/latest", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parsed = aiOutLatestQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const doc = readLatestAiOutMarkdown(pid, parsed.data.task_type);
+      if (!doc) {
+        return reply.status(404).send({ error: "no previewable document found in ai_out" });
+      }
+      return doc;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("invalid pid") || msg.includes("path outside")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "read ai_out latest markdown failed");
+      return reply.status(500).send({ error: "read ai_out document failed" });
+    }
   });
 
   app.post("/api/parent-tasks", async (request, reply) => {
@@ -125,10 +220,10 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       title,
       description,
       task_type,
-      branch_version,
-      gitRemoteUrl,
+      gitRepos,
       testEnv,
       provider,
+      directDevAfterDesign,
       app,
       requirement,
       creator,
@@ -172,21 +267,24 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
         title: createTitle,
         description,
         task_type: task_type ?? PARENT_AGENT_TYPE.DevSelfTest,
-        branch_version,
-        gitRemoteUrl,
+        gitRepos,
         testEnv,
         provider: provider ?? config.TASK_AGENT_PROVIDER,
+        directDevAfterDesign,
         app,
         requirement,
         creator,
         extraParams,
       });
       if (!explicitTitle) {
+        const branchHint = gitRepos
+          .map((r) => `${r.gitRemoteUrl}@${r.branch_version}`)
+          .join("; ");
         const sourceText = buildParentTaskTitleSource({
           requirement,
           description,
           app,
-          branch_version,
+          branch_version: branchHint,
         });
         void summarizeParentTaskTitleAsync(db, pid, sourceText);
       }

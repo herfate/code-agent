@@ -2,7 +2,9 @@ import type { ParentTaskChangedFilesHandler } from "../types.js";
 import { copyChangedFilesToAiOutHandler } from "./copyChangedFilesToAiOut.js";
 import { devMergeRequestHandler } from "./devMergeRequest.js";
 import { persistChangedFilesParamHandler } from "./persistChangedFilesParam.js";
+import { cloneTasksOnCodeReviewFailHandler } from "./cloneTasksOnCodeReviewFailHandler.js";
 import { cloneTasksOnTestFailHandler } from "./cloneTasksOnTestFailHandler.js";
+import { persistCodeReviewGateParamHandler } from "./persistCodeReviewGateParam.js";
 import { persistTestPassRateParamHandler } from "./persistTestPassRateParam.js";
 import { saveDescription4TasksUnderParentHandler } from "./saveDescription4TasksUnderParent.js";
 
@@ -16,6 +18,8 @@ export const DEFAULT_CHANGED_FILES_HANDLERS: ParentTaskChangedFilesHandler[] = [
   saveDescription4TasksUnderParentHandler,
   persistChangedFilesParamHandler,
   persistTestPassRateParamHandler,
+  persistCodeReviewGateParamHandler,
   cloneTasksOnTestFailHandler,
+  cloneTasksOnCodeReviewFailHandler,
   devMergeRequestHandler,
 ];

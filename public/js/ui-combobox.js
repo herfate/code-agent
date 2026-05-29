@@ -152,14 +152,37 @@
       }
     }
 
+    function positionList() {
+      var rect = trigger.getBoundingClientRect();
+      list.style.position = "fixed";
+      list.style.left = rect.left + "px";
+      list.style.top = rect.bottom + 4 + "px";
+      list.style.width = Math.max(rect.width, 120) + "px";
+      list.style.minWidth = rect.width + "px";
+      list.style.right = "auto";
+      list.style.zIndex = list.classList.contains("ui-combobox-list-raised") ? "60" : "40";
+    }
+
+    function resetListPosition() {
+      list.style.position = "";
+      list.style.left = "";
+      list.style.top = "";
+      list.style.width = "";
+      list.style.minWidth = "";
+      list.style.right = "";
+      list.style.zIndex = "";
+    }
+
     function setOpen(open) {
       if (open) {
         ensureFilterInline();
         list.classList.remove("hidden");
+        positionList();
         trigger.setAttribute("aria-expanded", "true");
         setFilterMode(true);
       } else {
         list.classList.add("hidden");
+        resetListPosition();
         trigger.setAttribute("aria-expanded", "false");
         setFilterMode(false);
       }

@@ -37,3 +37,16 @@ export function taskStatusLabel(code: TaskStatus): string {
       return String(code);
   }
 }
+
+/** 父任务列表展示用：按子任务 `tasks.status` 聚合为单一执行状态 */
+export type ParentExecStatusLabel = "完成" | "待执行" | "失败" | "执行中" | "—";
+
+export function aggregateParentExecStatus(statuses: number[]): ParentExecStatusLabel {
+  const codes = statuses.filter(isTaskStatus);
+  if (codes.length === 0) return "—";
+  if (codes.every((s) => s === TASK_STATUS.Completed)) return "完成";
+  if (codes.every((s) => s === TASK_STATUS.Pending)) return "待执行";
+  if (codes.some((s) => s === TASK_STATUS.Failed)) return "失败";
+  if (codes.some((s) => s === TASK_STATUS.Running)) return "执行中";
+  return "—";
+}

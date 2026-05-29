@@ -1,20 +1,26 @@
 import type { TaskRow } from "./workflow.js";
+import type { GitRepoInitPair } from "./gitRepoPair.js";
+import { parseGitRepoPairsFromUnknown } from "./gitRepoPair.js";
 
-/** 与 POST /api/tasks 写入的 `tasks.input_json` 对齐的可选字段 */
+export type { GitRepoInitPair } from "./gitRepoPair.js";
+
+/** 与 POST /api/tasks、父任务子任务写入的 `tasks.input_json` 对齐 */
 export type TaskInputJson = {
   app?: string;
-  branch_version?: string;
   requirement?: string;
-  gitRemoteUrl?: string;
+  /** 仓库与分支一对一列表（单仓库时长度为 1） */
+  gitRepos: GitRepoInitPair[];
   testEnv?: string;
 };
 
-/** 将 {@link TaskRow.input_json} 反序列化为结构化对象；空串、非法 JSON、非对象时返回 `{}` */
+const EMPTY_TASK_INPUT: TaskInputJson = { gitRepos: [] };
+
+/** 将 {@link TaskRow.input_json} 反序列化为结构化对象；空串、非法 JSON、非对象时返回空 gitRepos */
 export function parseTaskInputJson(inputJson: string | null): TaskInputJson {
-  if (!inputJson?.trim()) return {};
+  if (!inputJson?.trim()) return { ...EMPTY_TASK_INPUT };
   try {
     const raw = JSON.parse(inputJson) as unknown;
-    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {};
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ...EMPTY_TASK_INPUT };
     const o = raw as Record<string, unknown>;
     const str = (key: string): string | undefined => {
       const v = o[key];
@@ -22,12 +28,16 @@ export function parseTaskInputJson(inputJson: string | null): TaskInputJson {
     };
     return {
       app: str("app"),
-      branch_version: str("branch_version"),
       requirement: str("requirement"),
-      gitRemoteUrl: str("gitRemoteUrl"),
+      gitRepos: parseGitRepoPairsFromUnknown(o.gitRepos),
       testEnv: str("testEnv"),
     };
   } catch {
-    return {};
+    return { ...EMPTY_TASK_INPUT };
   }
+}
+
+/** 读取任务 input_json 中的仓库列表 */
+export function listTaskInputGitRepos(taskInputJson: TaskInputJson): GitRepoInitPair[] {
+  return taskInputJson.gitRepos ?? [];
 }

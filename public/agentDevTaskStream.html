@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>任务 Agent SSE — 全屏</title>
   <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
   <style>
     html.ats-embed-root,
     html.ats-embed-root body.ats-embed {
@@ -45,10 +46,33 @@
   </header>
   <main
     id="ats-log"
-    class="chat-log"
+    class="chat-log min-h-0 flex-1"
     role="log"
     aria-live="polite"
   ></main>
+  <footer
+    id="ats-followup"
+    class="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-5"
+  >
+    <p class="mb-2 text-[11px] text-slate-500">输入补充说明后点击「发送」；发送成功后请刷新页面。</p>
+    <textarea
+      id="ats-followup-input"
+      rows="3"
+      maxlength="50000"
+      placeholder="例如：请再补充单元测试…"
+      class="mb-2 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+    ></textarea>
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        id="ats-followup-submit"
+        class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        发送
+      </button>
+      <span id="ats-followup-hint" class="text-xs text-slate-500"></span>
+    </div>
+  </footer>
   <script src="/js/claude-sse-render.js"></script>
   <script src="/js/cursor-sse-render.js"></script>
   <script>
@@ -58,7 +82,11 @@
       var titleEl = document.getElementById("ats-title");
       var errEl = document.getElementById("ats-err");
       var stopBtn = document.getElementById("ats-stop");
+      var followupInput = document.getElementById("ats-followup-input");
+      var followupSubmit = document.getElementById("ats-followup-submit");
+      var followupHint = document.getElementById("ats-followup-hint");
       var streamAbort = null;
+      var currentTaskId = "";
       var provider = "claude";
       var render = null;
 
@@ -68,6 +96,51 @@
 
       function normalizeProvider(raw) {
         return String(raw || "").trim().toLowerCase() === "cursor" ? "cursor" : "claude";
+      }
+
+      function alternateProvider(p) {
+        return p === "cursor" ? "claude" : "cursor";
+      }
+
+      function parseRunIdFromMeta(metaJson, key) {
+        if (!metaJson || !String(metaJson).trim()) return null;
+        try {
+          var o = JSON.parse(metaJson);
+          var v = o && o[key];
+          return typeof v === "string" && v.trim() ? v.trim() : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      /** 优先 URL 指定线路；若无 run 记录则切换至另一 provider */
+      function resolveStreamProvider(taskId, preferred) {
+        preferred = normalizeProvider(preferred);
+        return fetch(apiBase() + "/api/tasks/" + encodeURIComponent(taskId))
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok || !res.body || !res.body.task) {
+              return { provider: preferred, switched: false };
+            }
+            var meta = res.body.task.meta_json;
+            var hasClaude = !!parseRunIdFromMeta(meta, "claudeAgentRunId");
+            var hasCursor = !!parseRunIdFromMeta(meta, "cursorAgentRunId");
+            if (preferred === "cursor") {
+              if (hasCursor) return { provider: "cursor", switched: false };
+              if (hasClaude) return { provider: "claude", switched: true };
+            } else {
+              if (hasClaude) return { provider: "claude", switched: false };
+              if (hasCursor) return { provider: "cursor", switched: true };
+            }
+            return { provider: preferred, switched: false };
+          })
+          .catch(function () {
+            return { provider: preferred, switched: false };
+          });
       }
 
       function applyProvider(next) {
@@ -108,6 +181,16 @@
       function showError(msg) {
         errEl.textContent = msg;
         errEl.classList.remove("hidden");
+      }
+
+      /** tone: default | success | error */
+      function setFollowupHint(text, tone) {
+        if (!followupHint) return;
+        followupHint.textContent = text;
+        followupHint.classList.remove("text-slate-500", "text-green-600", "text-red-600");
+        if (tone === "success") followupHint.classList.add("text-green-600");
+        else if (tone === "error") followupHint.classList.add("text-red-600");
+        else followupHint.classList.add("text-slate-500");
       }
 
       function appendEvent(eventName, payload) {
@@ -163,14 +246,51 @@
         }
       }
 
-      function startStream(taskId) {
-        abortStream();
-        if (render) render.clearLog(logEl);
-        else logEl.innerHTML = "";
-        subEl.textContent = "task " + taskId + " (" + provider + ")";
-        var ac = new AbortController();
-        streamAbort = ac;
-        setStopEnabled(true);
+      function submitFollowUp() {
+        if (!currentTaskId) return;
+        var text = followupInput && followupInput.value ? followupInput.value.trim() : "";
+        if (!text) {
+          setFollowupHint("请先输入内容", "default");
+          return;
+        }
+        if (followupSubmit) followupSubmit.disabled = true;
+        setFollowupHint("发送中…", "default");
+        fetch(apiBase() + "/api/tasks/" + encodeURIComponent(currentTaskId) + "/follow-up", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (followupSubmit) followupSubmit.disabled = false;
+            if (!res.ok) {
+              setFollowupHint(
+                "发送失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error
+                    ? typeof res.body.error === "string"
+                      ? res.body.error
+                      : JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body)),
+                "error",
+              );
+              return;
+            }
+            if (followupInput) followupInput.value = "";
+            setFollowupHint("发送成功，请刷新页面", "success");
+          })
+          .catch(function (e) {
+            if (followupSubmit) followupSubmit.disabled = false;
+            setFollowupHint("网络错误: " + e.message, "error");
+          });
+      }
+
+      function connectStream(taskId, ac, allowProviderFallback) {
         var lastSeq = 0;
         var url =
           apiBase() +
@@ -180,9 +300,19 @@
           streamPath() +
           "?afterSeq=" +
           encodeURIComponent(String(lastSeq));
-        fetch(url, { signal: ac.signal })
+        return fetch(url, { signal: ac.signal })
           .then(function (r) {
             if (!r.ok) {
+              if (r.status === 404 && allowProviderFallback) {
+                var alt = alternateProvider(provider);
+                applyProvider(alt);
+                subEl.textContent = "task " + taskId + " (" + provider + ")";
+                appendSystem(
+                  "当前线路无 Agent 记录，已切换至 " + (provider === "cursor" ? "Cursor" : "Claude"),
+                  "default",
+                );
+                return connectStream(taskId, ac, false);
+              }
               return r.text().then(function (t) {
                 appendSystem("HTTP " + r.status + (t ? ": " + t : ""), "error");
               });
@@ -203,6 +333,30 @@
             }).then(function () {
               if (render && render.appendEndMarker) render.appendEndMarker(logEl, false);
             });
+          });
+      }
+
+      function startStream(taskId) {
+        currentTaskId = taskId;
+        abortStream();
+        if (render) render.clearLog(logEl);
+        else logEl.innerHTML = "";
+        subEl.textContent = "task " + taskId + " · 加载线路…";
+        var ac = new AbortController();
+        streamAbort = ac;
+        setStopEnabled(true);
+        resolveStreamProvider(taskId, provider)
+          .then(function (resolved) {
+            if (streamAbort !== ac) return;
+            if (resolved.provider !== provider) applyProvider(resolved.provider);
+            subEl.textContent = "task " + taskId + " (" + provider + ")";
+            if (resolved.switched) {
+              appendSystem(
+                "当前线路无 Agent 记录，已切换至 " + (provider === "cursor" ? "Cursor" : "Claude"),
+                "default",
+              );
+            }
+            return connectStream(taskId, ac, !resolved.switched);
           })
           .catch(function (err) {
             if (err && err.name !== "AbortError") {
@@ -218,6 +372,7 @@
       }
 
       stopBtn.addEventListener("click", abortStream);
+      if (followupSubmit) followupSubmit.addEventListener("click", submitFollowUp);
       document.getElementById("ats-close").addEventListener("click", function () {
         abortStream();
         window.close();
@@ -243,5 +398,6 @@
       startStream(taskId);
     })();
   </script>
+
 </body>
 </html>

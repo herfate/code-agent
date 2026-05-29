@@ -6,7 +6,7 @@ import type { TaskType } from "../../../constants/taskType.js";
 import type { ParentTaskChangedFilesContext, ParentTaskChangedFilesHandler } from "../types.js";
 import {AppLog} from "../../appLogger.js";
 
-/** 设计 / 测试数据分析：将变更文件复制到 `ai_out/<pid>/<taskType>/` */
+/** 设计 / 测试流水线 / Code Review：将变更文件复制到 `ai_out/<pid>/<taskType>/` */
 export const copyChangedFilesToAiOutHandler: ParentTaskChangedFilesHandler = {
   supports(taskType: TaskType): boolean {
     return changedFilesParamKeyForTaskType(taskType) !== null;

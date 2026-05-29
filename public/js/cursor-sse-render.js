@@ -30,14 +30,42 @@
   }
 
   function mountTurn(logEl, turnObj) {
-    logEl.appendChild(turnObj.turn);
-    scrollLog(logEl);
+    if (turnObj.bubble.childNodes.length > 0) {
+      logEl.appendChild(turnObj.turn);
+      scrollLog(logEl);
+    }
   }
 
   function appendScrollPre(parent, text) {
     var s = text == null ? "" : String(text).trim();
     if (!s) return;
     parent.appendChild(el("pre", "chat-scroll-pre", s));
+  }
+
+  function formatToolBody(value) {
+    if (value == null) return "";
+    if (typeof value === "string") return value;
+    return prettyJson(value);
+  }
+
+  /** 与 Claude 渲染一致：工具调用参数块 */
+  function renderBlockToolUse(bubble, name, input) {
+    var inputBody = formatToolBody(input).trim();
+    if (!name && !inputBody) return;
+    var wrap = el("div", "chat-tool chat-tool-use");
+    wrap.appendChild(el("div", "chat-tool-label", "调用 · " + (name || "工具")));
+    if (inputBody) appendScrollPre(wrap, inputBody);
+    bubble.appendChild(wrap);
+  }
+
+  /** 与 Claude 渲染一致：工具结果块（可滚动收敛） */
+  function renderBlockToolResult(bubble, result, isError) {
+    var resultBody = formatToolBody(result).trim();
+    if (!resultBody) return;
+    var wrap = el("div", "chat-tool" + (isError ? " chat-tool-error" : " chat-tool-result"));
+    wrap.appendChild(el("div", "chat-tool-label", isError ? "工具错误" : "工具结果"));
+    appendScrollPre(wrap, resultBody);
+    bubble.appendChild(wrap);
   }
 
   function textBlocks(content) {
@@ -65,18 +93,28 @@
 
     if (type === "thinking") {
       var thinkTurn = createTurn("assistant");
-      thinkTurn.bubble.appendChild(el("div", "chat-thinking-label", "思考"));
-      appendScrollPre(thinkTurn.bubble, inner.text || "");
+      var thinkBody = inner.text != null ? String(inner.text).trim() : "";
+      if (thinkBody) {
+        var thinkWrap = el("div", "chat-thinking");
+        thinkWrap.appendChild(el("div", "chat-thinking-label", "思考"));
+        thinkWrap.appendChild(el("div", "chat-text chat-text-thinking", thinkBody));
+        thinkTurn.bubble.appendChild(thinkWrap);
+      }
       mountTurn(logEl, thinkTurn);
       return;
     }
 
     if (type === "tool_call") {
       var toolTurn = createTurn("assistant");
-      var label = "[tool] " + (inner.name || "?") + " — " + (inner.status || "");
-      toolTurn.bubble.appendChild(el("div", "chat-tool-label", label));
-      if (inner.args != null) appendScrollPre(toolTurn.bubble, prettyJson(inner.args));
-      if (inner.result != null) appendScrollPre(toolTurn.bubble, prettyJson(inner.result));
+      var toolName = inner.name != null ? String(inner.name).trim() : "";
+      if (inner.args != null) renderBlockToolUse(toolTurn.bubble, toolName, inner.args);
+      if (inner.result != null) {
+        var toolFailed = inner.status === "error" || inner.is_error === true;
+        renderBlockToolResult(toolTurn.bubble, inner.result, toolFailed);
+      }
+      if (toolTurn.bubble.childNodes.length === 0) {
+        renderBlockToolUse(toolTurn.bubble, toolName || "工具", null);
+      }
       mountTurn(logEl, toolTurn);
       return;
     }

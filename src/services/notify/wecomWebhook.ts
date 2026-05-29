@@ -2,7 +2,7 @@ import { AppLog } from "../appLogger.js";
 
 /** 默认企业微信机器人 Webhook（与 Java {@code NewTaskSchedulerService.HOOK_PATH} 一致） */
 export const DEFAULT_WECOM_WEBHOOK_URL =
-  "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=9e054370-2fdc-45cf-895c-55bdfee2f933";
+  "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4a35b9cb-b4cc-4ee8-993e-b360f882a1e3";
 
 export type SendWecomTextWebhookOptions = {
   hookUrl?: string;

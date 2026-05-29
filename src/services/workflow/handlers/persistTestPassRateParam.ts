@@ -22,13 +22,20 @@ export const persistTestPassRateParamHandler: ParentTaskChangedFilesHandler = {
     const parsed = parseTaskOutPassRateFromChangedFiles(ctx.taskRepoCwd, ctx.relativePaths);
     if (!parsed) return Promise.resolve();
 
-    const { sourceFile, passRate, summary } = parsed;
+    const { sourceFile, passRate, summary, isCodeProblem } = parsed;
 
     for (const paramKey of paramKeys) {
-      const value_json =
-        paramKey === TEST_PASS_RATE_PARAM_KEY.TestCaseExecutePassRate
-          ? JSON.stringify(passRate)
-          : JSON.stringify(summary === undefined ? { passRate } : { passRate, summary });
+      let value_json: string | undefined;
+      if (paramKey === TEST_PASS_RATE_PARAM_KEY.TestCaseExecutePassRate) {
+        value_json = JSON.stringify(passRate);
+      } else if (paramKey === TEST_PASS_RATE_PARAM_KEY.TestCaseExecutePassResult) {
+        value_json = JSON.stringify(summary === undefined ? { passRate } : { passRate, summary });
+      } else if (paramKey === TEST_PASS_RATE_PARAM_KEY.TestCaseExecuteIsCodeProblem) {
+        if (isCodeProblem === undefined) continue;
+        value_json = JSON.stringify(isCodeProblem);
+      } else {
+        continue;
+      }
 
       upsertParentTaskParam(ctx.db, {
         id: randomUUID(),

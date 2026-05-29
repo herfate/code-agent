@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>开发 Agent — 任务查询</title>
   <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
   <div class="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4 sm:gap-5 sm:p-6">
@@ -64,7 +65,11 @@
             <option value="5">5 — 测试数据分析</option>
             <option value="6">6 — 测试案例执行</option>
             <option value="7">7 — QA平台测试脚本生成</option>
+            <option value="8">8 — Code Review</option>
+            <option value="9">9 — 拆分故事</option>
+            <option value="10">10 — 头脑风暴</option>
             <option value="101">101 — 测试环境发布</option>
+            <option value="103">103 — 测试环境发布结果</option>
           </select>
         </div>
         <div class="lg:col-span-2">
@@ -394,6 +399,99 @@
         return provider === "cursor" ? "cursor-agent-stream" : "claude-agent-stream";
       }
 
+      function alternateTaskAgentProvider(p) {
+        return p === "cursor" ? "claude" : "cursor";
+      }
+
+      function parseRunIdFromTaskMeta(metaJson, key) {
+        if (!metaJson || !String(metaJson).trim()) return null;
+        try {
+          var o = JSON.parse(metaJson);
+          var v = o && o[key];
+          return typeof v === "string" && v.trim() ? v.trim() : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      /** 优先父任务 init 指定线路；若无 run 记录则切换至另一 provider */
+      function resolveTaskAgentProvider(taskId, preferred) {
+        preferred = preferred === "cursor" ? "cursor" : "claude";
+        return fetch(adevBase() + "/api/tasks/" + encodeURIComponent(taskId))
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok || !res.body || !res.body.task) {
+              return { provider: preferred, switched: false };
+            }
+            var meta = res.body.task.meta_json;
+            var hasClaude = !!parseRunIdFromTaskMeta(meta, "claudeAgentRunId");
+            var hasCursor = !!parseRunIdFromTaskMeta(meta, "cursorAgentRunId");
+            if (preferred === "cursor") {
+              if (hasCursor) return { provider: "cursor", switched: false };
+              if (hasClaude) return { provider: "claude", switched: true };
+            } else {
+              if (hasClaude) return { provider: "claude", switched: false };
+              if (hasCursor) return { provider: "cursor", switched: true };
+            }
+            return { provider: preferred, switched: false };
+          })
+          .catch(function () {
+            return { provider: preferred, switched: false };
+          });
+      }
+
+      function connectTaskAgentSse(taskId, provider, ac, allowProviderFallback) {
+        var lastSeq = 0;
+        var url =
+          adevBase() +
+          "/api/tasks/" +
+          encodeURIComponent(taskId) +
+          "/" +
+          taskAgentStreamPath(provider) +
+          "?afterSeq=" +
+          encodeURIComponent(String(lastSeq));
+        sseAppend("[请求] GET " + url);
+        return fetch(url, { signal: ac.signal })
+          .then(function (r) {
+            if (!r.ok) {
+              if (r.status === 404 && allowProviderFallback) {
+                var alt = alternateTaskAgentProvider(provider);
+                sseSub.textContent = "task " + taskId + " (" + alt + ")";
+                sseAppend(
+                  "[切换线路] " +
+                    provider +
+                    " 无 Agent 记录，尝试 " +
+                    alt,
+                );
+                return connectTaskAgentSse(taskId, alt, ac, false);
+              }
+              return r.text().then(function (t) {
+                sseAppend("[HTTP " + r.status + "] " + t);
+              });
+            }
+            return parseSseStream(r, function (eventName, payload) {
+              if (eventName === "done") {
+                sseAppend("event:done " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
+                return;
+              }
+              if (eventName === "error") {
+                sseAppend("event:error " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
+                return;
+              }
+              if (payload && typeof payload === "object" && typeof payload.seq === "number") {
+                lastSeq = Math.max(lastSeq, payload.seq);
+              }
+              sseAppend(
+                "data: " + (typeof payload === "string" ? payload : JSON.stringify(payload)),
+              );
+            });
+          });
+      }
+
       function openTaskAgentSse(taskId, pid) {
         if (sseAbort) {
           try {
@@ -404,52 +502,38 @@
         sseLog.textContent = "";
         sseRoot.classList.remove("hidden");
         sseSub.textContent = "task " + taskId + " · 加载线路…";
-        fetchProviderByPid(pid).then(function (provider) {
-          sseSub.textContent = "task " + taskId + " (" + provider + ")";
-          var ac = new AbortController();
-          sseAbort = ac;
-          var lastSeq = 0;
-          var url =
-            adevBase() +
-            "/api/tasks/" +
-            encodeURIComponent(taskId) +
-            "/" +
-            taskAgentStreamPath(provider) +
-            "?afterSeq=" +
-            encodeURIComponent(String(lastSeq));
-          sseAppend("[请求] GET " + url);
-          fetch(url, { signal: ac.signal })
-            .then(function (r) {
-              if (!r.ok) {
-                return r.text().then(function (t) {
-                  sseAppend("[HTTP " + r.status + "] " + t);
-                });
-              }
-              return parseSseStream(r, function (eventName, payload) {
-                if (eventName === "done") {
-                  sseAppend("event:done " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
-                  return;
-                }
-                if (eventName === "error") {
-                  sseAppend("event:error " + (typeof payload === "string" ? payload : JSON.stringify(payload)));
-                  return;
-                }
-                if (payload && typeof payload === "object" && typeof payload.seq === "number") {
-                  lastSeq = Math.max(lastSeq, payload.seq);
-                }
-                sseAppend(
-                  "data: " + (typeof payload === "string" ? payload : JSON.stringify(payload)),
-                );
-              });
-            })
-            .then(function () {
-              sseAppend("[流结束]");
-            })
-            .catch(function (err) {
-              if (err && err.name === "AbortError") sseAppend("[已中止]");
-              else sseAppend("[错误] " + (err && err.message ? err.message : String(err)));
+        fetchProviderByPid(pid)
+          .then(function (preferred) {
+            return resolveTaskAgentProvider(taskId, preferred).then(function (resolved) {
+              return { preferred: preferred, resolved: resolved };
             });
-        });
+          })
+          .then(function (ctx) {
+            if (!ctx) return;
+            var provider = ctx.resolved.provider;
+            sseSub.textContent = "task " + taskId + " (" + provider + ")";
+            if (ctx.resolved.switched) {
+              sseAppend(
+                "[切换线路] " +
+                  ctx.preferred +
+                  " 无 Agent 记录，已切换至 " +
+                  provider,
+              );
+            }
+            var ac = new AbortController();
+            sseAbort = ac;
+            return connectTaskAgentSse(taskId, provider, ac, !ctx.resolved.switched)
+              .then(function () {
+                sseAppend("[流结束]");
+              })
+              .catch(function (err) {
+                if (err && err.name === "AbortError") sseAppend("[已中止]");
+                else sseAppend("[错误] " + (err && err.message ? err.message : String(err)));
+              });
+          })
+          .catch(function (err) {
+            sseAppend("[错误] " + (err && err.message ? err.message : String(err)));
+          });
       }
 
       sseClose.addEventListener("click", closeSseModal);
@@ -470,7 +554,12 @@
         if (n === 5) return "测试数据分析";
         if (n === 6) return "测试案例执行";
         if (n === 7) return "QA平台测试脚本生成";
+        if (n === 8) return "Code Review";
+        if (n === 9) return "拆分故事";
+        if (n === 10) return "头脑风暴";
         if (n === 101) return "测试环境发布";
+        if (n === 102) return "部署间隔等待";
+        if (n === 103) return "测试环境发布结果";
         return String(code ?? "");
       }
 

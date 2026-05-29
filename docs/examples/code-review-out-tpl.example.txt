@@ -1,0 +1,17 @@
+【输出要求】在任务仓库根目录生成 code-review-report.md（Markdown），结构必须与 docs/examples/code-review-report.example.md 一致。
+
+【强制 — 机读门禁】
+1. 必须包含二级标题「## 审查摘要」，其下第一个 fenced 块为 ```json。
+2. JSON 必填字段：verdict、verdict_label、merge_recommendation、counts（含 blocker/major/minor/nit/info）、must_fix_before_merge（数组）、summary_zh。
+3. verdict 仅允许：approve | pass_with_comments | request_changes | needs_human_review。
+4. counts.blocker > 0 时 merge_recommendation 必须为 false。
+5. must_fix_before_merge 列出所有 blocker/major 对应的问题编号（如 B-001、C-002）。
+
+【审查顺序】
+先对照任务 description 中的设计/需求 → 再看 git diff/MR → 先写 §1 业务 → 再写 §2 规范 → 最后写审查摘要 JSON。
+
+【分级】
+blocker=线上事故级；major=应修缺陷；minor/nit/info 见示例。
+
+【章节不可省略】
+§1 业务（含需求矩阵）、§2 规范（含安全表）、§4 做得好的地方、§5 合并前检查清单；无问题时清单项写「无」。

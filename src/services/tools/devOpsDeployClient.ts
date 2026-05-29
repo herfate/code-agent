@@ -10,20 +10,98 @@ export type DevOpsDeployParams = {
   env: string;
 };
 
+/** Jenkins Blue Ocean pipeline 详情页模板（`${job_name}`、`${build_number}` 占位替换） */
+export const JENKINS_PIPELINE_RESULT_URL_TEMPLATE =
+  "http://jkp-s1.howbuy.pa/jenkins/blue/organizations/jenkins/${job_name}/detail/${job_name}/${build_number}/pipeline/";
+
+/** Jenkins Blue Ocean pipeline 节点列表 REST 模板（`${job_name}`、`${build_number}` 占位替换） */
+export const JENKINS_PIPELINE_NODE_URL_TEMPLATE =
+  "http://jkp-s1.howbuy.pa/jenkins/blue/rest/organizations/jenkins/pipelines/${job_name}/runs/${build_number}/nodes/?limit=10000";
+
+/** DevOps pipeline 触发响应中单条 job 记录（API 原始字段） */
+export type DevOpsDeployPipelineItemRaw = {
+  job_name: string;
+  result: string;
+  msg: string;
+  build_number: number;
+  job_url: string;
+};
+
+/** 落库用：在原始字段上附加拼接后的 `result_url`、`node_url` */
+export type DevOpsDeployPipelineItem = DevOpsDeployPipelineItemRaw & {
+  result_url: string;
+  node_url: string;
+};
+
+export type DevOpsDeployPipelineResponse = {
+  status: string;
+  data: DevOpsDeployPipelineItem[];
+  msg: string;
+};
+
 export type DevOpsDeployResult = {
   ok: boolean;
   status: number;
   body: string;
+  /** HTTP 成功且 body 可解析时填充 */
+  parsed?: DevOpsDeployPipelineResponse;
 };
 
-export type DevOpsDeployOptions = {
-  /** 部署 HTTP 成功后的额外等待（毫秒），用于同父任务多应用顺序部署时错开流水线 */
-  postSuccessDelayMs?: number;
-};
+/** API 返回的 build_number 与 Jenkins 展示/REST 用的 run 号差 1 */
+function jenkinsRunNumber(buildNumber: number): string {
+  return String(buildNumber + 1);
+}
 
-const POST_DEPLOY_SLEEP_MS_MULTIPLE_DEPLOYS = 5 * 60 * 1000;
+/** 按模板拼接 Jenkins pipeline 详情地址 */
+export function buildJenkinsPipelineResultUrl(jobName: string, buildNumber: number): string {
+  return JENKINS_PIPELINE_RESULT_URL_TEMPLATE.replace(/\$\{job_name\}/g, jobName).replace(
+    /\$\{build_number\}/g,
+    jenkinsRunNumber(buildNumber),
+  );
+}
 
-export { POST_DEPLOY_SLEEP_MS_MULTIPLE_DEPLOYS };
+/** 按模板拼接 Jenkins pipeline 节点列表 REST 地址 */
+export function buildJenkinsPipelineNodeUrl(jobName: string, buildNumber: number): string {
+  return JENKINS_PIPELINE_NODE_URL_TEMPLATE.replace(/\$\{job_name\}/g, jobName).replace(
+    /\$\{build_number\}/g,
+    jenkinsRunNumber(buildNumber),
+  );
+}
+
+/** 解析 pipeline POST 响应，并为每条 data 附加 `result_url`、`node_url` */
+export function parseDevOpsDeployPipelineResponse(body: string): DevOpsDeployPipelineResponse | null {
+  try {
+    const raw = JSON.parse(body) as {
+      status?: unknown;
+      data?: unknown;
+      msg?: unknown;
+    };
+    if (typeof raw.status !== "string" || !Array.isArray(raw.data)) return null;
+
+    const data: DevOpsDeployPipelineItem[] = raw.data.map((item) => {
+      const row = item as Partial<DevOpsDeployPipelineItemRaw>;
+      const jobName = String(row.job_name ?? "");
+      const buildNumber = Number(row.build_number ?? 0);
+      return {
+        job_name: jobName,
+        result: String(row.result ?? ""),
+        msg: String(row.msg ?? ""),
+        build_number: buildNumber,
+        job_url: String(row.job_url ?? ""),
+        result_url: buildJenkinsPipelineResultUrl(jobName, buildNumber),
+        node_url: buildJenkinsPipelineNodeUrl(jobName, buildNumber),
+      };
+    });
+
+    return {
+      status: raw.status,
+      data,
+      msg: typeof raw.msg === "string" ? raw.msg : "",
+    };
+  } catch {
+    return null;
+  }
+}
 
 /** product_repos_api 单条记录（与 Java `Data_list` 字段对齐） */
 type DevOpsReposItem = {
@@ -44,6 +122,76 @@ type DevOpsPipelineBindResponse = {
 };
 
 const FETCH_TIMEOUT_MS = 120_000;
+
+/** Jenkins Blue Ocean pipeline 单节点（REST `/nodes/` 数组元素） */
+export type JenkinsPipelineNode = {
+  _class?: string;
+  displayName?: string | null;
+  displayDescription?: string | null;
+  durationInMillis?: number;
+  id?: string;
+  result?: string | null;
+  startTime?: string;
+  state?: string;
+  type?: string;
+  [key: string]: unknown;
+};
+
+export type FetchJenkinsPipelineNodesResult = {
+  ok: boolean;
+  status: number;
+  body: string;
+  nodes?: JenkinsPipelineNode[];
+};
+
+/** 从 `DevOpsDeployResult` 落库 JSON 提取各 job 的 `node_url` */
+export function extractNodeUrlsFromDevOpsDeployResult(valueJson: string): string[] {
+  try {
+    const raw = JSON.parse(valueJson) as { data?: unknown };
+    if (!Array.isArray(raw.data)) return [];
+    const urls: string[] = [];
+    for (const item of raw.data) {
+      const nodeUrl = (item as { node_url?: unknown }).node_url;
+      if (typeof nodeUrl === "string" && nodeUrl.trim()) urls.push(nodeUrl.trim());
+    }
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
+/** GET Jenkins pipeline 节点列表 */
+export async function fetchJenkinsPipelineNodes(nodeUrl: string): Promise<FetchJenkinsPipelineNodesResult> {
+  const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+  const res = await fetch(nodeUrl, { signal });
+  const body = await res.text();
+  if (!res.ok) return { ok: false, status: res.status, body };
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (!Array.isArray(parsed)) {
+      return { ok: false, status: res.status, body: "Jenkins 节点响应不是 JSON 数组" };
+    }
+    return { ok: true, status: res.status, body, nodes: parsed as JenkinsPipelineNode[] };
+  } catch {
+    return { ok: false, status: res.status, body: `解析 Jenkins 节点列表失败: ${body.slice(0, 500)}` };
+  }
+}
+
+/** 取数组中第一个 `result === FAILURE` 的节点（大小写不敏感） */
+export function findFirstFailurePipelineNode(
+  nodes: JenkinsPipelineNode[],
+): JenkinsPipelineNode | undefined {
+  return nodes.find((n) => String(n.result ?? "").toUpperCase() === "FAILURE");
+}
+
+/** 是否仍有节点未结束（流水线可能仍在运行） */
+export function isJenkinsPipelineStillRunning(nodes: JenkinsPipelineNode[]): boolean {
+  if (nodes.length === 0) return true;
+  return nodes.some((n) => {
+    const state = String(n.state ?? "").toUpperCase();
+    return state !== "FINISHED" && state !== "SKIPPED";
+  });
+}
 
 function fail(status: number, body: string): DevOpsDeployResult {
   return { ok: false, status, body };
@@ -69,7 +217,6 @@ export function resolveDevOpsDeployUrl(db: DatabaseSync): string | undefined {
 export async function devOpsDeployTestEnv(
   baseUrl: string,
   params: DevOpsDeployParams,
-  options?: DevOpsDeployOptions,
 ): Promise<DevOpsDeployResult> {
   const gitBranch = params.gitBranch?.trim() ?? "";
   const serverName = params.serverName?.trim() ?? "";
@@ -161,13 +308,6 @@ export async function devOpsDeployTestEnv(
     signal,
   });
   const body = await pipelineRes.text();
-  const result: DevOpsDeployResult = { ok: pipelineRes.ok, status: pipelineRes.status, body };
-
-  const delayMs = options?.postSuccessDelayMs ?? 0;
-  if (result.ok && delayMs > 0) {
-    console.log(`[devOpsDeployTestEnv] post-deploy sleep ${delayMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-  }
-
-  return result;
+  const parsed = parseDevOpsDeployPipelineResponse(body);
+  return { ok: pipelineRes.ok, status: pipelineRes.status, body, parsed: parsed ?? undefined };
 }

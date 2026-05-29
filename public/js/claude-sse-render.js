@@ -113,7 +113,7 @@
     var name = block.name != null ? String(block.name).trim() : "";
     var inputBody = block.input != null ? prettyJson(block.input).trim() : "";
     if (!name && !inputBody) return;
-    var wrap = el("div", "chat-tool");
+    var wrap = el("div", "chat-tool chat-tool-use");
     wrap.appendChild(el("div", "chat-tool-label", "调用 · " + (name || "工具")));
     if (inputBody) appendScrollPre(wrap, inputBody);
     bubble.appendChild(wrap);
@@ -153,6 +153,25 @@
       return sdkEnvelope;
     }
     return null;
+  }
+
+  /** SDK 工具结果常以 user 消息返回；展示上与工具调用同侧（左侧） */
+  function isToolResultOnlyMessage(sdkEnvelope) {
+    var body = resolveAnthropicBody(sdkEnvelope);
+    if (!body || body.content === undefined) return false;
+    var content = body.content;
+    if (typeof content === "string") return false;
+    if (!Array.isArray(content) || content.length === 0) return false;
+    return content.every(function (block) {
+      if (block == null) return false;
+      if (typeof block === "string") return false;
+      return block.type === "tool_result";
+    });
+  }
+
+  function resolveTurnRole(role, sdkEnvelope) {
+    if (role === "user" && isToolResultOnlyMessage(sdkEnvelope)) return "assistant";
+    return role;
   }
 
   function renderToolUseResultValue(bubble, value, isError) {
@@ -221,7 +240,7 @@
 
   function renderMessageTurn(logEl, role, sdkEnvelope) {
     if (!sdkEnvelope || typeof sdkEnvelope !== "object") return;
-    var turn = createTurn(role);
+    var turn = createTurn(resolveTurnRole(role, sdkEnvelope));
     var body = resolveAnthropicBody(sdkEnvelope);
     if (body) {
       if (body.content !== undefined) {

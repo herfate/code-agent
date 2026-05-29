@@ -5,19 +5,19 @@ import { AI_OUT_DIR } from "../../constants/commonKey.js";
 import { TASK_TYPE, type TaskType } from "../../constants/taskType.js";
 import { listTasksByPid, updateTask } from "../../db/workflow.js";
 
-/** 按当前执行场景解析要更新 description 的子任务类型；未支持则返回 null */
-export function resolveDescriptionTargetTaskType(executingTaskType: TaskType): TaskType | null {
+/** 按当前执行场景解析要更新 description 的子任务类型；未支持则返回空数组 */
+export function resolveDescriptionTargetTaskTypes(executingTaskType: TaskType): TaskType[] {
   switch (executingTaskType) {
     case TASK_TYPE.Design: // 0 设计
-      return TASK_TYPE.Dev; // 1 开发
+      return [TASK_TYPE.Dev/*, TASK_TYPE.CodeReview*/]; // 1 开发 // 8 Code Review
     case TASK_TYPE.TestPreAnalysis: // 测试预分析
-      return TASK_TYPE.TestCaseDesign; // 测试用例设计
+      return [TASK_TYPE.TestCaseDesign]; // 测试用例设计
     case TASK_TYPE.TestCaseDesign: // 测试用例设计
-      return TASK_TYPE.TestDataAnalysis; // 测试数据分析
+      return [TASK_TYPE.TestDataAnalysis]; // 测试数据分析
     case TASK_TYPE.TestDataAnalysis: // 测试数据分析
-      return TASK_TYPE.TestCaseExecute; // 测试案例执行
+      return [TASK_TYPE.TestCaseExecute]; // 测试案例执行
     default:
-      return null; // 其他场景留空，后续补
+      return []; // 其他场景留空，后续补
   }
 }
 
@@ -44,7 +44,7 @@ export function updateDescription4Task(
 
 /**
  * 将最新文件内容写入同父任务下对应子任务 `description`：
- * 0 设计修改、1 开发；其余 `task_type` 暂不处理。
+ * 0 设计 → 1 开发、8 Code Review；测试流水线各步 → 下一步；其余 `task_type` 暂不处理。
  */
 export function saveDescription4TasksUnderParent(
   db: DatabaseSync,
@@ -52,14 +52,16 @@ export function saveDescription4TasksUnderParent(
   executingTaskType: TaskType,
   relativePaths: string[],
 ): void {
-  const targetTaskType = resolveDescriptionTargetTaskType(executingTaskType);
-  if (targetTaskType === null) return;
+  const targetTaskTypes = resolveDescriptionTargetTaskTypes(executingTaskType);
+  if (targetTaskTypes.length === 0) return;
 
   const description = updateDescription4Task(parentTaskId, executingTaskType, relativePaths);
   if (!description) return;
 
-  const row = listTasksByPid(db, parentTaskId).find((t) => t.task_type === targetTaskType);
-  if (!row) return;
-
-  updateTask(db, row.id, { description });
+  const tasks = listTasksByPid(db, parentTaskId);
+  for (const targetTaskType of targetTaskTypes) {
+    const row = tasks.find((t) => t.task_type === targetTaskType);
+    if (!row) continue;
+    updateTask(db, row.id, { description });
+  }
 }

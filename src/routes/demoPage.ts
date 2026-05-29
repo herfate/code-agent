@@ -10,6 +10,7 @@ const agentDevHtmlPath = join(__dirname, "..", "..", "public", "agentDev.html");
 const agentDevTaskStreamHtmlPath = join(__dirname, "..", "..", "public", "agentDevTaskStream.html");
 const parentTaskFlowHtmlPath = join(__dirname, "..", "..", "public", "parentTaskFlow.html");
 const devAgentHtmlPath = join(__dirname, "..", "..", "public", "devAgent.html");
+const wikiAgentHtmlPath = join(__dirname, "..", "..", "public", "wikiAgent.html");
 const userConfigHtmlPath = join(__dirname, "..", "..", "public", "userConfig.html");
 
 async function sendIndexHtml(reply: FastifyReply): Promise<void> {
@@ -42,6 +43,11 @@ async function sendDevAgentHtml(reply: FastifyReply): Promise<void> {
   await reply.type("text/html; charset=utf-8").send(html);
 }
 
+async function sendWikiAgentHtml(reply: FastifyReply): Promise<void> {
+  const html = await readFile(wikiAgentHtmlPath, "utf8");
+  await reply.type("text/html; charset=utf-8").send(html);
+}
+
 async function sendUserConfigHtml(reply: FastifyReply): Promise<void> {
   const html = await readFile(userConfigHtmlPath, "utf8");
   await reply.type("text/html; charset=utf-8").send(html);
@@ -65,6 +71,9 @@ export function registerDemoPageRoute(app: FastifyInstance): void {
   });
   app.get("/dev-agent", async (_req, reply) => {
     return sendDevAgentHtml(reply);
+  });
+  app.get("/wiki-agent", async (_req, reply) => {
+    return sendWikiAgentHtml(reply);
   });
   app.get("/user-config", async (_req, reply) => {
     return sendUserConfigHtml(reply);

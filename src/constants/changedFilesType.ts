@@ -10,6 +10,7 @@ export const CHANGED_FILES_TYPE = {
   TestPreAnalysisOut: "TestPreAnalysisOut",
   TestCaseDesignOut: "TestCaseDesignOut",
   TestCaseExecuteOut: "TestCaseExecuteOut",
+  CodeReviewOut: "CodeReviewOut",
 } as const;
 
 export type ChangedFilesType = (typeof CHANGED_FILES_TYPE)[keyof typeof CHANGED_FILES_TYPE];
@@ -41,6 +42,8 @@ export function changedFilesTypeLabel(code: ChangedFilesType | string): string {
       return "测试用例输出";
     case CHANGED_FILES_TYPE.TestCaseExecuteOut:
       return "测试用例执行输出";
+    case CHANGED_FILES_TYPE.CodeReviewOut:
+      return "Code Review 输出";
     default:
       return String(code);
   }
@@ -59,6 +62,8 @@ export function changedFilesParamKeyForTaskType(taskType: TaskType): ChangedFile
       return CHANGED_FILES_TYPE.TestPreAnalysisOut;
     case TASK_TYPE.TestCaseExecute:
       return CHANGED_FILES_TYPE.TestCaseExecuteOut;
+    case TASK_TYPE.CodeReview:
+      return CHANGED_FILES_TYPE.CodeReviewOut;
     default:
       return null;
   }

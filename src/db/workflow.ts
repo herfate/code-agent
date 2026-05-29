@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
+  isTaskStatus,
   TASK_STATUS,
   type TaskStatus,
   taskStatusLabel,
@@ -206,6 +207,26 @@ export function getTask(db: DatabaseSync, id: string): TaskRow | undefined {
     .get(id) as TaskRow | undefined;
 }
 
+/** 批量取多个父任务下子任务的 `status`（按 `pid` 分组） */
+export function listTaskStatusesByPids(
+  db: DatabaseSync,
+  pids: string[],
+): Map<string, TaskStatus[]> {
+  const map = new Map<string, TaskStatus[]>();
+  if (pids.length === 0) return map;
+  const placeholders = pids.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`SELECT pid, status FROM tasks WHERE pid IN (${placeholders})`)
+    .all(...pids) as Array<{ pid: string; status: number }>;
+  for (const row of rows) {
+    if (!isTaskStatus(row.status)) continue;
+    const list = map.get(row.pid) ?? [];
+    list.push(row.status);
+    map.set(row.pid, list);
+  }
+  return map;
+}
+
 /** 按父任务 `pid` 列出关联任务（创建时间升序） */
 export function listTasksByPid(db: DatabaseSync, pid: string): TaskRow[] {
   return db
@@ -237,6 +258,17 @@ export function claimTaskIfPending(db: DatabaseSync, id: string): TaskRow | unde
     .run(TASK_STATUS.Running, t, t, id, TASK_STATUS.Pending);
   if (Number(res.changes) === 0) return undefined;
   return getTask(db, id);
+}
+
+/**
+ * 将已认领（执行中）的任务释放回待执行，保留 `started_at` 以便非阻塞等待类工具任务累计耗时。
+ */
+export function releaseClaimedTaskToPending(db: DatabaseSync, id: string): boolean {
+  const t = now();
+  const res = db
+    .prepare(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = ?`)
+    .run(TASK_STATUS.Pending, t, id, TASK_STATUS.Running);
+  return Number(res.changes) > 0;
 }
 
 export function listTasks(db: DatabaseSync, limit = 100): TaskRow[] {
