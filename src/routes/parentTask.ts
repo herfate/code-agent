@@ -3,101 +3,104 @@ import type { FastifyInstance } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { loadConfig } from "../config.js";
-import { RESERVED_PARENT_PARAM_KEYS } from "../constants/commonKey.js";
+import { PARENT_PARAM_KEY_INIT, RESERVED_PARENT_PARAM_KEYS } from "../constants/commonKey.js";
+import {
+  isUserEditableParentParamKey,
+  normalizeTestCaseAdoptionRateValue,
+  parseTestCaseAdoptionRateValueJson,
+  TEST_CASE_ADOPTION_RATE_PARAM_KEY,
+} from "../constants/testCaseAdoptionRateParamKey.js";
 import {
   countParentTasks,
   getParentTask,
   listParentTasks,
   nextParentTaskPid,
 } from "../db/parentTask.js";
-import { PARENT_AGENT_TYPE } from "../constants/parentAgentType.js";
+import { PARENT_AGENT_TYPE, parseParentAgentTypesCsv } from "../constants/parentAgentType.js";
 import { TASK_TYPE } from "../constants/taskType.js";
 import { aggregateParentExecStatus } from "../constants/taskStatus.js";
 import {
+  listParentTaskParamValueJsonByParentIdsAndKey,
   listParentTaskParamsByParentId,
   listSubTasksByTaskId,
   listTaskStatusesByPids,
   listTasksByPid,
+  upsertParentTaskParam,
 } from "../db/workflow.js";
-import { zTaskCreator } from "../validation/taskCreatorZod.js";
 import { zParentAgentTypeOptional } from "../validation/parentAgentTypeZod.js";
-import { zTaskAgentProviderEnumOptional } from "../validation/agentProviderZod.js";
+import {
+  normalizeParentTaskParamValueJson,
+  zCreateParentTaskBody,
+} from "../validation/parentTaskCreateZod.js";
 import { createParentTaskWorkflow } from "../services/create/task/parentTaskCreateService.js";
 import {
   buildParentTaskTitleSource,
   summarizeParentTaskTitleAsync,
+  summarizeTitleFromSourceText,
 } from "../services/create/task/parentTaskTitleAsync.js";
-import { PARENT_TASK_PLACEHOLDER_TITLE } from "../constants/parentTask.js";
-import { readLatestAiOutMarkdown, listAiOutMarkdownTaskTypes } from "../services/file/readLatestAiOutMarkdown.js";
+import {
+  isParentTaskTitlePendingAi,
+  PARENT_TASK_PLACEHOLDER_TITLE,
+} from "../constants/parentTask.js";
+import { listBrainstormStoriesForPid } from "../services/brainstorm/listBrainstormStories.js";
+import { readLatestAiOutMarkdown, readAiOutMarkdownByTaskId, listAiOutMarkdownTaskTypes } from "../services/file/readLatestAiOutMarkdown.js";
+import {
+  findAutotestCaseJsonFilesInAiOut,
+  findAutotestMdFilesInAiOut,
+} from "../services/file/findAutotestCaseJsonFilesInAiOut.js";
+import { findLatestTestCaseDesignInAiOut } from "../services/file/findLatestTestCaseDesignInAiOut.js";
+import { autotestCaseToExcelBuffer } from "../services/file/exportAutotestCaseToExcel.js";
+import { testCaseDesignToExcelBuffer } from "../services/file/exportTestCaseDesignToExcel.js";
+import { autotestCaseExcelFilename } from "../services/file/parseAutotestCaseJson.js";
+import { testCaseDesignExcelFilename } from "../services/file/parseTestCaseDesignJson.js";
+import { contentDispositionAttachment } from "../services/file/contentDisposition.js";
+import { exportExcelFilenameWithTitle } from "../services/file/exportExcelFilename.js";
 import { zTaskTypeOptional } from "../validation/taskTypeZod.js";
 
 const listQuery = z.object({
   /** 按主键精确查询单条；有值时忽略其它筛选并只返回该条 */
   pid: z.string().trim().min(1).max(200).optional(),
   task_type: zParentAgentTypeOptional,
+  /** 逗号分隔的多个父任务类型，如 `1,2,3`（与 `task_type` 互斥，优先 `task_type`） */
+  task_types: z.string().trim().max(50).optional(),
   title: z.string().max(200).optional(),
   /** 精确匹配关联 `tasks.creator`（存在至少一条子任务命中） */
   creator: z.string().trim().min(1).max(200).optional(),
+  /** 模糊匹配 `parent_task_params.init.tapdTaskId` */
+  tapd_task_id: z.string().max(200).optional(),
   /** 页码，从 1 开始；列表查询时默认 1 */
   page: z.coerce.number().int().min(1).optional(),
   /** 每页条数；列表查询时默认 20，最大 100 */
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
-const valueJsonField = z.union([
-  z.string().max(100_000),
-  z.record(z.string(), z.unknown()),
-  z.array(z.unknown()),
-  z.number(),
-  z.boolean(),
-  z.null(),
-]);
+const aiOutLatestQuery = z.object({
+  task_type: zTaskTypeOptional,
+  /** 指定 `tasks.id` 时读取 `ai_out/<pid>/<taskType>/<taskId>/`（须同时传 `task_type`） */
+  task_id: z.string().trim().min(1).max(200).optional(),
+});
 
-const createParamItem = z.object({
-  id: z.string().uuid().optional(),
-  param_key: z.string().trim().min(1).max(200),
-  value_json: valueJsonField,
+const summarizeStoryTitleBody = z.object({
+  task_id: z.string().trim().min(1).max(200),
+  source_text: z.string().trim().min(1).max(100_000),
+});
+
+const upsertParentTaskParamBody = z.object({
+  value_json: z.union([z.number(), z.string()]),
   description: z.string().max(2000).optional(),
 });
 
-const gitRepoPair = z.object({
-  gitRemoteUrl: z.string().trim().min(1).max(2000),
-  branch_version: z.string().trim().min(1).max(500),
-});
-
-const createBody = z.object({
-  /** 省略时由服务端分配为 max(数值型 pid)+1 */
-  pid: z.string().trim().min(1).max(200).optional(),
-  title: z.string().max(500).optional(),
-  description: z.string().max(50_000).optional(),
-  task_type: zParentAgentTypeOptional,
-  /** 仓库与分支一对一列表（单仓库时长度为 1） */
-  gitRepos: z.array(gitRepoPair).min(1).max(20),
-  testEnv: z.string().trim().min(1).max(200).optional(),
-  /** 写入 `init` 参数的 Agent 线路；省略时使用 `TASK_AGENT_PROVIDER` */
-  provider: zTaskAgentProviderEnumOptional,
-  /** 设计完成直接执行：测试预分析完成后不暂停，自动推进后续子任务 */
-  directDevAfterDesign: z.boolean().optional(),
-  app: z.string().trim().min(1).max(500).optional(),
-  requirement: z.string().trim().min(1).max(50_000).optional(),
-  creator: zTaskCreator,
-  params: z.array(createParamItem).max(100).optional(),
-});
-
-/** 将请求中的 value_json 规范为存库的 JSON 字符串 */
-function normalizeValueJson(raw: z.infer<typeof valueJsonField>): string {
-  if (typeof raw === "string") {
-    const t = raw.trim();
-    if (!t) throw new Error("value_json must not be empty");
-    JSON.parse(t);
-    return t;
+/** 从 `param_key=init` 的 value_json 读取 tapdTaskId */
+function parseTapdTaskIdFromInitValueJson(valueJson: string | undefined): string | undefined {
+  if (!valueJson?.trim()) return undefined;
+  try {
+    const o = JSON.parse(valueJson) as { tapdTaskId?: unknown };
+    const v = o.tapdTaskId;
+    return typeof v === "string" && v.trim() ? v.trim() : undefined;
+  } catch {
+    return undefined;
   }
-  return JSON.stringify(raw);
 }
-
-const aiOutLatestQuery = z.object({
-  task_type: zTaskTypeOptional,
-});
 
 export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: DatabaseSync }): void {
   const { db } = deps;
@@ -130,10 +133,16 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
         tasks_with_subtasks,
       };
     }
+    const taskTypesCsv = q.task_type ? undefined : parseParentAgentTypesCsv(q.task_types);
+    if (q.task_types && !q.task_type && taskTypesCsv === undefined) {
+      return reply.status(400).send({ error: "invalid task_types" });
+    }
     const listFilters = {
       task_type: q.task_type,
+      task_types: taskTypesCsv,
       titleContains: q.title?.trim() || undefined,
       creator: q.creator,
+      tapdTaskIdContains: q.tapd_task_id?.trim() || undefined,
     };
     const pageSize = q.limit ?? 20;
     const page = q.page ?? 1;
@@ -144,13 +153,23 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       limit: pageSize,
       offset: (page - 1) * pageSize,
     });
-    const statusByPid = listTaskStatusesByPids(
+    const pids = rows.map((row) => row.pid);
+    const statusByPid = listTaskStatusesByPids(db, pids);
+    const adoptionRateJsonByPid = listParentTaskParamValueJsonByParentIdsAndKey(
       db,
-      rows.map((row) => row.pid),
+      pids,
+      TEST_CASE_ADOPTION_RATE_PARAM_KEY,
+    );
+    const initJsonByPid = listParentTaskParamValueJsonByParentIdsAndKey(
+      db,
+      pids,
+      PARENT_PARAM_KEY_INIT,
     );
     const parent_tasks = rows.map((row) => ({
       ...row,
       exec_status: aggregateParentExecStatus(statusByPid.get(row.pid) ?? []),
+      case_adoption_rate: parseTestCaseAdoptionRateValueJson(adoptionRateJsonByPid.get(row.pid)),
+      tapdTaskId: parseTapdTaskIdFromInitValueJson(initJsonByPid.get(row.pid)),
     }));
     return {
       parent_tasks,
@@ -182,7 +201,60 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
     }
   });
 
-  /** 读取 `ai_out/<pid>/<taskType>/` 下最新的 markdown 文档（供预览） */
+  /** 业务 Agent：头脑风暴故事列表 + 解析 design.md 澄清摘要（供 Wiki 故事列表点选） */
+  app.get("/api/parent-tasks/:pid/brainstorm-stories", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const tasks = listTasksByPid(db, pid);
+      const stories = listBrainstormStoriesForPid(pid, tasks);
+      return { pid, stories };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("invalid pid") || msg.includes("path outside")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "list brainstorm stories failed");
+      return reply.status(500).send({ error: "list brainstorm stories failed" });
+    }
+  });
+
+  /** 头脑风暴故事：基于需求文本 AI 汇总标题（供页面打开时异步预填） */
+  app.post("/api/parent-tasks/:pid/brainstorm-stories/summarize-title", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    const parsedBody = summarizeStoryTitleBody.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
+      return reply.status(400).send({ error: parsedBody.error.flatten() });
+    }
+    try {
+      const summaryTitle = await summarizeTitleFromSourceText(db, parsedBody.data.source_text);
+      return reply.send({
+        pid,
+        task_id: parsedBody.data.task_id,
+        summary_title: summaryTitle,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("sourceText 为空")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "summarize brainstorm story title failed");
+      return reply.status(500).send({ error: msg });
+    }
+  });
+
+  /** 读取 `ai_out/<pid>/<taskType>/[<taskId>/]` 下可预览文档（供预览） */
   app.get("/api/parent-tasks/:pid/ai-out/latest", async (request, reply) => {
     const pid = String((request.params as { pid?: string }).pid ?? "").trim();
     if (!pid) {
@@ -192,11 +264,16 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
+    if (parsed.data.task_id && parsed.data.task_type === undefined) {
+      return reply.status(400).send({ error: "task_type is required when task_id is provided" });
+    }
     if (!getParentTask(db, pid)) {
       return reply.status(404).send({ error: "parent task not found" });
     }
     try {
-      const doc = readLatestAiOutMarkdown(pid, parsed.data.task_type);
+      const doc = parsed.data.task_id
+        ? readAiOutMarkdownByTaskId(pid, parsed.data.task_type!, parsed.data.task_id)
+        : readLatestAiOutMarkdown(pid, parsed.data.task_type);
       if (!doc) {
         return reply.status(404).send({ error: "no previewable document found in ai_out" });
       }
@@ -211,8 +288,133 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
     }
   });
 
+  /** 扫描 `ai_out/<pid>/` 下全部符合规范的自动化测试案例 JSON，每文件一 sheet 导出 Excel */
+  app.get("/api/parent-tasks/:pid/export-autotest-case-excel", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parentTask = getParentTask(db, pid);
+    if (!parentTask) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const files = findAutotestCaseJsonFilesInAiOut(pid);
+      if (files.length === 0) {
+        return reply.status(404).send({
+          error:
+            "no autotest case json found in ai_out (requires data.list[] with scriptCaseVo or title/input/expect)",
+        });
+      }
+      const mdFiles = findAutotestMdFilesInAiOut(pid);
+      const buf = await autotestCaseToExcelBuffer(files, mdFiles);
+      const filename = exportExcelFilenameWithTitle(
+        parentTask.title,
+        autotestCaseExcelFilename(pid),
+      );
+      reply.header(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      reply.header("Content-Disposition", contentDispositionAttachment(filename));
+      return reply.send(buf);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("invalid pid") || msg.includes("path outside")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "export autotest case excel failed");
+      return reply.status(500).send({ error: "export excel failed" });
+    }
+  });
+
+  /** 扫描 `ai_out/<pid>/` 下最新符合规范的功能测试用例 JSON，导出 Excel */
+  app.get("/api/parent-tasks/:pid/export-func-test-case-excel", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parentTask = getParentTask(db, pid);
+    if (!parentTask) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const found = findLatestTestCaseDesignInAiOut(pid);
+      if (!found) {
+        return reply.status(404).send({
+          error: "no test case design json found in ai_out (requires cases[] with test scenario fields)",
+        });
+      }
+      const buf = await testCaseDesignToExcelBuffer(found.doc);
+      const filename = exportExcelFilenameWithTitle(
+        parentTask.title,
+        testCaseDesignExcelFilename(found.relative_path),
+      );
+      reply.header(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      reply.header("Content-Disposition", contentDispositionAttachment(filename));
+      return reply.send(buf);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("invalid pid") || msg.includes("path outside")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "export func test case excel failed");
+      return reply.status(500).send({ error: "export excel failed" });
+    }
+  });
+
+  /** 用户可编辑的父任务参数 upsert（如用例采纳率） */
+  app.put("/api/parent-tasks/:pid/params/:param_key", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    const paramKey = String((request.params as { param_key?: string }).param_key ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    if (!paramKey) {
+      return reply.status(400).send({ error: "invalid param_key" });
+    }
+    if (!isUserEditableParentParamKey(paramKey)) {
+      return reply.status(400).send({ error: `param_key "${paramKey}" is not user-editable` });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    const parsed = upsertParentTaskParamBody.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    let value_json: string;
+    try {
+      if (paramKey === TEST_CASE_ADOPTION_RATE_PARAM_KEY) {
+        value_json = normalizeTestCaseAdoptionRateValue(parsed.data.value_json);
+      } else {
+        value_json = JSON.stringify(parsed.data.value_json);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "invalid value_json";
+      return reply.status(400).send({ error: msg });
+    }
+    const row = upsertParentTaskParam(db, {
+      id: randomUUID(),
+      parent_task_id: pid,
+      param_key: paramKey,
+      value_json,
+      description: parsed.data.description ?? "用户设置的用例采纳率（%）",
+    });
+    return {
+      parent_task_param: row,
+      case_adoption_rate:
+        paramKey === TEST_CASE_ADOPTION_RATE_PARAM_KEY
+          ? parseTestCaseAdoptionRateValueJson(row.value_json)
+          : undefined,
+    };
+  });
+
   app.post("/api/parent-tasks", async (request, reply) => {
-    const parsed = createBody.safeParse(request.body);
+    const parsed = zCreateParentTaskBody.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
@@ -224,8 +426,20 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       testEnv,
       provider,
       directDevAfterDesign,
+      parallel,
+      skipStorySplit,
+      storySplitMode,
+      useTradeMock,
+      pullBranch,
+      tapdTaskId,
+      creatorRealName,
       app,
+      qaVersion,
+      qaApiPath,
+      scriptId,
+      labelIds,
       requirement,
+      testScriptRepo,
       creator,
       params,
     } = parsed.data;
@@ -251,7 +465,7 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       extraParams = paramItems.map((p) => ({
         id: p.id ?? randomUUID(),
         param_key: p.param_key,
-        value_json: normalizeValueJson(p.value_json),
+        value_json: normalizeParentTaskParamValueJson(p.value_json),
         description: p.description,
       }));
     } catch {
@@ -271,12 +485,24 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
         testEnv,
         provider: provider ?? config.TASK_AGENT_PROVIDER,
         directDevAfterDesign,
+      parallel,
+      skipStorySplit,
+      storySplitMode,
+      useTradeMock,
+        pullBranch,
+        tapdTaskId,
+        creatorRealName,
         app,
+        qaVersion,
+        qaApiPath,
+        scriptId,
+        labelIds,
         requirement,
+        testScriptRepo,
         creator,
         extraParams,
       });
-      if (!explicitTitle) {
+      if (isParentTaskTitlePendingAi(createTitle)) {
         const branchHint = gitRepos
           .map((r) => `${r.gitRemoteUrl}@${r.branch_version}`)
           .join("; ");

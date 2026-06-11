@@ -22,6 +22,36 @@ const appNameQuery = z.object({
 
 const scriptListBody = z.record(z.string(), z.unknown());
 
+const labelFindPageBody = z.object({
+  pageNum: z.number().int().min(1).optional().default(1),
+  pageSize: z.number().int().min(1).max(200).optional().default(100),
+  data: z
+    .object({
+      title: z.string().trim().max(500).optional(),
+    })
+    .optional()
+    .default({}),
+});
+
+/** 解析 QA 平台 POST 响应中的分页 `list` */
+function parseQaLabelFindPageList(raw: string): { list: unknown[]; total?: number } {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw) as unknown;
+  } catch {
+    return { list: [] };
+  }
+  if (typeof json !== "object" || json === null) return { list: [] };
+  const data = (json as { data?: unknown }).data;
+  if (Array.isArray(data)) return { list: data };
+  if (typeof data === "object" && data !== null && Array.isArray((data as { list?: unknown[] }).list)) {
+    const page = data as { list: unknown[]; total?: unknown };
+    const total = typeof page.total === "number" ? page.total : undefined;
+    return { list: page.list, total };
+  }
+  return { list: [] };
+}
+
 /**
  * 对齐原 Spring `QATestController`（`/qa`）：转发 Howbuy QA 平台；
  * 站点固定为 `http://qa.howbuy.pa`，账号密码来自全局 `system_config`（见 `QA_CONFIG_KEY_*`）。
@@ -88,6 +118,30 @@ export function registerQaProxyRoutes(app: FastifyInstance, deps: { db: Database
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       request.log.error({ err: e }, "qa getScriptList");
+      return reply.status(500).send(err(500, `查询失败: ${msg}`));
+    }
+  });
+
+  app.post("/qa/label/findPage", async (request, reply) => {
+    const creds = getQaCredentials(db);
+    if (!creds) {
+      return reply.status(503).send(err(503, missingCredsMsg()));
+    }
+    const parsed = labelFindPageBody.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send(err(400, parsed.error.message));
+    }
+    try {
+      const raw = await qaPostRaw(
+        creds,
+        "/qa-info/label/findPage",
+        JSON.stringify(parsed.data),
+      );
+      const { list, total } = parseQaLabelFindPageList(raw);
+      return ok({ list, total, pageNum: parsed.data.pageNum, pageSize: parsed.data.pageSize });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      request.log.error({ err: e }, "qa label findPage");
       return reply.status(500).send(err(500, `查询失败: ${msg}`));
     }
   });

@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>头脑风暴故事列表</title>
+  <link rel="stylesheet" href="/app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50 text-slate-900 antialiased">
+  <header class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+    <div class="min-w-0">
+      <h1 id="bsl-title" class="text-sm font-semibold text-slate-800">头脑风暴故事列表</h1>
+      <p id="bsl-sub" class="mt-0.5 text-xs text-slate-500">单条展示，使用左右按钮切换故事；澄清点选支持「其他」自定义回答，完成后可补充说明并提交开发任务</p>
+      <p id="bsl-err" class="mt-1 hidden text-xs text-red-600"></p>
+    </div>
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <button type="button" id="bsl-reload" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">刷新</button>
+      <button type="button" id="bsl-close" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭窗口</button>
+    </div>
+  </header>
+
+  <main id="bsl-body" class="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
+    <p class="text-center text-xs text-slate-400">加载中…</p>
+  </main>
+
+  <footer id="bsl-submit-panel" class="hidden shrink-0 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
+    <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 sm:px-5">
+      <button
+        type="button"
+        id="bsl-submit-toggle"
+        class="inline-flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+        aria-expanded="true"
+        aria-controls="bsl-submit-body"
+        title="收起或展开提交开发任务"
+      >
+        <svg id="bsl-submit-toggle-icon" class="h-4 w-4 shrink-0 text-slate-500 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+        <span class="min-w-0 truncate">提交开发任务</span>
+        <span id="bsl-submit-toggle-hint" class="hidden text-xs font-normal text-slate-500 sm:inline">点击展开填写并提交</span>
+      </button>
+      <div class="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          id="bsl-submit-btn"
+          class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          提交
+        </button>
+      </div>
+    </div>
+    <div id="bsl-submit-body" class="px-4 py-4 sm:px-5">
+    <div class="mx-auto flex w-full max-w-[min(96rem,calc(100vw-2rem))] flex-row items-start gap-14">
+      <div class="min-w-0 flex-1 pr-8">
+        <p class="mb-4 text-xs text-slate-500">澄清完成后填写下方配置；故事标题打开页面后 AI 异步汇总，可手动修改</p>
+        <p id="bsl-submit-err" class="mb-3 hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"></p>
+        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="sm:col-span-2">
+          <label for="bsl-story-title" class="mb-1.5 block text-xs font-medium text-slate-600">故事标题</label>
+          <input
+            id="bsl-story-title"
+            type="text"
+            maxlength="500"
+            autocomplete="off"
+            class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+            placeholder="故事1-thinking"
+          />
+          <p id="bsl-story-title-hint" class="mt-1.5 text-[11px] text-slate-500">打开页面后自动 AI 汇总；若您已手动填写则不会被覆盖</p>
+        </div>
+        <div class="sm:col-span-2">
+          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-medium text-slate-600">仓库与分支 <span id="bsl-req-git" class="text-red-500">*</span></span>
+            <button
+              type="button"
+              id="bsl-btn-add-git"
+              class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              添加仓库
+            </button>
+          </div>
+          <div id="bsl-git-list" class="space-y-2"></div>
+        </div>
+        <div>
+          <label for="bsl-testEnv" class="mb-1.5 block text-xs font-medium text-slate-600">测试环境 testEnv <span id="bsl-req-testEnv" class="text-red-500">*</span></label>
+          <input
+            id="bsl-testEnv"
+            type="text"
+            maxlength="200"
+            autocomplete="off"
+            class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+            placeholder="例如 it01/it116"
+          />
+        </div>
+        <div>
+          <label id="bsl-taskType-label" for="bsl-taskType-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
+          <div id="bsl-taskType-root" class="ui-combobox relative min-w-0">
+            <input type="hidden" id="bsl-taskType" value="1" autocomplete="off" />
+            <div
+              id="bsl-taskType-trigger"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="bsl-taskType-listbox"
+              aria-labelledby="bsl-taskType-label"
+              tabindex="0"
+              class="ui-combobox-trigger"
+            >
+              <span class="ui-combobox-value min-w-0 truncate">1 — 开发自测Agent</span>
+              <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="bsl-taskType-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+              <div role="option" data-value="1" class="ui-combobox-opt">1 — 开发自测Agent</div>
+              <div role="option" data-value="2" class="ui-combobox-opt">2 — 开发自Review Agent</div>
+              <div role="option" data-value="3" class="ui-combobox-opt">3 — 功能测试Agent</div>
+              <div role="option" data-value="4" class="ui-combobox-opt">4 — 业务Agent</div>
+            </div>
+          </div>
+        </div>
+        <div class="sm:col-span-2">
+          <div class="grid grid-cols-6 items-end gap-2">
+            <div class="min-w-0">
+              <label id="bsl-provider-label" for="bsl-provider-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">模型</label>
+              <div id="bsl-provider-root" class="ui-combobox relative min-w-0">
+                <input type="hidden" id="bsl-provider" value="claude" autocomplete="off" />
+                <div
+                  id="bsl-provider-trigger"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-controls="bsl-provider-listbox"
+                  aria-labelledby="bsl-provider-label"
+                  tabindex="0"
+                  class="ui-combobox-trigger"
+                >
+                  <span class="ui-combobox-value min-w-0 truncate">claude</span>
+                  <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                <div id="bsl-provider-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                  <div role="option" data-value="claude" class="ui-combobox-opt">claude</div>
+                  <div role="option" data-value="cursor" class="ui-combobox-opt">cursor</div>
+                </div>
+              </div>
+            </div>
+            <div class="min-w-0">
+              <label
+                class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5"
+                title="勾选后设计任务全部完成时不暂停，调度器自动继续执行后续子任务（默认需人工确认）"
+              >
+                <input
+                  id="bsl-directDevAfterDesign"
+                  type="checkbox"
+                  class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                />
+                <span class="min-w-0 text-xs font-medium leading-snug text-slate-700">设计完成直接执行</span>
+              </label>
+            </div>
+            <div class="min-w-0">
+              <label
+                class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5"
+                title="勾选后允许与同创建人当日其他父任务并行调度（默认同日不并行）"
+              >
+                <input
+                  id="bsl-parallel"
+                  type="checkbox"
+                  class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                />
+                <span class="min-w-0 text-xs font-medium leading-snug text-slate-700">是否并行</span>
+              </label>
+            </div>
+            <div class="min-w-0">
+              <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                <input
+                  id="bsl-useTradeMock"
+                  type="checkbox"
+                  class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                />
+                <span class="min-w-0 text-xs font-medium leading-snug text-slate-700">使用 trade-mock 辅助测试</span>
+              </label>
+            </div>
+            <div id="bsl-pullBranch-section" class="min-w-0">
+              <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                <input
+                  id="bsl-pullBranch"
+                  type="checkbox"
+                  class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                />
+                <span class="min-w-0 text-xs font-medium leading-snug text-slate-700">拉取分支（仅开发自测/自review）</span>
+              </label>
+            </div>
+            <div class="min-w-0">
+              <p id="bsl-tapdTaskId-label" class="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs font-medium leading-snug text-slate-700">
+                提交后自动关联 TAPD 故事，无需填写
+              </p>
+              <!-- 隐藏：提交时由右侧 feature 自动创建子需求并写入，供脚本读写 -->
+              <input
+                id="bsl-tapdTaskId"
+                type="hidden"
+                maxlength="200"
+                autocomplete="off"
+                aria-invalid="false"
+                aria-describedby="bsl-tapdTaskId-hint bsl-tapdTaskId-error"
+                value=""
+              />
+              <p id="bsl-tapdTaskId-hint" class="sr-only">提交后自动关联 TAPD 故事，无需填写</p>
+              <p id="bsl-tapdTaskId-error" class="mt-1.5 hidden rounded-md border border-red-300 bg-red-50 px-2.5 py-2 text-xs font-medium text-red-700" role="alert"></p>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div
+        id="bsl-tapd-panel"
+        class="w-72 shrink-0 border-l border-slate-200 pl-10 pr-2"
+        aria-label="TAPD feature 关联"
+      >
+        <div class="mb-3">
+          <h2 class="text-sm font-semibold text-slate-800">TAPD feature</h2>
+          <p class="mt-1 text-[11px] leading-relaxed text-slate-500">提交时先在该 feature 下创建子需求，再用新建 ID 关联父任务</p>
+        </div>
+        <label for="bsl-tapd-story-ref" class="mb-1.5 block text-xs font-medium text-slate-600">feature地址</label>
+        <input
+          id="bsl-tapd-story-ref"
+          type="text"
+          maxlength="2000"
+          autocomplete="off"
+          class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition hover:border-slate-300 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
+          placeholder="TAPD 链接、--story=短ID@tapd-空间ID 或整段 feature 文本"
+        />
+        <p id="bsl-tapd-parent-name" class="mt-2 hidden text-xs font-medium text-emerald-700"></p>
+        <div id="bsl-tapd-iteration-wrap" class="mt-2 hidden">
+          <span class="text-xs font-medium text-slate-600">迭代</span>
+          <p id="bsl-tapd-iteration-label" class="mt-0.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-800">—</p>
+          <p class="mt-0.5 text-[10px] text-slate-400">来自 TAPD get_fields_info，自动选取 sort 最大的 iteration_id</p>
+        </div>
+        <p id="bsl-tapd-iteration-err" class="mt-2 hidden text-xs text-amber-700"></p>
+        <p id="bsl-tapd-err" class="mt-2 hidden rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700"></p>
+      </div>
+    </div>
+    </div>
+  </footer>
+
+  <style>
+    #bsl-body h1 { font-size: 1.125rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+    #bsl-body h2 { font-size: 1rem; font-weight: 600; margin: 0.625rem 0 0.375rem; }
+    #bsl-body h3 { font-size: 0.9375rem; font-weight: 600; margin: 0.5rem 0 0.25rem; }
+    #bsl-body p { margin: 0.375rem 0; line-height: 1.625; }
+    #bsl-body ul, #bsl-body ol { margin: 0.375rem 0; padding-left: 1.25rem; }
+    #bsl-body pre { margin: 0.5rem 0; overflow-x: auto; border-radius: 0.5rem; background: #f1f5f9; padding: 0.625rem; font-size: 0.75rem; }
+    #bsl-body code { font-size: 0.85em; background: #f1f5f9; padding: 0.1em 0.35em; border-radius: 0.25rem; }
+  </style>
+
+  <script src="/js/ui-combobox.js"></script>
+  <script src="/js/tapdStoryId.js"></script>
+  <script>
+    (function () {
+      var TASK_STATUS_LABELS = {
+        1: "待执行",
+        2: "执行中",
+        3: "执行完成",
+        4: "执行失败",
+        5: "已暂停",
+        6: "已取消",
+      };
+
+      var titleEl = document.getElementById("bsl-title");
+      var subEl = document.getElementById("bsl-sub");
+      var errEl = document.getElementById("bsl-err");
+      var bodyEl = document.getElementById("bsl-body");
+      var reloadBtn = document.getElementById("bsl-reload");
+      var submitPanel = document.getElementById("bsl-submit-panel");
+      var submitBody = document.getElementById("bsl-submit-body");
+      var submitToggleBtn = document.getElementById("bsl-submit-toggle");
+      var submitToggleIcon = document.getElementById("bsl-submit-toggle-icon");
+      var submitToggleHint = document.getElementById("bsl-submit-toggle-hint");
+      var submitBtn = document.getElementById("bsl-submit-btn");
+      var submitErrEl = document.getElementById("bsl-submit-err");
+      var SUBMIT_PANEL_COLLAPSED_KEY = "bsl-submit-panel-collapsed";
+      var submitPanelCollapsed = false;
+      var gitListEl = document.getElementById("bsl-git-list");
+      var tapdPanel = document.getElementById("bsl-tapd-panel");
+      var tapdStoryRefInput = document.getElementById("bsl-tapd-story-ref");
+      var tapdParentNameEl = document.getElementById("bsl-tapd-parent-name");
+      var tapdErrEl = document.getElementById("bsl-tapd-err");
+      var tapdIterationWrap = document.getElementById("bsl-tapd-iteration-wrap");
+      var tapdIterationLabelEl = document.getElementById("bsl-tapd-iteration-label");
+      var tapdIterationErrEl = document.getElementById("bsl-tapd-iteration-err");
+      var storyTitleInput = document.getElementById("bsl-story-title");
+      var storyTitleHintEl = document.getElementById("bsl-story-title-hint");
+
+      var currentPid = "";
+      var storiesList = [];
+      var storyIndex = 0;
+      /** 各故事标题状态：task_id → { placeholder, userEdited, value, summarizing, summarizeSeq } */
+      var storyTitleStates = {};
+      var storyTitleInputHydrating = false;
+      var tapdTaskIdInputHydrating = false;
+      /** 已解析的 TAPD 父需求；null 表示未解析或解析失败 */
+      var tapdResolvedParent = null;
+      var tapdResolveTimer = null;
+      var tapdResolveSeq = 0;
+      var tapdSubmitting = false;
+      /** 最新迭代：{ value, label } 或 null */
+      var tapdLatestIteration = null;
+      var tapdFieldsInfoLoading = false;
+      var parentInitFields = {
+        repos: [],
+        testEnv: "",
+        provider: "claude",
+        directDevAfterDesign: false,
+        useTradeMock: false,
+        tapdTaskId: "",
+      };
+      var bslTaskTypeCombo = null;
+      var bslProviderCombo = null;
+      var submitFormHydrating = false;
+      /** 澄清点选「其他」选项固定 id */
+      var CLAR_OTHER_OPT_ID = "__other__";
+
+      function queryParams() {
+        return new URLSearchParams(window.location.search);
+      }
+
+      function apiBase() {
+        var b = queryParams().get("base");
+        if (b && String(b).trim()) return String(b).trim().replace(/\/$/, "");
+        return window.location.origin;
+      }
+
+      function esc(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function taskStatusLabel(code) {
+        return TASK_STATUS_LABELS[code] || String(code);
+      }
+
+      function taskStatusBadgeClass(code) {
+        if (code === 3) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+        if (code === 2) return "bg-blue-50 text-blue-700 border-blue-200";
+        if (code === 4) return "bg-red-50 text-red-700 border-red-200";
+        if (code === 6) return "bg-slate-100 text-slate-500 border-slate-200";
+        return "bg-slate-50 text-slate-600 border-slate-200";
+      }
+
+      function renderMarkdownHtml(md) {
+        if (window.marked && typeof window.marked.parse === "function") {
+          return window.marked.parse(String(md || ""));
+        }
+        return '<pre class="whitespace-pre-wrap font-mono text-xs">' + esc(md || "") + "</pre>";
+      }
+
+      function showError(msg) {
+        errEl.textContent = msg || "";
+        errEl.classList.toggle("hidden", !msg);
+      }
+
+      function showSubmitError(msg) {
+        submitErrEl.textContent = msg || "";
+        submitErrEl.classList.toggle("hidden", !msg);
+        // 有校验/提交错误时自动展开，避免错误信息藏在收起的表单里
+        if (msg && submitPanelCollapsed) applySubmitPanelCollapsed(false);
+      }
+
+      /** 与管理台 Keycloak 脚本写入的 `localStorage.userName` 一致 */
+      function currentLoginUser() {
+        try {
+          var u = window.localStorage.getItem("userName");
+          return u && String(u).trim() ? String(u).trim() : "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      /** 与管理台 Keycloak 写入的 `localStorage.realName` 一致（family_name + given_name） */
+      function currentLoginRealName() {
+        try {
+          var n = window.localStorage.getItem("realName");
+          return n && String(n).trim() ? String(n).trim() : "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function isDevAgentParentTaskType(taskType) {
+        var n = Number(taskType);
+        return n === 1 || n === 2 || n === 3 || n === 4;
+      }
+
+      /** 测试环境必填：类型 1/3/4；类型 2（开发自Review）可选 */
+      function isTestEnvRequired(taskType) {
+        var n = Number(taskType);
+        return n === 1 || n === 3 || n === 4;
+      }
+
+      function normalizeGitRemoteUrl(url) {
+        var s = String(url || "").trim();
+        if (!s) return "";
+        return s.replace(/\.git\/?$/i, "");
+      }
+
+      function updateSubmitFormRequiredState() {
+        var taskType = document.getElementById("bsl-taskType").value;
+        var gitRequired = isDevAgentParentTaskType(taskType);
+        var testEnvRequired = isTestEnvRequired(taskType);
+        var testEnvEl = document.getElementById("bsl-testEnv");
+        if (testEnvRequired) testEnvEl.setAttribute("required", "required");
+        else testEnvEl.removeAttribute("required");
+        var gitReqEl = document.getElementById("bsl-req-git");
+        if (gitReqEl) gitReqEl.classList.toggle("hidden", !gitRequired);
+        var testEnvReqEl = document.getElementById("bsl-req-testEnv");
+        if (testEnvReqEl) testEnvReqEl.classList.toggle("hidden", !testEnvRequired);
+        // 拉取分支仅对开发自测 / 自 review（任务类型 1/2）展示
+        var pullBranchSection = document.getElementById("bsl-pullBranch-section");
+        var showPullBranch = taskType === "1" || taskType === "2";
+        if (pullBranchSection) pullBranchSection.classList.toggle("hidden", !showPullBranch);
+        updateGitRepoRowRemoveButtons();
+      }
+
+      function createGitRepoRow(pair) {
+        var branchVal = pair && pair.branch_version ? pair.branch_version : "";
+        var urlVal = pair && pair.gitRemoteUrl ? pair.gitRemoteUrl : "";
+        var wrap = document.createElement("div");
+        wrap.className = "bsl-git-row grid gap-2 sm:grid-cols-[minmax(0,8rem)_1fr_auto] sm:items-center";
+        wrap.innerHTML =
+          '<input type="text" class="bsl-git-branch w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="500" autocomplete="off" placeholder="分支" value="' +
+          esc(branchVal) +
+          '" />' +
+          '<input type="url" class="bsl-git-url min-w-0 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="2000" autocomplete="off" placeholder="HTTPS Git 仓库地址" value="' +
+          esc(urlVal) +
+          '" />' +
+          '<button type="button" class="bsl-git-remove shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 sm:justify-self-end" title="移除此行">删除</button>';
+        var urlEl = wrap.querySelector(".bsl-git-url");
+        urlEl.addEventListener("blur", function () {
+          var normalized = normalizeGitRemoteUrl(urlEl.value);
+          if (normalized !== urlEl.value.trim()) urlEl.value = normalized;
+          persistSubmitFormSettings();
+        });
+        wrap.querySelector(".bsl-git-branch").addEventListener("input", persistSubmitFormSettings);
+        wrap.querySelector(".bsl-git-remove").addEventListener("click", function () {
+          if (gitListEl.querySelectorAll(".bsl-git-row").length <= 1) return;
+          wrap.remove();
+          updateGitRepoRowRemoveButtons();
+          persistSubmitFormSettings();
+        });
+        return wrap;
+      }
+
+      function updateGitRepoRowRemoveButtons() {
+        var rows = gitListEl.querySelectorAll(".bsl-git-row");
+        var onlyOne = rows.length <= 1;
+        rows.forEach(function (row) {
+          var btn = row.querySelector(".bsl-git-remove");
+          if (!btn) return;
+          btn.disabled = onlyOne;
+          btn.classList.toggle("cursor-not-allowed", onlyOne);
+          btn.classList.toggle("opacity-40", onlyOne);
+        });
+      }
+
+      function clearGitRepoRows() {
+        gitListEl.innerHTML = "";
+      }
+
+      function setGitRepos(repos) {
+        clearGitRepoRows();
+        var list = Array.isArray(repos)
+          ? repos.filter(function (p) {
+              return p && (String(p.gitRemoteUrl || "").trim() || String(p.branch_version || "").trim());
+            })
+          : [];
+        if (!list.length) list = [{ gitRemoteUrl: "", branch_version: "" }];
+        list.forEach(function (p) {
+          gitListEl.appendChild(
+            createGitRepoRow({
+              gitRemoteUrl: normalizeGitRemoteUrl(p.gitRemoteUrl),
+              branch_version: String(p.branch_version || "").trim(),
+            }),
+          );
+        });
+        updateGitRepoRowRemoveButtons();
+      }
+
+      function collectGitRepos() {
+        var rows = gitListEl.querySelectorAll(".bsl-git-row");
+        var seen = {};
+        var out = [];
+        for (var i = 0; i < rows.length; i++) {
+          var branch = rows[i].querySelector(".bsl-git-branch").value.trim();
+          var url = normalizeGitRemoteUrl(rows[i].querySelector(".bsl-git-url").value);
+          if (!branch && !url) continue;
+          if (!branch || !url) {
+            return { error: "第 " + (i + 1) + " 行：git 地址与分支需成对填写。" };
+          }
+          var key = url.toLowerCase();
+          if (seen[key]) continue;
+          seen[key] = true;
+          out.push({ gitRemoteUrl: url, branch_version: branch });
+        }
+        return { repos: out };
+      }
+
+      function applyGitReposToInputs(repos) {
+        setGitRepos(repos.length ? repos : [{ gitRemoteUrl: "", branch_version: "" }]);
+      }
+
+      var TAPD_TASK_ID_VALIDATION_MSG =
+        "TAPD 关联格式须为 story={故事短ID}@tapd-{空间ID}，例如 story=1364737@tapd-59626479";
+
+      function setTapdTaskIdFieldError(message) {
+        var el = document.getElementById("bsl-tapdTaskId");
+        var errEl = document.getElementById("bsl-tapdTaskId-error");
+        var labelEl = document.getElementById("bsl-tapdTaskId-label");
+        // 输入框已隐藏，仅更新无障碍属性与错误文案；说明文字在出错时标红
+        if (message) {
+          el.setAttribute("aria-invalid", "true");
+          errEl.textContent = message;
+          errEl.classList.remove("hidden");
+          labelEl.classList.remove("text-slate-700");
+          labelEl.classList.add("text-red-700");
+        } else {
+          el.setAttribute("aria-invalid", "false");
+          errEl.textContent = "";
+          errEl.classList.add("hidden");
+          labelEl.classList.remove("text-red-700");
+          labelEl.classList.add("text-slate-700");
+        }
+      }
+
+      function clearTapdTaskIdFieldError() {
+        setTapdTaskIdFieldError(null);
+      }
+
+      /** 格式化为 story={短ID}@tapd-{workspaceId}（含链接解析与长 ID 转短 ID） */
+      function formatTapdTaskIdInput(raw) {
+        return TapdStoryId.formatTapdTaskIdInput(raw);
+      }
+
+      function validateTapdTaskId(raw) {
+        var value = String(raw || "").trim();
+        if (!value) return null;
+        var formatted = formatTapdTaskIdInput(value);
+        if (!/^story=\d+@tapd-\d+$/i.test(formatted)) return TAPD_TASK_ID_VALIDATION_MSG;
+        return null;
+      }
+
+      /** 先格式化写回输入框，再返回格式化结果（留空则清空） */
+      function applyTapdTaskIdToInput(raw, showError) {
+        var el = document.getElementById("bsl-tapdTaskId");
+        var value = String(raw || "").trim();
+        if (!value) {
+          el.value = "";
+          clearTapdTaskIdFieldError();
+          return "";
+        }
+        var formatted = formatTapdTaskIdInput(value);
+        el.value = formatted;
+        var err = validateTapdTaskId(formatted);
+        if (err && showError !== false) {
+          setTapdTaskIdFieldError(err);
+        } else if (!err) {
+          clearTapdTaskIdFieldError();
+        }
+        return formatted;
+      }
+
+      function initParamFields(taskParams) {
+        var empty = {
+          repos: [],
+          testEnv: "",
+          provider: "claude",
+          directDevAfterDesign: false,
+          parallel: false,
+          useTradeMock: false,
+          pullBranch: false,
+          tapdTaskId: "",
+        };
+        var row = (taskParams || []).find(function (p) {
+          return p.param_key === "init";
+        });
+        if (!row || !row.value_json) return empty;
+        try {
+          var o = JSON.parse(row.value_json);
+          if (typeof o !== "object" || o === null || Array.isArray(o)) return empty;
+          var prov = o.provider === "cursor" ? "cursor" : "claude";
+          var repos = [];
+          if (Array.isArray(o.gitRepos)) {
+            o.gitRepos.forEach(function (item) {
+              if (!item || typeof item !== "object") return;
+              var url = typeof item.gitRemoteUrl === "string" ? normalizeGitRemoteUrl(item.gitRemoteUrl) : "";
+              var branch = typeof item.branch_version === "string" ? item.branch_version.trim() : "";
+              if (url) repos.push({ gitRemoteUrl: url, branch_version: branch });
+            });
+          }
+          return {
+            repos: repos,
+            testEnv: typeof o.testEnv === "string" ? o.testEnv : "",
+            provider: prov,
+            directDevAfterDesign: o.directDevAfterDesign === true,
+            parallel: o.parallel === true,
+            useTradeMock: o.useTradeMock === true,
+            pullBranch: o.pullBranch === true,
+            tapdTaskId: typeof o.tapdTaskId === "string" ? o.tapdTaskId.trim() : "",
+          };
+        } catch (e) {
+          return empty;
+        }
+      }
+
+      function submitFormStorageKey(pid) {
+        return "bsl_submit_form_" + pid;
+      }
+
+      function loadSubmitFormSettings(pid) {
+        try {
+          var raw = window.localStorage.getItem(submitFormStorageKey(pid));
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function persistSubmitFormSettings() {
+        if (submitFormHydrating || !currentPid) return;
+        var collected = collectGitRepos();
+        var storyTapd = document.getElementById("bsl-tapdTaskId").value;
+        // 表单缓存里的 tapdTaskId 仅存子需求关联，不得写入 feature
+        if (isSameAsFeatureTapdId(storyTapd)) storyTapd = "";
+        var data = {
+          gitRepos: collected.error ? [] : collected.repos,
+          testEnv: document.getElementById("bsl-testEnv").value,
+          taskType: document.getElementById("bsl-taskType").value,
+          provider: document.getElementById("bsl-provider").value,
+          directDevAfterDesign: document.getElementById("bsl-directDevAfterDesign").checked,
+          parallel: document.getElementById("bsl-parallel").checked,
+          useTradeMock: document.getElementById("bsl-useTradeMock").checked,
+          pullBranch: document.getElementById("bsl-pullBranch").checked,
+          tapdTaskId: storyTapd,
+        };
+        try {
+          window.localStorage.setItem(submitFormStorageKey(currentPid), JSON.stringify(data));
+        } catch (e) {
+          /* ignore quota */
+        }
+      }
+
+      function hydrateSubmitForm(pid) {
+        submitFormHydrating = true;
+        var saved = loadSubmitFormSettings(pid);
+        var init = parentInitFields || {
+          repos: [],
+          testEnv: "",
+          provider: "claude",
+          directDevAfterDesign: false,
+          parallel: false,
+          useTradeMock: false,
+          pullBranch: false,
+          tapdTaskId: "",
+        };
+        var repos = saved && saved.gitRepos && saved.gitRepos.length ? saved.gitRepos : init.repos;
+        setGitRepos(repos);
+        document.getElementById("bsl-testEnv").value =
+          saved && saved.testEnv != null ? String(saved.testEnv) : init.testEnv || "";
+        var taskType = saved && saved.taskType != null ? String(saved.taskType) : "1";
+        var provider = saved && saved.provider != null ? String(saved.provider) : init.provider || "claude";
+        if (bslTaskTypeCombo) bslTaskTypeCombo.setValue(taskType);
+        else document.getElementById("bsl-taskType").value = taskType;
+        if (bslProviderCombo) bslProviderCombo.setValue(provider);
+        else document.getElementById("bsl-provider").value = provider;
+        document.getElementById("bsl-directDevAfterDesign").checked =
+          saved && saved.directDevAfterDesign != null
+            ? !!saved.directDevAfterDesign
+            : !!init.directDevAfterDesign;
+        document.getElementById("bsl-parallel").checked =
+          saved && saved.parallel != null ? !!saved.parallel : !!init.parallel;
+        document.getElementById("bsl-useTradeMock").checked =
+          saved && saved.useTradeMock != null ? !!saved.useTradeMock : !!init.useTradeMock;
+        document.getElementById("bsl-pullBranch").checked =
+          saved && saved.pullBranch != null ? !!saved.pullBranch : !!init.pullBranch;
+        // 故事关联 ID 按故事缓存同步；父任务 init.tapdTaskId 是 feature，写入右侧地址栏
+        clearTapdTaskIdFieldError();
+        hydrateTapdFeatureRefFromParentInit();
+        // 清掉表单缓存里误存的 feature id，避免写入隐藏的故事关联字段
+        if (saved && isSameAsFeatureTapdId(saved.tapdTaskId)) {
+          try {
+            saved.tapdTaskId = "";
+            window.localStorage.setItem(submitFormStorageKey(pid), JSON.stringify(saved));
+          } catch (e) {
+            /* ignore */
+          }
+        }
+        updateSubmitFormRequiredState();
+        submitFormHydrating = false;
+      }
+
+      /** 拆分故事写入的父任务 tapdTaskId 作为 feature 地址预填 */
+      function hydrateTapdFeatureRefFromParentInit() {
+        if (!tapdStoryRefInput) return;
+        var featureRef =
+          parentInitFields && parentInitFields.tapdTaskId
+            ? String(parentInitFields.tapdTaskId).trim()
+            : "";
+        if (!featureRef) return;
+        if (tapdStoryRefInput.value.trim()) return;
+        tapdStoryRefInput.value = featureRef;
+        resolveTapdStoryRef();
+      }
+
+      function initSubmitComboboxes() {
+        if (!window.UiCombobox) return;
+        if (!bslTaskTypeCombo) {
+          bslTaskTypeCombo = window.UiCombobox.attach(document.getElementById("bsl-taskType-root"), {
+            onChange: function () {
+              updateSubmitFormRequiredState();
+              persistSubmitFormSettings();
+            },
+          });
+        }
+        if (!bslProviderCombo) {
+          bslProviderCombo = window.UiCombobox.attach(document.getElementById("bsl-provider-root"), {
+            onChange: persistSubmitFormSettings,
+          });
+        }
+      }
+
+      function toggleSubmitPanel(show) {
+        submitPanel.classList.toggle("hidden", !show);
+      }
+
+      /** 收起/展开底部「提交开发任务」表单区（标题栏与提交按钮始终可见） */
+      function applySubmitPanelCollapsed(collapsed) {
+        submitPanelCollapsed = !!collapsed;
+        if (submitBody) submitBody.classList.toggle("hidden", submitPanelCollapsed);
+        if (submitToggleBtn) {
+          submitToggleBtn.setAttribute("aria-expanded", submitPanelCollapsed ? "false" : "true");
+          submitToggleBtn.title = submitPanelCollapsed ? "展开提交开发任务" : "收起提交开发任务";
+        }
+        if (submitToggleIcon) {
+          submitToggleIcon.style.transform = submitPanelCollapsed ? "rotate(-90deg)" : "rotate(0deg)";
+        }
+        if (submitToggleHint) {
+          submitToggleHint.classList.toggle("hidden", !submitPanelCollapsed);
+          submitToggleHint.classList.toggle("sm:inline", submitPanelCollapsed);
+        }
+        try {
+          localStorage.setItem(SUBMIT_PANEL_COLLAPSED_KEY, submitPanelCollapsed ? "1" : "0");
+        } catch (e) {
+          /* ignore */
+        }
+      }
+
+      function initSubmitPanelCollapse() {
+        var collapsed = false;
+        try {
+          collapsed = localStorage.getItem(SUBMIT_PANEL_COLLAPSED_KEY) === "1";
+        } catch (e) {
+          collapsed = false;
+        }
+        applySubmitPanelCollapsed(collapsed);
+        if (submitToggleBtn) {
+          submitToggleBtn.addEventListener("click", function () {
+            applySubmitPanelCollapsed(!submitPanelCollapsed);
+          });
+        }
+      }
+
+      function showTapdError(msg) {
+        if (!tapdErrEl) return;
+        tapdErrEl.textContent = msg || "";
+        tapdErrEl.classList.toggle("hidden", !msg);
+      }
+
+      function showTapdIterationError(msg) {
+        if (!tapdIterationErrEl) return;
+        tapdIterationErrEl.textContent = msg || "";
+        tapdIterationErrEl.classList.toggle("hidden", !msg);
+      }
+
+      function renderTapdLatestIteration() {
+        if (!tapdIterationWrap || !tapdIterationLabelEl) return;
+        if (tapdLatestIteration && tapdLatestIteration.value) {
+          tapdIterationLabelEl.textContent = tapdLatestIteration.label || tapdLatestIteration.value;
+          tapdIterationWrap.classList.remove("hidden");
+        } else {
+          tapdIterationLabelEl.textContent = "—";
+          tapdIterationWrap.classList.add("hidden");
+        }
+      }
+
+      function loadTapdFieldsInfo() {
+        if (tapdFieldsInfoLoading) return;
+        var creator = currentLoginUser();
+        if (!creator) {
+          tapdLatestIteration = null;
+          renderTapdLatestIteration();
+          showTapdIterationError("未登录，无法加载迭代信息");
+          return;
+        }
+        tapdFieldsInfoLoading = true;
+        showTapdIterationError("");
+        fetch(
+          apiBase() +
+            "/api/tapd/stories/fields-info?creator=" +
+            encodeURIComponent(creator),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            tapdFieldsInfoLoading = false;
+            if (!res.ok) {
+              tapdLatestIteration = null;
+              renderTapdLatestIteration();
+              var errMsg =
+                res.body && res.body.error
+                  ? typeof res.body.error === "string"
+                    ? res.body.error
+                    : JSON.stringify(res.body.error)
+                  : "加载失败 " + res.status;
+              showTapdIterationError(errMsg);
+              return;
+            }
+            var latest = res.body && res.body.latest_iteration ? res.body.latest_iteration : null;
+            if (latest && latest.value) {
+              tapdLatestIteration = {
+                value: String(latest.value),
+                label: latest.label != null ? String(latest.label) : String(latest.value),
+              };
+            } else {
+              tapdLatestIteration = null;
+              showTapdIterationError("未获取到可用迭代");
+            }
+            renderTapdLatestIteration();
+          })
+          .catch(function (e) {
+            tapdFieldsInfoLoading = false;
+            tapdLatestIteration = null;
+            renderTapdLatestIteration();
+            showTapdIterationError("加载迭代失败: " + e.message);
+          });
+      }
+
+      function clearTapdResolvedParent() {
+        tapdResolvedParent = null;
+        if (tapdParentNameEl) {
+          tapdParentNameEl.textContent = "";
+          tapdParentNameEl.classList.add("hidden");
+        }
+      }
+
+      function setTapdResolvedParent(data) {
+        tapdResolvedParent = data;
+        if (tapdParentNameEl) {
+          tapdParentNameEl.textContent = "父需求：" + data.name;
+          tapdParentNameEl.classList.remove("hidden");
+        }
+      }
+
+      function scheduleTapdResolve() {
+        if (tapdResolveTimer) clearTimeout(tapdResolveTimer);
+        tapdResolveTimer = setTimeout(resolveTapdStoryRef, 400);
+      }
+
+      function resolveTapdStoryRef() {
+        if (!tapdStoryRefInput) return;
+        var storyRef = tapdStoryRefInput.value.trim();
+        if (!storyRef) {
+          clearTapdResolvedParent();
+          showTapdError("");
+          return;
+        }
+
+        var creator = currentLoginUser();
+        if (!creator) {
+          clearTapdResolvedParent();
+          showTapdError("获取当前登录用户失败，请先通过管理台完成 Keycloak 登录");
+          return;
+        }
+
+        var seq = ++tapdResolveSeq;
+        showTapdError("");
+
+        fetch(apiBase() + "/api/tapd/stories/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ story_ref: storyRef, creator: creator }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (seq !== tapdResolveSeq) return;
+            if (!res.ok) {
+              clearTapdResolvedParent();
+              var errMsg =
+                res.body && res.body.error
+                  ? typeof res.body.error === "string"
+                    ? res.body.error
+                    : JSON.stringify(res.body.error)
+                  : "解析失败 " + res.status;
+              showTapdError(errMsg);
+              return;
+            }
+            setTapdResolvedParent({
+              workspace_id: res.body.workspace_id,
+              story_id: res.body.story_id,
+              name: res.body.name,
+            });
+            showTapdError("");
+          })
+          .catch(function (e) {
+            if (seq !== tapdResolveSeq) return;
+            clearTapdResolvedParent();
+            showTapdError("解析失败: " + e.message);
+          });
+      }
+
+      /**
+       * 在已解析的 feature 下创建 TAPD 子需求，返回新建的 tapdTaskId。
+       * 调用方需已校验澄清、requirement、creator，并持有 tapdResolvedParent。
+       */
+      function createTapdChildStoryForSubmit(opts) {
+        var story = opts.story;
+        var requirement = opts.requirement;
+        var creator = opts.creator;
+        var childName = opts.childName;
+
+        var childPayload = {
+          parent_id: tapdResolvedParent.story_id,
+          name: childName,
+          description: requirement,
+          creator: creator,
+        };
+        if (tapdLatestIteration && tapdLatestIteration.value) {
+          childPayload.iteration_id = tapdLatestIteration.value;
+        }
+        var ownerName = currentLoginRealName();
+        if (ownerName) {
+          childPayload.owner = ownerName;
+        }
+
+        return fetch(apiBase() + "/api/tapd/stories/child", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(childPayload),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              var errMsg =
+                res.body && res.body.error
+                  ? typeof res.body.error === "string"
+                    ? res.body.error
+                    : JSON.stringify(res.body.error)
+                  : "请求失败 " + res.status;
+              throw new Error(errMsg);
+            }
+            var storyId = res.body && res.body.story_id ? String(res.body.story_id) : "";
+            var workspaceId =
+              res.body && res.body.workspace_id
+                ? String(res.body.workspace_id)
+                : tapdResolvedParent
+                  ? String(tapdResolvedParent.workspace_id)
+                  : "";
+            if (!storyId || !workspaceId) {
+              throw new Error("TAPD 子需求已创建，但未返回 story_id / workspace_id");
+            }
+            return applyStoryTapdTaskId(currentPid, story.task_id, workspaceId, storyId);
+          });
+      }
+
+      function lookupOptionLabel(question, optId) {
+        var options = question && question.options ? question.options : [];
+        for (var i = 0; i < options.length; i++) {
+          if (String(options[i].id || "") === String(optId || "")) {
+            return options[i].label || optId;
+          }
+        }
+        return optId;
+      }
+
+      function isOtherOptionSelected(inputType, answer) {
+        if (inputType === "single") return String(answer || "") === CLAR_OTHER_OPT_ID;
+        if (inputType === "multi" && Array.isArray(answer)) return answer.indexOf(CLAR_OTHER_OPT_ID) >= 0;
+        return false;
+      }
+
+      function formatClarificationAnswer(question, answers, custom) {
+        var qId = String(question.id || "");
+        var inputType = question.input_type || "single";
+        var answer = answers[qId];
+        var customText = custom[qId] ? String(custom[qId]).trim() : "";
+        var lines = [];
+        if (inputType === "text") {
+          if (String(answer || "").trim()) lines.push(String(answer).trim());
+        } else if (inputType === "multi" && Array.isArray(answer)) {
+          answer.forEach(function (optId) {
+            if (String(optId) === CLAR_OTHER_OPT_ID) {
+              lines.push("- 其他" + (customText ? "：" + customText : ""));
+            } else {
+              lines.push("- " + lookupOptionLabel(question, optId));
+            }
+          });
+        } else if (inputType === "single" && answer) {
+          if (String(answer) === CLAR_OTHER_OPT_ID) {
+            lines.push(customText ? "其他：" + customText : "其他");
+          } else {
+            lines.push(lookupOptionLabel(question, answer));
+          }
+        }
+        return lines.join("\n");
+      }
+
+      function validateClarificationAnswers(story, answersData) {
+        var clarification = story && story.clarification;
+        if (!clarification || !clarification.clarification_form) {
+          return { ok: false, error: "当前故事暂无可提交的澄清表单" };
+        }
+        var questions = clarification.clarification_form.questions || [];
+        for (var i = 0; i < questions.length; i++) {
+          var q = questions[i];
+          if (!q.required) continue;
+          var qId = String(q.id || "");
+          var inputType = q.input_type || "single";
+          var answer = answersData.answers[qId];
+          var custom = answersData.custom[qId];
+          var hasAnswer = false;
+          if (inputType === "text") {
+            hasAnswer = String(answer || "").trim().length > 0;
+          } else if (inputType === "multi") {
+            hasAnswer = Array.isArray(answer) && answer.length > 0;
+          } else {
+            hasAnswer = !!answer;
+          }
+          if (!hasAnswer) {
+            return { ok: false, error: "请先完成必填澄清项：" + (q.title || qId) };
+          }
+          if (isOtherOptionSelected(inputType, answer) && !String(custom || "").trim()) {
+            return { ok: false, error: "请填写「其他」回答：" + (q.title || qId) };
+          }
+        }
+        return { ok: true, data: answersData };
+      }
+
+      function buildRequirementText(story, answersData) {
+        var parts = [];
+        if (story.title) parts.push("# " + story.title);
+        if (story.description && String(story.description).trim()) {
+          parts.push("\n## 故事描述\n\n" + String(story.description).trim());
+        }
+        var clarification = story.clarification;
+        if (clarification) {
+          if (clarification.summary_zh) {
+            parts.push("\n## 澄清摘要\n\n" + clarification.summary_zh);
+          }
+          var questions = clarification.clarification_form ? clarification.clarification_form.questions || [] : [];
+          if (questions.length) {
+            parts.push("\n## 用户澄清结论\n");
+            questions.forEach(function (q) {
+              var block = formatClarificationAnswer(q, answersData.answers, answersData.custom);
+              parts.push("### " + (q.title || q.id) + (q.severity === "blocking" ? "（阻塞）" : "") + "\n" + (block || "（未填写）"));
+            });
+          }
+        }
+        var supplement = answersData.supplement ? String(answersData.supplement).trim() : "";
+        if (supplement) {
+          parts.push("\n## 用户补充说明\n\n" + supplement);
+        }
+        parts.push("\n---\n来源头脑风暴父任务 pid: " + currentPid + " · 故事 task_id: " + story.task_id);
+        return parts.join("\n").trim();
+      }
+
+      /** 提交父任务占位标题：故事N-thinking，AI 汇总后仅替换 thinking 段 */
+      function buildSubmitTitle(index) {
+        return ("故事" + (index + 1) + "-thinking").slice(0, 500);
+      }
+
+      /** 与后端 applyAiTitleToPlaceholder 一致 */
+      function applyAiTitleToPlaceholder(currentTitle, aiTitle) {
+        var t = String(currentTitle || "").trim();
+        var summary = String(aiTitle || "").trim();
+        if (!summary) return t;
+        if (t === "thinking") return summary;
+        if (t.length > "thinking".length && t.slice(-"thinking".length) === "thinking" && t.charAt(t.length - "thinking".length - 1) === "-") {
+          return t.slice(0, -"thinking".length) + summary;
+        }
+        return summary;
+      }
+
+      function storyTapdTaskIdStorageKey(pid, taskId) {
+        return "bsl_story_tapd_task_id_" + pid + "_" + taskId;
+      }
+
+      function loadStoryTapdTaskId(pid, taskId) {
+        try {
+          var raw = window.localStorage.getItem(storyTapdTaskIdStorageKey(pid, taskId));
+          if (!raw) return "";
+          var parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.tapdTaskId === "string") return parsed.tapdTaskId.trim();
+          return String(raw).trim();
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function saveStoryTapdTaskId(pid, taskId, tapdTaskId) {
+        try {
+          window.localStorage.setItem(
+            storyTapdTaskIdStorageKey(pid, taskId),
+            JSON.stringify({ tapdTaskId: String(tapdTaskId || "").trim() }),
+          );
+        } catch (e) {
+          /* ignore quota */
+        }
+      }
+
+      /** 当前 feature 规范化后的 story=id@tapd-ws（子需求关联不得与此相同） */
+      function getCurrentFeatureTapdId() {
+        var fromInput = tapdStoryRefInput ? String(tapdStoryRefInput.value || "").trim() : "";
+        if (fromInput) {
+          var formattedInput = formatTapdTaskIdInput(fromInput);
+          if (/^story=\d+@tapd-\d+$/i.test(formattedInput)) return formattedInput;
+        }
+        var fromInit =
+          parentInitFields && parentInitFields.tapdTaskId
+            ? String(parentInitFields.tapdTaskId).trim()
+            : "";
+        if (!fromInit) return "";
+        var formattedInit = formatTapdTaskIdInput(fromInit);
+        return /^story=\d+@tapd-\d+$/i.test(formattedInit) ? formattedInit : "";
+      }
+
+      function isSameAsFeatureTapdId(value) {
+        var feature = getCurrentFeatureTapdId();
+        if (!feature || !value) return false;
+        return formatTapdTaskIdInput(String(value)).toLowerCase() === feature.toLowerCase();
+      }
+
+      /** 仅读本故事缓存的子需求关联；等于 feature 的脏缓存一律丢弃 */
+      function getStoryTapdTaskIdFallback(pid, taskId) {
+        var cached = loadStoryTapdTaskId(pid, taskId);
+        if (!cached) return "";
+        if (isSameAsFeatureTapdId(cached)) {
+          saveStoryTapdTaskId(pid, taskId, "");
+          return "";
+        }
+        return cached;
+      }
+
+      function persistCurrentStoryTapdTaskId() {
+        var story = storiesList[storyIndex];
+        if (!story || tapdTaskIdInputHydrating) return;
+        var el = document.getElementById("bsl-tapdTaskId");
+        if (!el) return;
+        var formatted = applyTapdTaskIdToInput(el.value);
+        // 禁止把 feature 写入子需求关联缓存
+        if (isSameAsFeatureTapdId(formatted || el.value.trim())) {
+          tapdTaskIdInputHydrating = true;
+          el.value = "";
+          clearTapdTaskIdFieldError();
+          tapdTaskIdInputHydrating = false;
+          saveStoryTapdTaskId(currentPid, story.task_id, "");
+          return;
+        }
+        saveStoryTapdTaskId(currentPid, story.task_id, formatted || el.value.trim());
+      }
+
+      function syncStoryTapdTaskIdToInput() {
+        var story = storiesList[storyIndex];
+        if (!story) return;
+        var el = document.getElementById("bsl-tapdTaskId");
+        if (!el) return;
+        var value = getStoryTapdTaskIdFallback(currentPid, story.task_id);
+        tapdTaskIdInputHydrating = true;
+        el.value = value ? formatTapdTaskIdInput(value) : "";
+        clearTapdTaskIdFieldError();
+        tapdTaskIdInputHydrating = false;
+      }
+
+      function applyStoryTapdTaskId(pid, taskId, workspaceId, storyId) {
+        if (!storyId || !workspaceId) return "";
+        var tapdTaskId = TapdStoryId.formatTapdStoryIdWithWorkspace(storyId, workspaceId);
+        saveStoryTapdTaskId(pid, taskId, tapdTaskId);
+        var story = storiesList[storyIndex];
+        if (story && story.task_id === taskId) {
+          var el = document.getElementById("bsl-tapdTaskId");
+          if (el) {
+            tapdTaskIdInputHydrating = true;
+            el.value = tapdTaskId;
+            clearTapdTaskIdFieldError();
+            tapdTaskIdInputHydrating = false;
+          }
+        }
+        return tapdTaskId;
+      }
+
+      function storyTitleStorageKey(pid, taskId) {
+        return "bsl_story_title_" + pid + "_" + taskId;
+      }
+
+      function loadStoryTitleSettings(pid, taskId) {
+        try {
+          var raw = window.localStorage.getItem(storyTitleStorageKey(pid, taskId));
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function saveStoryTitleSettings(pid, taskId, data) {
+        try {
+          window.localStorage.setItem(storyTitleStorageKey(pid, taskId), JSON.stringify(data));
+        } catch (e) {
+          /* ignore quota */
+        }
+      }
+
+      /** 汇总标题用的需求文本（不含用户澄清点选） */
+      function buildStoryTitleSourceText(story) {
+        var parts = [];
+        if (story.title) parts.push(String(story.title).trim());
+        if (story.description && String(story.description).trim()) {
+          parts.push(String(story.description).trim());
+        }
+        var clarification = story.clarification;
+        if (clarification && clarification.summary_zh) {
+          parts.push(String(clarification.summary_zh).trim());
+        }
+        return parts.join("\n").trim();
+      }
+
+      function updateStoryTitleHint() {
+        if (!storyTitleHintEl) return;
+        var story = storiesList[storyIndex];
+        if (!story) {
+          storyTitleHintEl.textContent = "打开页面后自动 AI 汇总；若您已手动填写则不会被覆盖";
+          return;
+        }
+        var state = storyTitleStates[story.task_id];
+        if (state && state.summarizing) {
+          storyTitleHintEl.textContent = "AI 正在汇总标题…";
+          return;
+        }
+        if (state && state.userEdited) {
+          storyTitleHintEl.textContent = "已使用您手动填写的标题";
+          return;
+        }
+        storyTitleHintEl.textContent = "打开页面后自动 AI 汇总；若您已手动填写则不会被覆盖";
+      }
+
+      function syncStoryTitleFieldToInput() {
+        var story = storiesList[storyIndex];
+        if (!story || !storyTitleInput) return;
+        var state = storyTitleStates[story.task_id];
+        if (!state) return;
+        storyTitleInputHydrating = true;
+        storyTitleInput.value = state.value || "";
+        storyTitleInput.placeholder = state.placeholder;
+        storyTitleInputHydrating = false;
+        updateStoryTitleHint();
+      }
+
+      function persistCurrentStoryTitle() {
+        var story = storiesList[storyIndex];
+        if (!story || !storyTitleInput) return;
+        var state = storyTitleStates[story.task_id];
+        if (!state) return;
+        state.value = storyTitleInput.value;
+        saveStoryTitleSettings(currentPid, story.task_id, {
+          userEdited: state.userEdited,
+          value: state.value,
+        });
+      }
+
+      function getSubmitTitleForCurrentStory() {
+        persistCurrentStoryTitle();
+        var story = storiesList[storyIndex];
+        if (!story) return buildSubmitTitle(storyIndex);
+        var state = storyTitleStates[story.task_id];
+        var raw = storyTitleInput ? storyTitleInput.value.trim() : "";
+        if (raw) return raw.slice(0, 500);
+        if (state && state.value && String(state.value).trim()) {
+          return String(state.value).trim().slice(0, 500);
+        }
+        return buildSubmitTitle(storyIndex);
+      }
+
+      function startStoryTitleSummarize(story, index) {
+        var taskId = story.task_id;
+        var state = storyTitleStates[taskId];
+        if (!state || state.userEdited) return;
+        // 本地缓存已有标题时不再重复发起 AI 汇总
+        if (state.value && String(state.value).trim()) return;
+
+        var sourceText = buildStoryTitleSourceText(story);
+        if (!sourceText) return;
+
+        state.summarizing = true;
+        state.summarizeSeq = (state.summarizeSeq || 0) + 1;
+        var seq = state.summarizeSeq;
+        if (storiesList[storyIndex] && storiesList[storyIndex].task_id === taskId) {
+          updateStoryTitleHint();
+        }
+
+        fetch(
+          apiBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(currentPid) +
+            "/brainstorm-stories/summarize-title",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ task_id: taskId, source_text: sourceText }),
+          },
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            var currentState = storyTitleStates[taskId];
+            if (!currentState || currentState.summarizeSeq !== seq) return;
+            currentState.summarizing = false;
+            if (currentState.userEdited) {
+              if (storiesList[storyIndex] && storiesList[storyIndex].task_id === taskId) {
+                updateStoryTitleHint();
+              }
+              return;
+            }
+            if (!res.ok) {
+              if (storiesList[storyIndex] && storiesList[storyIndex].task_id === taskId) {
+                updateStoryTitleHint();
+              }
+              return;
+            }
+            var summaryTitle =
+              res.body && res.body.summary_title ? String(res.body.summary_title).trim() : "";
+            if (!summaryTitle) {
+              if (storiesList[storyIndex] && storiesList[storyIndex].task_id === taskId) {
+                updateStoryTitleHint();
+              }
+              return;
+            }
+            currentState.value = applyAiTitleToPlaceholder(currentState.placeholder, summaryTitle);
+            saveStoryTitleSettings(currentPid, taskId, {
+              userEdited: false,
+              value: currentState.value,
+            });
+            if (storiesList[storyIndex] && storiesList[storyIndex].task_id === taskId) {
+              syncStoryTitleFieldToInput();
+            }
+          })
+          .catch(function () {
+            var currentState = storyTitleStates[taskId];
+            if (!currentState || currentState.summarizeSeq !== seq) return;
+            currentState.summarizing = false;
+            if (storiesList[storyIndex] && storiesList[storyIndex].task_id === taskId) {
+              updateStoryTitleHint();
+            }
+          });
+      }
+
+      function initStoryTitleStates(stories) {
+        storyTitleStates = {};
+        (stories || []).forEach(function (story, idx) {
+          var taskId = story.task_id;
+          var placeholder = buildSubmitTitle(idx);
+          var saved = loadStoryTitleSettings(currentPid, taskId);
+          var userEdited = saved ? !!saved.userEdited : false;
+          var value = saved && saved.userEdited && saved.value != null ? String(saved.value) : "";
+          if (!userEdited && saved && saved.value != null && String(saved.value).trim()) {
+            value = String(saved.value);
+          }
+          storyTitleStates[taskId] = {
+            placeholder: placeholder,
+            userEdited: userEdited,
+            value: value,
+            summarizing: false,
+            summarizeSeq: 0,
+          };
+          startStoryTitleSummarize(story, idx);
+        });
+        syncStoryTitleFieldToInput();
+      }
+
+      function submitCurrentStory() {
+        showSubmitError("");
+        showTapdError("");
+        if (tapdSubmitting) return;
+        if (!storiesList.length) {
+          showSubmitError("暂无故事可提交");
+          return;
+        }
+        persistCurrentClarification();
+        var story = storiesList[storyIndex];
+        var fieldset = bodyEl.querySelector("[data-task-id]");
+        var collected = fieldset ? collectClarificationAnswersFromFieldset(fieldset) : null;
+        var answersData = collected ? collected.data : loadClarificationAnswers(currentPid, story.task_id);
+        var clarCheck = validateClarificationAnswers(story, answersData);
+        if (!clarCheck.ok) {
+          showSubmitError(clarCheck.error);
+          return;
+        }
+
+        var taskType = Number(document.getElementById("bsl-taskType").value) || 1;
+        var gitCollected = collectGitRepos();
+        if (gitCollected.error) {
+          showSubmitError(gitCollected.error);
+          return;
+        }
+        var gitRepos = gitCollected.repos;
+        applyGitReposToInputs(gitRepos);
+        persistSubmitFormSettings();
+
+        var testEnv = document.getElementById("bsl-testEnv").value.trim();
+        if (isDevAgentParentTaskType(taskType)) {
+          if (!gitRepos.length) {
+            showSubmitError("任务类型为 1/2/3/4 时，请至少填写一组仓库与分支。");
+            return;
+          }
+          if (isTestEnvRequired(taskType) && !testEnv) {
+            showSubmitError("任务类型为 1/3 时，请填写测试环境。");
+            return;
+          }
+        } else if (!gitRepos.length) {
+          showSubmitError("请至少填写一组仓库与分支。");
+          return;
+        }
+
+        var creator = currentLoginUser();
+        if (!creator) {
+          showSubmitError("获取当前登录用户失败，请先通过管理台完成 Keycloak 登录");
+          return;
+        }
+
+        var providerVal = document.getElementById("bsl-provider").value.trim().toLowerCase();
+        if (providerVal !== "cursor") providerVal = "claude";
+
+        var requirement = buildRequirementText(story, answersData);
+        if (!requirement) {
+          showSubmitError("故事内容为空，无法提交");
+          return;
+        }
+
+        var featureRef = tapdStoryRefInput ? tapdStoryRefInput.value.trim() : "";
+        var existingStoryTapdId = loadStoryTapdTaskId(currentPid, story.task_id);
+        // 脏缓存若等于 feature，视为尚未创建子需求
+        if (isSameAsFeatureTapdId(existingStoryTapdId)) {
+          saveStoryTapdTaskId(currentPid, story.task_id, "");
+          existingStoryTapdId = "";
+        }
+        var needCreateTapdChild = !!featureRef && !existingStoryTapdId;
+
+        if (needCreateTapdChild && !tapdResolvedParent) {
+          showSubmitError("请先填写并解析有效的 TAPD feature 地址");
+          showTapdError("请先填写并解析有效的 TAPD 父需求地址");
+          if (tapdStoryRefInput) {
+            tapdStoryRefInput.focus();
+            resolveTapdStoryRef();
+          }
+          return;
+        }
+
+        var submitTitle = getSubmitTitleForCurrentStory();
+        var body = {
+          description: requirement,
+          requirement: requirement,
+          task_type: taskType,
+          provider: providerVal,
+          creator: creator,
+        };
+        body.title = submitTitle;
+        if (gitRepos.length) body.gitRepos = gitRepos;
+        if (document.getElementById("bsl-directDevAfterDesign").checked) {
+          body.directDevAfterDesign = true;
+        }
+        if (document.getElementById("bsl-parallel").checked) {
+          body.parallel = true;
+        }
+        if (document.getElementById("bsl-useTradeMock").checked) {
+          body.useTradeMock = true;
+        }
+        if (document.getElementById("bsl-pullBranch").checked) {
+          body.pullBranch = true;
+        }
+        if (testEnv) body.testEnv = testEnv;
+
+        var confirmLines =
+          "确认将当前故事提交为新的父任务？\n\n故事：" +
+          submitTitle +
+          "\n任务类型：" +
+          taskType +
+          "\n创建人：" +
+          creator;
+        if (needCreateTapdChild) {
+          var iterationHint =
+            tapdLatestIteration && tapdLatestIteration.value
+              ? "\n迭代：" + (tapdLatestIteration.label || tapdLatestIteration.value)
+              : "";
+          confirmLines +=
+            "\n\n将先在 TAPD feature 下创建子需求：\n父需求：" +
+            tapdResolvedParent.name +
+            "\n子需求标题：" +
+            submitTitle +
+            iterationHint;
+        } else if (existingStoryTapdId) {
+          confirmLines += "\n\n已关联 TAPD：" + existingStoryTapdId;
+        }
+        if (!window.confirm(confirmLines)) return;
+
+        tapdSubmitting = true;
+        submitBtn.disabled = true;
+        var prevText = submitBtn.textContent;
+        submitBtn.textContent = needCreateTapdChild ? "创建 TAPD…" : "提交中…";
+
+        var tapdStep = needCreateTapdChild
+          ? createTapdChildStoryForSubmit({
+              story: story,
+              requirement: requirement,
+              creator: creator,
+              childName: submitTitle,
+            })
+          : Promise.resolve(existingStoryTapdId || "");
+
+        tapdStep
+          .then(function (createdTapdTaskId) {
+            var tapdTaskId = createdTapdTaskId
+              ? String(createdTapdTaskId).trim()
+              : applyTapdTaskIdToInput(document.getElementById("bsl-tapdTaskId").value);
+            if (tapdTaskId) {
+              var tapdErr = validateTapdTaskId(tapdTaskId);
+              if (tapdErr) {
+                throw new Error(tapdErr);
+              }
+              body.tapdTaskId = tapdTaskId;
+              persistSubmitFormSettings();
+            }
+            submitBtn.textContent = "提交父任务…";
+            return fetch(apiBase() + "/api/parent-tasks", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }).then(function (r) {
+              return r.json().then(function (j) {
+                return { ok: r.ok, status: r.status, body: j };
+              });
+            });
+          })
+          .then(function (res) {
+            tapdSubmitting = false;
+            submitBtn.disabled = false;
+            submitBtn.textContent = prevText;
+            if (!res.ok) {
+              showSubmitError(
+                "请求失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            var newPid =
+              res.body && res.body.parent_task && res.body.parent_task.pid
+                ? res.body.parent_task.pid
+                : "";
+            var tapdHint = body.tapdTaskId ? "\nTAPD 关联：" + body.tapdTaskId : "";
+            window.alert(
+              newPid
+                ? "提交成功，新父任务编号：" + newPid + tapdHint
+                : "提交成功" + tapdHint,
+            );
+          })
+          .catch(function (e) {
+            tapdSubmitting = false;
+            submitBtn.disabled = false;
+            submitBtn.textContent = prevText;
+            var msg = e && e.message ? e.message : String(e);
+            showSubmitError(msg);
+            if (needCreateTapdChild) showTapdError(msg);
+          });
+      }
+
+      function loadParentInitFields(pid) {
+        return fetch(apiBase() + "/api/parent-tasks?pid=" + encodeURIComponent(pid))
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) return;
+            parentInitFields = initParamFields((res.body && res.body.parent_task_params) || []);
+          })
+          .catch(function () {
+            /* 预填失败不影响故事列表 */
+          });
+      }
+
+      function clarificationAnswersStorageKey(pid, taskId) {
+        return "wa_clarification_" + pid + "_" + taskId;
+      }
+
+      function loadClarificationAnswers(pid, taskId) {
+        try {
+          var raw = window.localStorage.getItem(clarificationAnswersStorageKey(pid, taskId));
+          if (!raw) return { answers: {}, custom: {}, supplement: "" };
+          var parsed = JSON.parse(raw);
+          return {
+            answers: parsed && parsed.answers && typeof parsed.answers === "object" ? parsed.answers : {},
+            custom: parsed && parsed.custom && typeof parsed.custom === "object" ? parsed.custom : {},
+            supplement: parsed && typeof parsed.supplement === "string" ? parsed.supplement : "",
+          };
+        } catch (e) {
+          return { answers: {}, custom: {}, supplement: "" };
+        }
+      }
+
+      function saveClarificationAnswers(pid, taskId, data) {
+        try {
+          window.localStorage.setItem(clarificationAnswersStorageKey(pid, taskId), JSON.stringify(data));
+        } catch (e) {
+          /* ignore quota */
+        }
+      }
+
+      function severityLabel(severity) {
+        return severity === "blocking" ? "阻塞" : "非阻塞";
+      }
+
+      function severityBadgeClass(severity) {
+        return severity === "blocking"
+          ? "bg-red-50 text-red-700 border-red-200"
+          : "bg-slate-100 text-slate-600 border-slate-200";
+      }
+
+      /** 单选/多选在 allow_custom 为 true 时展示「其他」可选项 */
+      function showOtherClarOption(question) {
+        // if (question.allow_custom !== true) return false;
+        var inputType = question.input_type || "single";
+        return (inputType === "single" || inputType === "multi") && question.options && question.options.length > 0;
+      }
+
+      function syncOtherInputVisibility(fieldset) {
+        if (!fieldset) return;
+        fieldset.querySelectorAll("[data-bsl-other-wrap]").forEach(function (wrap) {
+          var qId = wrap.getAttribute("data-bsl-other-wrap");
+          if (!qId) return;
+          var otherChecked = false;
+          fieldset.querySelectorAll('[data-bsl-clar-q="' + qId + '"]').forEach(function (el) {
+            var kind = el.getAttribute("data-bsl-clar-kind");
+            if ((kind === "single" || kind === "multi") && el.checked && el.getAttribute("data-bsl-clar-opt") === CLAR_OTHER_OPT_ID) {
+              otherChecked = true;
+            }
+          });
+          wrap.classList.toggle("hidden", !otherChecked);
+          var input = wrap.querySelector('[data-bsl-clar-kind="custom"]');
+          if (input) input.disabled = !otherChecked;
+        });
+      }
+
+      function renderClarificationFormHtml(pid, story) {
+        var clarification = story && story.clarification;
+        if (!clarification || !clarification.clarification_form) {
+          if (story && story.ai_out) {
+            return (
+              '<p class="text-xs text-slate-500">已产出澄清文档，但未解析到 <code class="rounded bg-white px-1 font-mono text-[10px]">clarification_form</code>（请检查 design.md 格式）</p>'
+            );
+          }
+          return (
+            '<p class="text-xs text-slate-500">头脑风暴完成后将在此展示待澄清问题供点选</p>'
+          );
+        }
+
+        var saved = loadClarificationAnswers(pid, story.task_id);
+        var readyCls = clarification.ready_for_dev
+          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+          : "bg-amber-50 text-amber-800 border-amber-200";
+        var readyText = clarification.ready_for_dev ? "可开发" : "暂不可开发";
+        var html =
+          '<div data-task-id="' +
+          esc(story.task_id) +
+          '">' +
+          '<div class="mb-3 flex flex-wrap items-center gap-2">' +
+          '<span class="rounded-md border px-2 py-0.5 text-[11px] font-medium ' +
+          readyCls +
+          '">' +
+          esc(readyText) +
+          "</span>" +
+          '<span class="text-[11px] text-slate-500">阻塞 ' +
+          esc(String(clarification.blocking_questions_count)) +
+          " · 非阻塞 " +
+          esc(String(clarification.non_blocking_questions_count)) +
+          "</span></div>" +
+          '<p class="mb-4 text-xs leading-relaxed text-slate-600">' +
+          esc(clarification.summary_zh) +
+          "</p>" +
+          '<div class="grid gap-4">';
+
+        var questions = clarification.clarification_form.questions || [];
+        questions.forEach(function (q) {
+          var qId = String(q.id || "");
+          var inputType = q.input_type || "single";
+          var savedAnswer = saved.answers[qId];
+          var savedCustom = saved.custom[qId] || "";
+
+          html +=
+            '<fieldset class="rounded-lg border border-amber-200/60 bg-white px-3 py-3 shadow-sm">' +
+            '<legend class="flex flex-wrap items-center gap-2 px-1 text-xs font-semibold text-slate-800">' +
+            '<span class="font-mono text-[10px] text-slate-500">' +
+            esc(qId) +
+            "</span>" +
+            esc(q.title || "") +
+            '<span class="rounded border px-1.5 py-0.5 text-[10px] font-medium ' +
+            severityBadgeClass(q.severity) +
+            '">' +
+            esc(severityLabel(q.severity)) +
+            (q.required ? " · 必填" : "") +
+            "</span></legend>";
+
+          if (q.description) {
+            html += '<p class="mt-1 px-1 text-[11px] leading-relaxed text-slate-500">' + esc(q.description) + "</p>";
+          }
+
+          html += '<div class="mt-2 grid gap-2">';
+
+          if (inputType === "text") {
+            html +=
+              '<textarea data-bsl-clar-q="' +
+              esc(qId) +
+              '" data-bsl-clar-kind="text" rows="3" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20" placeholder="请输入…">' +
+              esc(typeof savedAnswer === "string" ? savedAnswer : "") +
+              "</textarea>";
+          } else if (q.options && q.options.length > 0) {
+            q.options.forEach(function (opt) {
+              var optId = String(opt.id || "");
+              var isChecked = false;
+              if (inputType === "multi" && Array.isArray(savedAnswer)) {
+                isChecked = savedAnswer.indexOf(optId) >= 0;
+              } else if (inputType === "single") {
+                isChecked = savedAnswer === optId;
+              }
+              var inputTag = inputType === "multi" ? "checkbox" : "radio";
+              var inputName = inputType === "single" ? "bsl-clar-" + story.task_id + "-" + qId : undefined;
+              html +=
+                '<label class="flex cursor-pointer items-start gap-2 rounded-md border border-transparent px-1 py-1.5 transition hover:border-amber-200 hover:bg-amber-50/50">' +
+                '<input type="' +
+                inputTag +
+                '" class="mt-0.5 h-3.5 w-3.5 shrink-0 border-slate-300 text-amber-600 focus:ring-amber-500" data-bsl-clar-q="' +
+                esc(qId) +
+                '" data-bsl-clar-kind="' +
+                esc(inputType) +
+                '" data-bsl-clar-opt="' +
+                esc(optId) +
+                '"';
+              if (inputName) html += ' name="' + esc(inputName) + '"';
+              if (isChecked) html += " checked";
+              html +=
+                " /><span class=\"min-w-0 text-xs leading-relaxed text-slate-700\">" +
+                esc(opt.label || "") +
+                (opt.recommended
+                  ? ' <span class="ml-1 rounded bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700">推荐</span>'
+                  : "") +
+                "</span></label>";
+            });
+
+            if (showOtherClarOption(q)) {
+              var otherChecked =
+                inputType === "multi" && Array.isArray(savedAnswer)
+                  ? savedAnswer.indexOf(CLAR_OTHER_OPT_ID) >= 0
+                  : inputType === "single" && savedAnswer === CLAR_OTHER_OPT_ID;
+              var otherInputTag = inputType === "multi" ? "checkbox" : "radio";
+              var otherInputName = inputType === "single" ? "bsl-clar-" + story.task_id + "-" + qId : undefined;
+              html +=
+                '<label class="flex cursor-pointer items-start gap-2 rounded-md border border-transparent px-1 py-1.5 transition hover:border-amber-200 hover:bg-amber-50/50">' +
+                '<input type="' +
+                otherInputTag +
+                '" class="mt-0.5 h-3.5 w-3.5 shrink-0 border-slate-300 text-amber-600 focus:ring-amber-500" data-bsl-clar-q="' +
+                esc(qId) +
+                '" data-bsl-clar-kind="' +
+                esc(inputType) +
+                '" data-bsl-clar-opt="' +
+                CLAR_OTHER_OPT_ID +
+                '"';
+              if (otherInputName) html += ' name="' + esc(otherInputName) + '"';
+              if (otherChecked) html += " checked";
+              html += ' /><span class="min-w-0 text-xs leading-relaxed text-slate-700">其他</span></label>' +
+                '<div data-bsl-other-wrap="' +
+                esc(qId) +
+                '" class="ml-5 mt-1' +
+                (otherChecked ? "" : " hidden") +
+                '">' +
+                '<input type="text" data-bsl-clar-q="' +
+                esc(qId) +
+                '" data-bsl-clar-kind="custom" value="' +
+                esc(savedCustom) +
+                '" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20" placeholder="请填写其他回答…"' +
+                (otherChecked ? "" : " disabled") +
+                " /></div>";
+            }
+          }
+
+          html += "</div></fieldset>";
+        });
+
+        var savedSupplement = saved.supplement || "";
+        html +=
+          '<div class="rounded-lg border border-amber-200/60 bg-white px-3 py-3 shadow-sm">' +
+          '<label class="block text-xs font-semibold text-slate-800" for="bsl-clar-supplement-' +
+          esc(story.task_id) +
+          '">补充说明</label>' +
+          '<p class="mt-0.5 text-[11px] text-slate-500">澄清点选完成后，可在此补充整体说明，提交开发任务时将一并写入父任务需求,(例如产品的截图无法识别,ocr后补充到说明中)</p>' +
+          '<textarea id="bsl-clar-supplement-' +
+          esc(story.task_id) +
+          '" data-bsl-clar-supplement rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20" placeholder="可选：补充业务背景、约束、优先级等…">' +
+          esc(savedSupplement) +
+          "</textarea></div>";
+
+        html += "</div></div>";
+        return html;
+      }
+
+      function collectClarificationAnswersFromFieldset(fieldset) {
+        var taskId = fieldset.getAttribute("data-task-id") || "";
+        if (!taskId || !currentPid) return null;
+        var answers = {};
+        var custom = {};
+        var supplementEl = fieldset.querySelector("[data-bsl-clar-supplement]");
+        var supplement = supplementEl ? supplementEl.value : "";
+        fieldset.querySelectorAll("[data-bsl-clar-q]").forEach(function (el) {
+          var qId = el.getAttribute("data-bsl-clar-q");
+          var kind = el.getAttribute("data-bsl-clar-kind");
+          if (!qId || !kind) return;
+          if (kind === "text") {
+            answers[qId] = el.value;
+            return;
+          }
+          if (kind === "custom") {
+            custom[qId] = el.value;
+            return;
+          }
+          if (kind === "single" && el.checked) {
+            answers[qId] = el.getAttribute("data-bsl-clar-opt") || "";
+          }
+          if (kind === "multi") {
+            if (!Array.isArray(answers[qId])) answers[qId] = [];
+            if (el.checked) answers[qId].push(el.getAttribute("data-bsl-clar-opt") || "");
+          }
+        });
+        Object.keys(custom).forEach(function (qId) {
+          var otherEl = fieldset.querySelector(
+            '[data-bsl-clar-q="' + qId + '"][data-bsl-clar-opt="' + CLAR_OTHER_OPT_ID + '"]',
+          );
+          if (!otherEl || !otherEl.checked) delete custom[qId];
+        });
+        return { taskId: taskId, data: { answers: answers, custom: custom, supplement: supplement } };
+      }
+
+      function persistClarificationFieldset(fieldset) {
+        var collected = collectClarificationAnswersFromFieldset(fieldset);
+        if (!collected) return;
+        saveClarificationAnswers(currentPid, collected.taskId, collected.data);
+      }
+
+      function persistCurrentClarification() {
+        if (!bodyEl) return;
+        var fieldset = bodyEl.querySelector("[data-task-id]");
+        if (fieldset) persistClarificationFieldset(fieldset);
+      }
+
+      function renderSingleStoryArticle(pid, story, idx, total) {
+        var desc = story.description != null ? String(story.description) : "";
+        var statusCode = Number(story.status);
+        var contentHtml = desc.trim()
+          ? renderMarkdownHtml(desc)
+          : '<p class="text-xs text-slate-400">（无描述）</p>';
+        return (
+          '<article class="mx-auto w-full max-w-[min(96rem,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white shadow-sm">' +
+          '<div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">' +
+          '<span class="text-xs font-semibold text-slate-700">故事 ' +
+          (idx + 1) +
+          " / " +
+          total +
+          (story.title ? " · " + esc(story.title) : "") +
+          "</span>" +
+          '<span class="rounded-md border px-2 py-0.5 text-[11px] font-medium ' +
+          taskStatusBadgeClass(statusCode) +
+          '">' +
+          esc(taskStatusLabel(statusCode)) +
+          "</span></div>" +
+          '<section class="border-b border-slate-200 bg-slate-50/90 px-4 py-4">' +
+          '<h3 class="mb-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">需求描述</h3>' +
+          '<div class="text-sm text-slate-800">' +
+          contentHtml +
+          "</div></section>" +
+          '<section class="bg-amber-50/50 px-4 py-4">' +
+          '<h3 class="mb-2.5 text-xs font-semibold uppercase tracking-wide text-amber-800/70">需求澄清</h3>' +
+          renderClarificationFormHtml(pid, story) +
+          "</section></article>"
+        );
+      }
+
+      function renderStoryNav(idx, total) {
+        var prevDisabled = idx <= 0;
+        var nextDisabled = idx >= total - 1;
+        return (
+          '<div class="mx-auto mb-4 flex w-full max-w-[min(96rem,calc(100vw-2rem))] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">' +
+          '<button type="button" class="bsl-nav-prev shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"' +
+          (prevDisabled ? " disabled" : "") +
+          ' aria-label="上一个故事">← 上一个</button>' +
+          '<span class="min-w-0 flex-1 text-center text-xs font-medium text-slate-600">故事 ' +
+          (idx + 1) +
+          " / " +
+          total +
+          "</span>" +
+          '<button type="button" class="bsl-nav-next shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"' +
+          (nextDisabled ? " disabled" : "") +
+          ' aria-label="下一个故事">下一个 →</button>' +
+          "</div>"
+        );
+      }
+
+      function showStoryAtIndex(index) {
+        if (!storiesList.length) return;
+        persistCurrentStoryTitle();
+        persistCurrentStoryTapdTaskId();
+        var total = storiesList.length;
+        var idx = Math.max(0, Math.min(index, total - 1));
+        storyIndex = idx;
+        var story = storiesList[idx];
+        var html = "";
+        if (total > 1) html += renderStoryNav(idx, total);
+        html += renderSingleStoryArticle(currentPid, story, idx, total);
+        bodyEl.innerHTML = html;
+        var fieldset = bodyEl.querySelector("[data-task-id]");
+        if (fieldset) syncOtherInputVisibility(fieldset);
+        syncStoryTitleFieldToInput();
+        syncStoryTapdTaskIdToInput();
+        subEl.textContent = "共 " + total + " 条头脑风暴 · 当前第 " + (idx + 1) + " 条";
+      }
+
+      function navigateStory(delta) {
+        if (!storiesList.length) return;
+        persistCurrentClarification();
+        showStoryAtIndex(storyIndex + delta);
+      }
+
+      function renderStories(stories) {
+        storiesList = stories || [];
+        storyIndex = 0;
+        if (storiesList.length === 0) {
+          toggleSubmitPanel(false);
+          bodyEl.innerHTML =
+            '<p class="mx-auto w-full max-w-[min(96rem,calc(100vw-2rem))] rounded-lg border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">暂无头脑风暴任务（拆分故事完成后会在此展示各故事描述）</p>';
+          subEl.textContent = "共 0 条头脑风暴";
+          return;
+        }
+        initSubmitComboboxes();
+        hydrateSubmitForm(currentPid);
+        initStoryTitleStates(storiesList);
+        toggleSubmitPanel(true);
+        loadTapdFieldsInfo();
+        showStoryAtIndex(0);
+      }
+
+      function loadStories(pid) {
+        if (!pid) {
+          showError("缺少查询参数 pid");
+          toggleSubmitPanel(false);
+          bodyEl.innerHTML =
+            '<p class="text-center text-sm text-slate-500">请在 URL 中提供 <code class="rounded bg-slate-100 px-1 font-mono text-xs">?pid=</code></p>';
+          return;
+        }
+        currentPid = pid;
+        titleEl.textContent = "头脑风暴故事列表 · pid " + pid;
+        showError("");
+        showSubmitError("");
+        bodyEl.innerHTML = '<p class="text-center text-xs text-slate-400">加载中…</p>';
+        reloadBtn.disabled = true;
+
+        Promise.all([
+          loadParentInitFields(pid),
+          fetch(apiBase() + "/api/parent-tasks/" + encodeURIComponent(pid) + "/brainstorm-stories").then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          }),
+        ])
+          .then(function (results) {
+            reloadBtn.disabled = false;
+            var res = results[1];
+            if (!res.ok) {
+              showError(
+                "加载失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body)),
+              );
+              toggleSubmitPanel(false);
+              bodyEl.innerHTML = "";
+              return;
+            }
+            renderStories((res.body && res.body.stories) || []);
+          })
+          .catch(function (e) {
+            reloadBtn.disabled = false;
+            showError("加载失败: " + e.message);
+            toggleSubmitPanel(false);
+            bodyEl.innerHTML = "";
+          });
+      }
+
+      bodyEl.addEventListener("click", function (e) {
+        var prevBtn = e.target && e.target.closest && e.target.closest(".bsl-nav-prev");
+        if (prevBtn && !prevBtn.disabled) {
+          navigateStory(-1);
+          return;
+        }
+        var nextBtn = e.target && e.target.closest && e.target.closest(".bsl-nav-next");
+        if (nextBtn && !nextBtn.disabled) navigateStory(1);
+      });
+
+      bodyEl.addEventListener("change", function (e) {
+        var target = e.target;
+        if (!target || !target.closest) return;
+        var fieldset = target.closest("[data-task-id]");
+        if (!fieldset) return;
+        syncOtherInputVisibility(fieldset);
+        persistClarificationFieldset(fieldset);
+      });
+
+      bodyEl.addEventListener("input", function (e) {
+        var target = e.target;
+        if (!target || !target.closest) return;
+        var kind = target.getAttribute && target.getAttribute("data-bsl-clar-kind");
+        var isSupplement = target.getAttribute && target.hasAttribute("data-bsl-clar-supplement");
+        if (kind !== "text" && kind !== "custom" && !isSupplement) return;
+        var fieldset = target.closest("[data-task-id]");
+        if (fieldset) persistClarificationFieldset(fieldset);
+      });
+
+      reloadBtn.addEventListener("click", function () {
+        persistCurrentClarification();
+        persistCurrentStoryTitle();
+        persistSubmitFormSettings();
+        if (currentPid) loadStories(currentPid);
+      });
+
+      document.getElementById("bsl-close").addEventListener("click", function () {
+        window.close();
+      });
+
+      document.getElementById("bsl-btn-add-git").addEventListener("click", function () {
+        gitListEl.appendChild(createGitRepoRow({ gitRemoteUrl: "", branch_version: "" }));
+        updateGitRepoRowRemoveButtons();
+        persistSubmitFormSettings();
+        var rows = gitListEl.querySelectorAll(".bsl-git-row");
+        var lastBranch = rows[rows.length - 1].querySelector(".bsl-git-branch");
+        if (lastBranch) lastBranch.focus();
+      });
+
+      document.getElementById("bsl-testEnv").addEventListener("input", persistSubmitFormSettings);
+      document.getElementById("bsl-directDevAfterDesign").addEventListener("change", persistSubmitFormSettings);
+      document.getElementById("bsl-parallel").addEventListener("change", persistSubmitFormSettings);
+      document.getElementById("bsl-useTradeMock").addEventListener("change", persistSubmitFormSettings);
+      document.getElementById("bsl-pullBranch").addEventListener("change", persistSubmitFormSettings);
+      document.getElementById("bsl-tapdTaskId").addEventListener("blur", function () {
+        applyTapdTaskIdToInput(document.getElementById("bsl-tapdTaskId").value);
+        persistCurrentStoryTapdTaskId();
+        persistSubmitFormSettings();
+      });
+      document.getElementById("bsl-tapdTaskId").addEventListener("input", function () {
+        if (tapdTaskIdInputHydrating) return;
+        clearTapdTaskIdFieldError();
+        persistCurrentStoryTapdTaskId();
+        persistSubmitFormSettings();
+      });
+      if (storyTitleInput) {
+        storyTitleInput.addEventListener("input", function () {
+          if (storyTitleInputHydrating) return;
+          var story = storiesList[storyIndex];
+          if (!story) return;
+          var state = storyTitleStates[story.task_id];
+          if (!state) return;
+          state.userEdited = true;
+          state.value = storyTitleInput.value;
+          saveStoryTitleSettings(currentPid, story.task_id, {
+            userEdited: true,
+            value: state.value,
+          });
+          updateStoryTitleHint();
+        });
+      }
+      submitBtn.addEventListener("click", submitCurrentStory);
+
+      if (tapdStoryRefInput) {
+        tapdStoryRefInput.addEventListener("input", function () {
+          clearTapdResolvedParent();
+          showTapdError("");
+          scheduleTapdResolve();
+        });
+        tapdStoryRefInput.addEventListener("blur", resolveTapdStoryRef);
+      }
+
+      initSubmitComboboxes();
+      initSubmitPanelCollapse();
+      setGitRepos([]);
+
+      window.addEventListener("beforeunload", function () {
+        persistCurrentClarification();
+        persistCurrentStoryTitle();
+        persistSubmitFormSettings();
+      });
+
+      var pid = queryParams().get("pid");
+      loadStories(pid ? String(pid).trim() : "");
+    })();
+  </script>
+  <!-- 引入Keycloak JS适配器和认证组件 -->
+  <script src="/js/keycloak.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      var keycloak = new Keycloak({
+        url: 'http://pd-keycloak.intelnal.howbuy.com/',
+        realm: 'dtms',
+        clientId: 'dtms-manager-web',
+      });
+
+      keycloak.init({ onLoad: 'login-required' }).then(async (authenticated) => {
+        console.log('authenticated' + authenticated);
+        if (authenticated) {
+          //设置token
+          setLocalItem('token', keycloak.token.toString());
+          setLocalItem('refreshToken', keycloak.refreshToken.toString());
+          setLocalItem('tokenExpire', keycloak.tokenParsed?.exp);
+          console.log('tokenParsed' , keycloak.tokenParsed);
+          var tokenParsed = keycloak.tokenParsed;
+          var userName = null;
+          if (tokenParsed.email) {
+            userName = tokenParsed.email.split("@")[0];
+          } else {
+            userName = tokenParsed["preferred_username"];
+          }
+          setLocalItem("userName", userName);
+
+          var realName = resolveRealNameFromTokenParsed(tokenParsed);
+          if (realName) {
+            setLocalItem("realName", realName);
+          }
+        }
+      }).catch((error) => {
+        console.error('Keycloak initialization failed', error);
+        //keycloakInstance.login();
+      });
+
+    });
+
+    function setLocalItem(key, val) {
+      if (typeof window === "undefined") {
+        return false;
+      }
+      window.localStorage.setItem(key, val);
+      if (key === "userName" && val) {
+        document.cookie = "userName=" + encodeURIComponent(String(val)) + "; path=/; SameSite=Lax";
+      }
+      return true;
+    }
+  </script>
+</body>
+</html>

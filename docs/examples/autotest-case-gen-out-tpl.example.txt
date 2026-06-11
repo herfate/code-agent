@@ -1,0 +1,30 @@
+{
+	"scriptCaseVo": {
+		"title": "测试1113",
+		"labelIds": [123],
+		"describe": "测试1113",
+		"input": "{\"param1\":\"11\"}",
+		"expect": "{}",
+		"scriptId": "12564265"
+	},
+	"scriptCaseAssertVOS": [
+		{
+			"assertTypeName": "数据库结果",
+			"title": "测试122223",
+			"appName": "fin-console-web",
+			"assertType": "db",
+			"expect": "1",
+			"validationSetId": "",
+			"assertValue": "select count(1) from sp_prod_part_acct_cfg where  PROD_CODE = '11'",
+
+			"index": 0,
+			"isOrdered": true,
+			"indexName": "",
+			"parameters": "",
+
+		}
+	],
+	"deleteScriptCaseAssertVOS": [],
+	"dataOperationPOList": [],
+	"deleteDataOperationPOList": []
+}

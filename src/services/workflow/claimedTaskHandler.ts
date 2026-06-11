@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { TASK_RUN_AGENT_PROVIDER } from "../../constants/agentProvider.js";
 import { loadConfig } from "../../config.js";
@@ -12,20 +11,26 @@ import {
   type Provider,
 } from "../../db/repository.js";
 import { parseTaskInputJson } from "../../db/taskInputJson.js";
-import { TASK_STATUS, updateTask, type TaskRow } from "../../db/workflow.js";
+import { addTaskCost, TASK_STATUS, updateTask, type TaskRow } from "../../db/workflow.js";
 import { AppLog } from "../appLogger.js";
 import { streamClaudeQueryToSse } from "../agentsdk/claudeAgent.js";
 import { streamCursorQueryToSse } from "../agentsdk/cursorAgent.js";
 import { prepareClaimedTaskRepoWorkspace } from "../tools/gitlabTool.js";
 import { writeClaimedTaskPromptFile } from "../file/writeClaimedTaskPromptFile.js";
 import { writeClaimedTaskOutTplFile } from "../file/writeClaimedTaskOutTplFile.js";
+import { resolveClaimedTaskRepoWorkspace } from "../file/taskRepoWorkspace.js";
 import { runParentTaskChangedFilesPipeline } from "./pipeline.js";
 import { listTaskRepoFilesModifiedSince } from "../file/scanTaskRepoModifiedSince.js";
 import { failClaimedTaskAfterRunStart } from "../scheduler/taskService.js";
-import { mergeTaskMetaWithAgentRunId, type TaskAgentProvider } from "../taskAgentMeta.js";
+import {
+  mergeTaskMetaWithAgentRunId,
+  mergeTaskMetaWithTaskRepoWorkspaceId,
+  type TaskAgentProvider,
+} from "../taskAgentMeta.js";
 import { resolveParentTaskAgentProvider, type ParentTaskRow } from "../../db/parentTask.js";
 import { buildClaimedTaskFollowUpPrompt } from "../prompt/buildClaimedTaskFollowUpPrompt.js";
-import { switchClaudeAuthAccountFromDb } from "../claude/updateClaudeJsonAuthToken.js";
+import { switchClaudeSettingsForTaskFromDbAsync } from "../claude/updateClaudeJsonAuthToken.js";
+import { isCancelledErrorMessage } from "../scheduler/claimedTaskRetry.js";
 
 type AgentRunOutcome = {
   externalId: string | null;
@@ -37,6 +42,19 @@ type AgentRunOutcome = {
  * Agent 任务：按 `TASK_AGENT_PROVIDER` 调用 Claude 或 Cursor Agent SDK，结束后写回状态与出参。
  */
 export async function handleClaimedAgentTask(
+  db: DatabaseSync,
+  task: TaskRow,
+  parentTask: ParentTaskRow,
+): Promise<void> {
+  const segmentStart = Date.now();
+  try {
+    await runClaimedAgentTask(db, task, parentTask);
+  } finally {
+    addTaskCost(db, task.id, Date.now() - segmentStart);
+  }
+}
+
+async function runClaimedAgentTask(
   db: DatabaseSync,
   task: TaskRow,
   parentTask: ParentTaskRow,
@@ -125,12 +143,19 @@ export async function handleClaimedAgentTask(
   const runId = randomUUID();
   createAgentRun(db, { id: runId, thread_id: threadId, provider: agentProvider as Provider });
 
-  // 步骤 7：把 runId 写入任务 meta_json（claudeAgentRunId），便于 GET …/tasks/:id/claude-agent-stream 仅用任务 id 续订
-  const metaJson = mergeTaskMetaWithAgentRunId(task.meta_json, agentProvider, runId);
+  // 步骤 7：解析工作区路径 task-repo/<pid>_<uuid>/，并把 runId、workspaceId 写入 meta_json
+  const { workspaceId, reuseExisting, taskRepoDirName, taskRepoCwd } = resolveClaimedTaskRepoWorkspace(
+    task,
+    parentTask.pid,
+  );
+  let nextMetaJson = task.meta_json;
+  if (!reuseExisting) {
+    nextMetaJson = mergeTaskMetaWithTaskRepoWorkspaceId(nextMetaJson, workspaceId);
+  }
+  const metaJson = mergeTaskMetaWithAgentRunId(nextMetaJson, agentProvider, runId);
   updateTask(db, task.id, { meta_json: metaJson });
 
-  // 步骤 7.1：准备任务工作目录，并 clone 仓库
-  const taskRepoCwd = path.join(process.cwd(), "task-repo", parentTask.pid);
+  // 步骤 7.1：准备任务工作目录，并 clone 仓库（续跑时复用已有目录）
   const repoOk = await prepareClaimedTaskRepoWorkspace({
     db,
     taskInputJson,
@@ -138,6 +163,7 @@ export async function handleClaimedAgentTask(
     taskRepoCwd,
     taskId: parentTask.pid,
     taskType: task.task_type,
+    reuseExisting,
     onClonePrepFailed: (errorMessage) =>
       failClaimedTaskAfterRunStart({
         db,
@@ -166,7 +192,7 @@ export async function handleClaimedAgentTask(
   if (agentProvider === TASK_RUN_AGENT_PROVIDER.Cursor) {
     const { agentId, assistantText, sdkError } = await streamCursorQueryToSse(null, {
       threadId,
-      pId: parentTask.pid,
+      pId: taskRepoDirName,
       prompt: agentPrompt,
       apiKey: config.CURSOR_API_KEY!,
       model: undefined,
@@ -177,11 +203,17 @@ export async function handleClaimedAgentTask(
     });
     outcome = { externalId: agentId, assistantText, sdkError };
   } else {
-    // claude, 切换账号,修改.claude.json文件, 替换ANTHROPIC_AUTH_TOKEN字段值
-    switchClaudeAuthAccountFromDb(db, task.creator, log);
+    // claude：切换账号并写入 settings（含 TAPD custom headers；tick 内并行时通过写入锁串行化）
+    await switchClaudeSettingsForTaskFromDbAsync(
+      db,
+      taskRepoCwd,
+      task.creator,
+      taskInputJson.tapdTaskId ?? "",
+      log,
+    );
     const { sessionId, assistantText, sdkError } = await streamClaudeQueryToSse(null, {
       threadId,
-      pId: parentTask.pid,
+      pId: taskRepoDirName,
       prompt: agentPrompt,
       model: undefined,
       resume: resumeExternalId,
@@ -204,30 +236,34 @@ export async function handleClaimedAgentTask(
     updateThreadExternalId(db, threadId, outcome.externalId);
   }
 
-  // 步骤 11：SDK 报错或 result 非成功——写 system 消息、任务失败、带 output_json 退出
+  // 步骤 11：SDK 报错或 result 非成功
   if (outcome.sdkError) {
-    if (outcome.assistantText) {
+    if (isCancelledErrorMessage(outcome.sdkError)) {
+      if (outcome.assistantText) {
+        insertMessage(db, {
+          id: randomUUID(),
+          thread_id: threadId,
+          role: "assistant",
+          content: outcome.assistantText,
+        });
+      }
       insertMessage(db, {
         id: randomUUID(),
         thread_id: threadId,
-        role: "assistant",
-        content: outcome.assistantText,
+        role: "system",
+        content: `error: ${outcome.sdkError}`,
       });
+      updateTask(db, task.id, {
+        status: TASK_STATUS.Failed,
+        completed_at: t(),
+        error_message: outcome.sdkError,
+        output_json: JSON.stringify(outputPayload),
+      });
+      log.error({ taskId: task.id, err: outcome.sdkError, agentProvider }, "claimed task: agent cancelled");
+      return;
     }
-    insertMessage(db, {
-      id: randomUUID(),
-      thread_id: threadId,
-      role: "system",
-      content: `error: ${outcome.sdkError}`,
-    });
-    updateTask(db, task.id, {
-      status: TASK_STATUS.Failed,
-      completed_at: t(),
-      error_message: outcome.sdkError,
-      output_json: JSON.stringify(outputPayload),
-    });
-    log.error({ taskId: task.id, err: outcome.sdkError, agentProvider }, "claimed task: agent error");
-    return;
+    // 非 cancelled 的 SDK 错误抛出让调度器重试；任务保持 running，不写失败态
+    throw new Error(outcome.sdkError);
   }
 
   // 步骤 12：成功——若有AI响应正文则写入 messages

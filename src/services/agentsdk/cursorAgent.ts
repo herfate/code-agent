@@ -1,9 +1,10 @@
 import { Agent, CursorAgentError } from "@cursor/sdk";
 import type { ConversationStep, McpServerConfig, SDKAgent } from "@cursor/sdk";
-import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { AGENT_PROVIDER } from "../../constants/agentProvider.js";
+import { resolveTaskRepoCwd } from "../file/aiOutTaskPath.js";
 import {
+  CURSOR_BASE_MCP_SERVERS,
   getMcpServersByCfgKey,
   getMcpServersByTaskType,
   type McpCfgKey,
@@ -22,10 +23,15 @@ import {
 
 const DEFAULT_MODEL = "composer-2.5";
 
-function resolveCursorMcpServers(opts: CursorSseOptions): Record<string, McpServerConfig> | undefined {
-  if (opts.mcpCfgKey != null) return getMcpServersByCfgKey(opts.mcpCfgKey);
-  if (opts.taskType != null) return getMcpServersByTaskType(opts.taskType);
-  return undefined;
+/** 基础 MCP（写死）+ 任务/配置档附加 MCP */
+function resolveCursorMcpServers(opts: CursorSseOptions): Record<string, McpServerConfig> {
+  const extra =
+    opts.mcpCfgKey != null
+      ? getMcpServersByCfgKey(opts.mcpCfgKey)
+      : opts.taskType != null
+        ? getMcpServersByTaskType(opts.taskType)
+        : undefined;
+  return { ...CURSOR_BASE_MCP_SERVERS, ...(extra ?? {}) };
 }
 
 /** 将 onStep 的 ConversationStep 转为前端可渲染的 payload（按步骤，非 token 级） */
@@ -70,8 +76,7 @@ function summarizeCursorStep(
 }
 
 function resolveAgentCwd(pId: string): string {
-  if (pId === "demo") return process.cwd();
-  return path.join(process.cwd(), "task-repo", pId);
+  return resolveTaskRepoCwd(pId);
 }
 
 export type CursorSseOptions = {
@@ -91,6 +96,17 @@ export type CursorSseOptions = {
   /** 显式指定 MCP 配置档（优先于 taskType） */
   mcpCfgKey?: McpCfgKey;
 };
+
+/** 运行中的 Cursor Agent（按 runId 索引，供无 SSE 连接时强制中断） */
+const activeCursorRuns = new Map<string, { abort: () => void }>();
+
+/** 强制中断指定 runId 的 Cursor Agent 执行；返回是否找到并触发中断 */
+export function abortCursorAgentRun(runId: string): boolean {
+  const handle = activeCursorRuns.get(runId);
+  if (!handle) return false;
+  handle.abort();
+  return true;
+}
 
 function safeSse(reply: FastifyReply | null, fn: (r: FastifyReply) => void): void {
   if (!reply || reply.raw.writableEnded || reply.raw.destroyed) return;
@@ -131,7 +147,7 @@ async function runSendRound(
   reply: FastifyReply | null,
   recorder: CursorSseOptions["runRecorder"],
   abortSignal: AbortSignal,
-  mcpServers?: Record<string, McpServerConfig>,
+  mcpServers: Record<string, McpServerConfig>,
 ): Promise<RoundResult> {
   let assistantText: string | null = null;
   let sdkError: string | null = null;
@@ -140,7 +156,7 @@ async function runSendRound(
   const runHolder = { id: "" };
 
   const run = await agent.send(prompt, {
-    ...(mcpServers ? { mcpServers } : {}),
+    mcpServers,
     onStep: async ({ step }) => {
       emitData(reply, recorder, {
         channel: "cursor",
@@ -177,6 +193,21 @@ async function runSendRound(
   return { assistantText, sdkError };
 }
 
+function finishCursorRunCancelled(
+  reply: FastifyReply | null,
+  recorder: CursorSseOptions["runRecorder"],
+): void {
+  if (recorder) {
+    appendAgentRunEvent(recorder.db, recorder.runId, "error", { message: "cancelled" });
+    safeSse(reply, (r) => sendSseError(r, "cancelled"));
+    finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: "cancelled" });
+    const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
+    safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: doneSeq }));
+  } else {
+    safeSse(reply, (r) => sendSseError(r, "cancelled"));
+  }
+}
+
 /**
  * @param reply 浏览器 SSE 时传入；定时任务等仅落库续订场景传 `null`（须带 `runRecorder`）。
  */
@@ -188,6 +219,9 @@ export async function streamCursorQueryToSse(
   const recorder = opts.runRecorder;
   if (!recorder && !reply) {
     throw new Error("streamCursorQueryToSse: reply is required when runRecorder is omitted");
+  }
+  if (recorder) {
+    activeCursorRuns.set(recorder.runId, { abort: () => controller.abort() });
   }
   if (!recorder && reply) {
     attachAbortOnClose(reply, controller);
@@ -218,7 +252,7 @@ export async function streamCursorQueryToSse(
     apiKey: opts.apiKey,
     model: { id: modelId },
     local: { cwd, settingSources: [] },
-    ...(mcpServers ? { mcpServers } : {}),
+    mcpServers,
   };
 
   let agent: SDKAgent | null = null;
@@ -236,7 +270,7 @@ export async function streamCursorQueryToSse(
     assistantText = first.assistantText;
     sdkError = first.sdkError;
 
-    if (!sdkError && opts.followUpPrompt?.trim()) {
+    if (!sdkError && !controller.signal.aborted && opts.followUpPrompt?.trim()) {
       const follow = await runSendRound(
         agent,
         opts.followUpPrompt.trim(),
@@ -251,10 +285,15 @@ export async function streamCursorQueryToSse(
       sdkError = follow.sdkError;
     }
 
-    const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
-    safeSse(reply, (r) => sendSseDone(r, doneSeq != null ? { seq: doneSeq } : undefined));
-    if (recorder) {
-      finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
+    if (sdkError === "cancelled" || controller.signal.aborted) {
+      sdkError = "cancelled";
+      finishCursorRunCancelled(reply, recorder);
+    } else {
+      const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
+      safeSse(reply, (r) => sendSseDone(r, doneSeq != null ? { seq: doneSeq } : undefined));
+      if (recorder) {
+        finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
+      }
     }
   } catch (err) {
     const message =
@@ -274,6 +313,7 @@ export async function streamCursorQueryToSse(
       safeSse(reply, (r) => sendSseError(r, message));
     }
   } finally {
+    if (recorder) activeCursorRuns.delete(recorder.runId);
     await disposeAgent(agent);
     try {
       if (reply && !reply.raw.writableEnded && !reply.raw.destroyed) {

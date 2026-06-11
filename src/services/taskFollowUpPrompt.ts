@@ -19,6 +19,11 @@ function getFollowUpMessagesFromTaskMeta(meta_json: string | null): string[] {
   return v.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
 }
 
+/** 是否存在追加对话（续跑场景） */
+export function hasFollowUpMessagesInTaskMeta(meta_json: string | null): boolean {
+  return getFollowUpMessagesFromTaskMeta(meta_json).length > 0;
+}
+
 /** 取 meta_json.followUpMessages 中最新一条（追加对话场景） */
 export function getLatestFollowUpMessageFromTaskMeta(meta_json: string | null): string | null {
   const arr = getFollowUpMessagesFromTaskMeta(meta_json);

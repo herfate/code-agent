@@ -1,4 +1,4 @@
-/** Agent 变更文件输出根目录名（相对项目 cwd：`ai_out/<pid>/<taskType>/`） */
+/** Agent 变更文件输出根目录名（相对项目 cwd：`ai_out/<pid>/<taskType>/<taskId>/`） */
 export const AI_OUT_DIR = "ai_out";
 
 /** Confluence 页面转 Markdown 本地输出目录（相对项目 cwd：`confluence_out/`） */
@@ -6,6 +6,9 @@ export const CONFLUENCE_OUT_DIR = "confluence_out";
 
 /** Wiki 知识库根目录（相对项目 cwd：`wiki_base/<categoryId>/`） */
 export const WIKI_BASE_DIR = "wiki_base";
+
+/** Wiki 代码库本地缓存根目录（相对项目 cwd：`code_base/<categoryId>/`） */
+export const CODE_BASE_DIR = "code_base";
 
 /** 父任务 `parent_task_params.param_key`：Wiki 文档来源（拆分故事 / 头脑风暴） */
 export const WIKI_DOC_PARAM_KEY = "wiki_doc";
@@ -26,6 +29,14 @@ export const RESERVED_PARENT_PARAM_KEYS = [
   CHANGED_FILES_TYPE.TestPreAnalysisOut,
   CHANGED_FILES_TYPE.TestCaseDesignOut,
   CHANGED_FILES_TYPE.CodeReviewOut,
+  CHANGED_FILES_TYPE.StorySplitOut,
+  CHANGED_FILES_TYPE.BrainstormOut,
+  CHANGED_FILES_TYPE.AiStorySplitOut,
+  CHANGED_FILES_TYPE.UiTestExecuteOut,
+  CHANGED_FILES_TYPE.PersistMemoryOut,
+  CHANGED_FILES_TYPE.FuncTestCaseGenOut,
+  CHANGED_FILES_TYPE.AutoTestCaseGenOut,
+  CHANGED_FILES_TYPE.TestMindMapAnalysisOut,
   ...Object.values(TEST_PASS_RATE_PARAM_KEY),
   ...Object.values(CODE_REVIEW_GATE_PARAM_KEY),
   ...Object.values(DEV_OPS_DEPLOY_PARAM_KEY),

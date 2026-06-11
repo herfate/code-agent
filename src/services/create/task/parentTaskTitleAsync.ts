@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { applyAiTitleToPlaceholder } from "../../../constants/parentTask.js";
 import { getParentTask, updateParentTask } from "../../../db/parentTask.js";
 import { listTasksByPid } from "../../../db/workflow.js";
 import { taskTypeLabel } from "../../../constants/taskType.js";
@@ -34,6 +35,34 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** 基于需求文本调用 LLM 汇总标题（仅返回 AI 标题片段，不含占位前缀） */
+export async function summarizeTitleFromSourceText(
+  db: DatabaseSync,
+  sourceText: string,
+): Promise<string> {
+  const text = sourceText.trim();
+  if (!text) {
+    throw new Error("sourceText 为空");
+  }
+
+  const prompt =
+    "请基于以下需求汇总一个简洁任务标题，限制 40 字以内，只输出标题，不要解释：\n" + text;
+
+  let lastErr: unknown;
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    try {
+      const summaryTitle = await chat(prompt, db);
+      return normalizeAiTitle(summaryTitle);
+    } catch (ex) {
+      lastErr = ex;
+      if (i >= MAX_ATTEMPTS - 1) break;
+      AppLog.logger.warn({ attempt: i + 1, err: ex }, "汇总标题失败，将重试");
+      await sleep(RETRY_DELAY_MS);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("AI 汇总标题失败");
+}
+
 /** 基于需求文本调用 LLM 汇总标题并写回 `parent_task.title`（失败保留占位标题） */
 export async function summarizeParentTaskTitleAsync(
   db: DatabaseSync,
@@ -46,33 +75,23 @@ export async function summarizeParentTaskTitleAsync(
     return;
   }
 
-  const prompt =
-    "请基于以下需求汇总一个简洁任务标题，限制 20 字以内，只输出标题，不要解释：\n" + text;
-
-  for (let i = 0; i < MAX_ATTEMPTS; i++) {
-    try {
-      const summaryTitle = await chat(prompt, db);
-      const normalizedTitle = normalizeAiTitle(summaryTitle);
-      if (!getParentTask(db, pid)) {
-        AppLog.logger.warn({ pid }, "父任务不存在，跳过更新标题");
-        return;
-      }
-      updateParentTask(db, pid, { title: normalizedTitle });
-      const tasks = listTasksByPid(db, pid);
-      const now = Date.now();
-      const stmt = db.prepare(`UPDATE tasks SET title = ?, updated_at = ? WHERE id = ?`);
-      for (const t of tasks) {
-        stmt.run(`${normalizedTitle} - ${taskTypeLabel(t.task_type)}`, now, t.id);
-      }
-      AppLog.logger.info({ pid, title: normalizedTitle }, "异步汇总父任务标题成功");
+  try {
+    const normalizedTitle = await summarizeTitleFromSourceText(db, text);
+    const parent = getParentTask(db, pid);
+    if (!parent) {
+      AppLog.logger.warn({ pid }, "父任务不存在，跳过更新标题");
       return;
-    } catch (ex) {
-      if (i >= MAX_ATTEMPTS - 1) {
-        AppLog.logger.error({ pid, err: ex }, "异步汇总父任务标题失败，已达最大重试次数");
-      } else {
-        AppLog.logger.warn({ pid, attempt: i + 1, err: ex }, "异步汇总父任务标题失败，将重试");
-        await sleep(RETRY_DELAY_MS);
-      }
     }
+    const finalTitle = applyAiTitleToPlaceholder(parent.title, normalizedTitle);
+    updateParentTask(db, pid, { title: finalTitle });
+    const tasks = listTasksByPid(db, pid);
+    const now = Date.now();
+    const stmt = db.prepare(`UPDATE tasks SET title = ?, updated_at = ? WHERE id = ?`);
+    for (const t of tasks) {
+      stmt.run(`${finalTitle} - ${taskTypeLabel(t.task_type)}`, now, t.id);
+    }
+    AppLog.logger.info({ pid, title: finalTitle }, "异步汇总父任务标题成功");
+  } catch (ex) {
+    AppLog.logger.error({ pid, err: ex }, "异步汇总父任务标题失败，已达最大重试次数");
   }
 }

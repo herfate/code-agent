@@ -1,10 +1,16 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
   ANTHROPIC_CONFIG_KEY_API_KEY,
+  TAPD_CONFIG_KEY_TOKEN,
+  TAPD_CONFIG_KEY_WORKSPACE_ID,
+  MAX_CODE_REVIEW_RUN_COUNT_CONFIG_KEY,
   MAX_RETRY_COUNT_CONFIG_KEY,
   OPENAI_CONFIG_KEY_API_KEY,
   OPENAI_CONFIG_KEY_BASE_URL,
   OPENAI_CONFIG_KEY_MODEL,
+  MULTIMODAL_CONFIG_KEY_API_KEY,
+  MULTIMODAL_CONFIG_KEY_BASE_URL,
+  MULTIMODAL_CONFIG_KEY_MODEL,
   QA_CONFIG_KEY_PASSWORD,
   QA_CONFIG_KEY_USERNAME,
 } from "../constants/systemConfigKeys.js";
@@ -61,6 +67,16 @@ export function getGlobalMaxRetryCount(db: DatabaseSync): number {
   return n !== null ? n : DEFAULT_MAX_RETRY_COUNT;
 }
 
+/** Code Review 最多执行次数（`max_code_review_run_count`）；未配置或非法时默认 `2` */
+export const DEFAULT_MAX_CODE_REVIEW_RUN_COUNT = 2;
+
+export function getGlobalMaxCodeReviewRunCount(db: DatabaseSync): number {
+  const row = getGlobalConfigByKey(db, MAX_CODE_REVIEW_RUN_COUNT_CONFIG_KEY);
+  if (!row) return DEFAULT_MAX_CODE_REVIEW_RUN_COUNT;
+  const n = parseConfigIntValue(row.value_json);
+  return n !== null && n >= 1 ? n : DEFAULT_MAX_CODE_REVIEW_RUN_COUNT;
+}
+
 /**
  * 按 `config_key` 读取 `system_config` 并解析为字符串：先匹配用户行，若无则全局行（与 {@link resolveConfigByKey} 一致）。
  * `username` 为空或仅空白时只查全局。
@@ -105,12 +121,29 @@ export function resolveAnthropicAuthToken(db: DatabaseSync, username?: string | 
   return parseConfigStringValue(hit.row.value_json).trim();
 }
 
+/** 从 `system_config` 读取 `tapd_token`（先用户行，再全局；`username` 为空则仅全局） */
+export function resolveTapdToken(db: DatabaseSync, username?: string | null): string {
+  const hit = resolveConfigByKey(db, username, TAPD_CONFIG_KEY_TOKEN);
+  if (!hit) return "";
+  return parseConfigStringValue(hit.row.value_json).trim();
+}
+
+/** 从 `system_config` 读取 `tapd_workspace_id`（先用户行，再全局；`username` 为空则仅全局） */
+export function resolveTapdWorkspaceId(db: DatabaseSync, username?: string | null): string {
+  const hit = resolveConfigByKey(db, username, TAPD_CONFIG_KEY_WORKSPACE_ID);
+  if (!hit) return "";
+  return parseConfigStringValue(hit.row.value_json).trim();
+}
+
 /** OpenAI 兼容 chat 配置（环境变量优先，未设置时回退全局 `system_config`） */
 export type OpenAiChatSettings = {
   apiKey: string;
   baseUrl: string;
   model: string;
 };
+
+/** 多模态（Vision）chat 配置，与 {@link OpenAiChatSettings} 键相互独立 */
+export type MultimodalChatSettings = OpenAiChatSettings;
 
 function readGlobalConfigTrimmed(db: DatabaseSync, configKey: string): string {
   const row = getGlobalConfigByKey(db, configKey);
@@ -135,6 +168,26 @@ export function resolveOpenAiChatSettings(db?: DatabaseSync): OpenAiChatSettings
     apiKey: envApiKey || readGlobalConfigTrimmed(db, OPENAI_CONFIG_KEY_API_KEY),
     baseUrl: envBaseUrl || readGlobalConfigTrimmed(db, OPENAI_CONFIG_KEY_BASE_URL),
     model: envModel || readGlobalConfigTrimmed(db, OPENAI_CONFIG_KEY_MODEL),
+  };
+}
+
+/**
+ * 解析多模态 chat 用配置：先读 `MULTIMODAL_*` 环境变量，再读全局 `system_config`
+ *（键见 {@link MULTIMODAL_CONFIG_KEY_API_KEY} 等），与 OPENAI_* 互不影响。
+ */
+export function resolveMultimodalChatSettings(db?: DatabaseSync): MultimodalChatSettings {
+  const envApiKey = (process.env.MULTIMODAL_API_KEY ?? "").trim();
+  const envBaseUrl = (process.env.MULTIMODAL_BASE_URL ?? "").trim();
+  const envModel = (process.env.MULTIMODAL_MODEL ?? "").trim();
+
+  if (!db) {
+    return { apiKey: envApiKey, baseUrl: envBaseUrl, model: envModel };
+  }
+
+  return {
+    apiKey: envApiKey || readGlobalConfigTrimmed(db, MULTIMODAL_CONFIG_KEY_API_KEY),
+    baseUrl: envBaseUrl || readGlobalConfigTrimmed(db, MULTIMODAL_CONFIG_KEY_BASE_URL),
+    model: envModel || readGlobalConfigTrimmed(db, MULTIMODAL_CONFIG_KEY_MODEL),
   };
 }
 

@@ -499,6 +499,93 @@ async function fetchPageSummary(
   };
 }
 
+export type ConfluenceAttachmentItem = {
+  id: string;
+  filename: string;
+  mediaType: string;
+  downloadPath: string;
+};
+
+type ConfluenceAttachmentResponse = {
+  results?: Array<{
+    id: string;
+    title?: string;
+    metadata?: { mediaType?: string };
+    extensions?: { mediaType?: string };
+    _links?: { download?: string };
+  }>;
+  size?: number;
+};
+
+const IMAGE_ATTACHMENT_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
+
+function isImageAttachment(filename: string, mediaType: string): boolean {
+  if (mediaType.startsWith("image/")) return true;
+  return IMAGE_ATTACHMENT_EXT.test(filename);
+}
+
+/** 分页列出页面附件（仅图片类） */
+export async function listConfluencePageImageAttachments(
+  restApiBase: string,
+  pageId: string,
+  creds: ConfluenceCredentials,
+): Promise<ConfluenceAttachmentItem[]> {
+  const all: ConfluenceAttachmentItem[] = [];
+  let start = 0;
+  const limit = 100;
+
+  while (true) {
+    const data = await confluenceJsonGet<ConfluenceAttachmentResponse>(
+      restApiBase,
+      `/content/${encodeURIComponent(pageId)}/child/attachment?start=${start}&limit=${limit}&expand=metadata`,
+      creds,
+    );
+    const batch = data.results ?? [];
+    for (const item of batch) {
+      const filename = (item.title ?? "").trim();
+      const downloadPath = item._links?.download?.trim();
+      if (!filename || !downloadPath) continue;
+      const mediaType = item.metadata?.mediaType ?? item.extensions?.mediaType ?? "";
+      if (!isImageAttachment(filename, mediaType)) continue;
+      all.push({ id: item.id, filename, mediaType, downloadPath });
+    }
+    const size = data.size ?? batch.length;
+    if (size === 0 || size < limit) break;
+    start += size;
+  }
+
+  return all;
+}
+
+/** 下载 Confluence 附件二进制 */
+export async function downloadConfluenceAttachment(
+  siteBase: string,
+  downloadPath: string,
+  creds: ConfluenceCredentials,
+): Promise<Buffer> {
+  const url = resolveAbsoluteUrl(siteBase, downloadPath);
+  const res = await fetch(url, {
+    headers: confluenceAuthHeaders(creds),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`附件下载失败 HTTP ${res.status}: ${body.slice(0, 300)}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
+/** 拉取单页 storage → Markdown（供 Wiki 单页重载） */
+export async function fetchConfluencePageMarkdown(
+  creds: ConfluenceCredentials,
+  options: FetchConfluencePageOptions,
+): Promise<ConfluenceMarkdownSavePayload & { restApiBase: string }> {
+  const { pageId, restApiBase, pageUrl } = resolvePageContext(creds, options);
+  const summary = await fetchPageSummary(restApiBase, pageId, creds, pageUrl);
+  const converted = await fetchPageStorageMarkdown(restApiBase, summary, creds);
+  return { ...converted, restApiBase };
+}
+
 async function fetchPageStorageMarkdown(
   restApiBase: string,
   summary: ConfluencePageSummary,

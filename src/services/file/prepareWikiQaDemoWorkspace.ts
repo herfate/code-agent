@@ -1,6 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import type { FastifyBaseLogger } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import { WIKI_BASE_DIR, WIKI_DOC_PARAM_KEY } from "../../constants/commonKey.js";
 import { isWikiCategoryId, type WikiCategoryId } from "../../constants/wikiCategory.js";
@@ -9,67 +8,19 @@ import { getParentTaskParamByParentAndKey } from "../../db/workflow.js";
 import { getWikiDocSourceConfigByCategory, getCodeRepoRowBySlot } from "../../db/wikiSource.js";
 import {
   isWikiQaCodeRepoSlot,
-  wikiCodeRepoConfigLabel,
+  normalizeWikiStorySplitDocTypes,
+  WIKI_SOURCE_TYPE,
   type WikiQaCodeRepoSlot,
+  type WikiStorySplitDocSourceType,
 } from "../../constants/wikiSourceType.js";
 import { parseCodeRepoWikiUrl } from "../wiki/codeRepoWikiSource.js";
-import { cloneRepo, type CloneRepoInput } from "../tools/gitlabTool.js";
-import {
-  type GitRepoWorkspacePlan,
-  repoDirNameFromGitRemoteUrl,
-  resolveGitRepoWorkspacePath,
-} from "../tools/gitRepoWorkspace.js";
+import { copyCodeRepoSlotsToDir } from "./copyCodeBaseToDir.js";
 import { assertSafeWikiCategoryId, listWikiBaseFiles } from "./wikiBaseFiles.js";
-
-const DEMO_PID = "demo";
-
-/** 智能问答克隆 token（先用第一个，失败再试第二个；TODO 后期改用户配置） */
-const WIKI_QA_CLONE_TOKENS = [""] as const;
-
-function removePathIfExists(targetPath: string): void {
-  if (existsSync(targetPath)) {
-    rmSync(targetPath, { recursive: true, force: true });
-  }
-}
-
-/** 依次用固定 token 克隆，前一个失败则清理目录后换下一个 */
-async function cloneRepoWithTokenFallback(
-  input: Omit<CloneRepoInput, "token">,
-  tokens: readonly string[],
-): Promise<void> {
-  if (tokens.length === 0) {
-    throw new Error("cloneRepo: 未配置克隆 token");
-  }
-  let lastError: unknown;
-  for (let i = 0; i < tokens.length; i++) {
-    removePathIfExists(input.targetPath);
-    try {
-      await cloneRepo({ ...input, token: tokens[i] });
-      return;
-    } catch (e) {
-      lastError = e;
-      if (i < tokens.length - 1) {
-        removePathIfExists(input.targetPath);
-      }
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
-}
-
-/** 智能问答克隆始终使用命名子目录，避免与根目录 Confluence 文档冲突 */
-function planWikiQaCloneDirs(repos: GitRepoInitPair[]): GitRepoWorkspacePlan[] {
-  const used = new Set<string>();
-  return repos.map((r) => {
-    const base = repoDirNameFromGitRemoteUrl(r.gitRemoteUrl);
-    let name = base;
-    let n = 2;
-    while (used.has(name)) {
-      name = `${base}-${n++}`;
-    }
-    used.add(name);
-    return { ...r, relDir: name };
-  });
-}
+import {
+  normalizeWikiQaUsername,
+  wikiQaWorkspaceDir,
+  writeWikiQaCopiedSinceMarker,
+} from "./wikiQaAiOutput.js";
 
 function resolveCodeRepoPairBySlot(
   config: ReturnType<typeof getWikiDocSourceConfigByCategory>,
@@ -81,23 +32,62 @@ function resolveCodeRepoPairBySlot(
 }
 
 export type PrepareWikiQaDemoWorkspaceOptions = {
+  /** 登录用户名，对应 `task-repo/<username>/` */
+  username: string;
   /** 复制 `wiki_base/<categoryId>/` 下 Confluence 同步文档 */
   includeConfluenceDocs?: boolean;
-  /** 要后台克隆的代码库槽位（1..5） */
+  /** 复制 `wiki_base/<categoryId>/自动化测试案例/` 下已同步 JSON */
+  includeAutomatedTestCases?: boolean;
+  /** 要从 `code_base` 复制的代码库槽位（1..10） */
   codeRepoSlots?: WikiQaCodeRepoSlot[];
   db?: DatabaseSync;
-  /** HTTPS 克隆用户名（Basic Auth 用户名部分） */
-  creator?: string | null;
-  log?: FastifyBaseLogger;
 };
 
 export type PrepareWikiQaDemoWorkspaceResult = {
+  /** 复制的 Confluence 文档数 */
   copied: number;
-  /** 是否已触发后台克隆（不等待完成） */
-  clone_started: boolean;
-  clone_slots: WikiQaCodeRepoSlot[];
+  /** 复制的自动化测试案例文件数 */
+  test_case_copied: number;
+  /** 复制的代码文件数 */
+  code_copied: number;
+  code_slots: WikiQaCodeRepoSlot[];
   demo_cwd: string;
+  /** 复制完成时刻（毫秒）；用于筛选此后 AI 新增/修改的文件 */
+  copied_since_ms: number;
 };
+
+/** `parent_task_params.wiki_doc` 的 JSON 结构 */
+export type WikiDocParamJson = {
+  category_id?: string;
+  category_label?: string;
+  relative_path?: string;
+  wiki_path?: string;
+  /** 认领任务时复制到工作区的 Confluence 文档类型目录 */
+  include_doc_types: WikiStorySplitDocSourceType[];
+  /** 认领任务时克隆的代码库槽位（1..10） */
+  include_code_repo_slots: WikiQaCodeRepoSlot[];
+};
+
+export function parseWikiDocParamJson(valueJson: string | null | undefined): WikiDocParamJson | null {
+  if (!valueJson?.trim()) return null;
+  try {
+    const raw = JSON.parse(valueJson) as unknown;
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+    const o = raw as Record<string, unknown>;
+    return {
+      category_id: typeof o.category_id === "string" ? o.category_id.trim() : undefined,
+      category_label: typeof o.category_label === "string" ? o.category_label.trim() : undefined,
+      relative_path: typeof o.relative_path === "string" ? o.relative_path.trim() : undefined,
+      wiki_path: typeof o.wiki_path === "string" ? o.wiki_path.trim() : undefined,
+      include_doc_types: normalizeWikiStorySplitDocTypes(o.include_doc_types),
+      include_code_repo_slots: Array.isArray(o.include_code_repo_slots)
+        ? [...new Set(o.include_code_repo_slots.filter(isWikiQaCodeRepoSlot))].sort((a, b) => a - b)
+        : [],
+    };
+  } catch {
+    return null;
+  }
+}
 
 /** 解析 `parent_task_params.wiki_doc` 的 `category_id` */
 export function resolveWikiCategoryIdFromParent(
@@ -105,15 +95,24 @@ export function resolveWikiCategoryIdFromParent(
   parentTaskId: string,
 ): string | null {
   const row = getParentTaskParamByParentAndKey(db, parentTaskId, WIKI_DOC_PARAM_KEY);
-  if (!row?.value_json?.trim()) return null;
-  try {
-    const raw = JSON.parse(row.value_json) as unknown;
-    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
-    const categoryId = String((raw as Record<string, unknown>).category_id ?? "").trim();
-    return isWikiCategoryId(categoryId) ? categoryId : null;
-  } catch {
-    return null;
+  const param = parseWikiDocParamJson(row?.value_json);
+  const categoryId = param?.category_id ?? "";
+  return isWikiCategoryId(categoryId) ? categoryId : null;
+}
+
+/** 按 `wiki_doc.include_code_repo_slots` 从文档源配置解析 Git 仓库 */
+export function resolveGitReposFromWikiDocSlots(
+  db: DatabaseSync,
+  categoryId: WikiCategoryId,
+  slots: readonly WikiQaCodeRepoSlot[],
+): GitRepoInitPair[] {
+  const config = getWikiDocSourceConfigByCategory(db, categoryId);
+  const repos: GitRepoInitPair[] = [];
+  for (const slot of slots) {
+    const pair = resolveCodeRepoPairBySlot(config, slot);
+    if (pair?.gitRemoteUrl) repos.push(pair);
   }
+  return repos;
 }
 
 /** 将 `wiki_base/<categoryId>/` 下可预览文档复制到目标目录（保留相对路径，不清空目标目录） */
@@ -135,85 +134,84 @@ export function copyWikiCategoryToDir(categoryId: string, targetDir: string): nu
   return files.length;
 }
 
-async function cloneWikiQaRepos(
-  demoCwd: string,
-  plans: GitRepoWorkspacePlan[],
-  creator: string | null | undefined,
-): Promise<void> {
-  for (const plan of plans) {
-    const targetPath = resolveGitRepoWorkspacePath(demoCwd, plan.relDir);
-    await cloneRepoWithTokenFallback(
-      {
-        remoteUrl: plan.gitRemoteUrl,
-        targetPath,
-        branch: plan.branch_version,
-        httpsTokenUsername: creator?.trim() || undefined,
-      },
-      WIKI_QA_CLONE_TOKENS,
-    );
-  }
-}
+/** 仅复制指定顶层目录下的 Wiki 文档（如 `基线文档/`、`自动化测试案例/`） */
+export function copyWikiCategorySourceTypesToDir(
+  categoryId: string,
+  targetDir: string,
+  sourceTypes: readonly string[],
+): number {
+  assertSafeWikiCategoryId(categoryId);
+  if (sourceTypes.length === 0) return 0;
 
-function startWikiQaRepoClonesAsync(
-  demoCwd: string,
-  plans: GitRepoWorkspacePlan[],
-  creator: string | null | undefined,
-  log?: FastifyBaseLogger,
-): void {
-  void cloneWikiQaRepos(demoCwd, plans, creator).catch((err) => {
-    const msg = err instanceof Error ? err.message : String(err);
-    log?.error({ err, demoCwd, repoCount: plans.length }, "wiki qa background clone failed");
-    if (!log) {
-      console.error("wiki qa background clone failed:", msg);
-    }
-  });
+  const typeSet = new Set<string>(sourceTypes);
+  const destRoot = resolve(targetDir);
+  mkdirSync(destRoot, { recursive: true });
+
+  const files = listWikiBaseFiles(categoryId);
+  const categoryRoot = join(resolve(process.cwd(), WIKI_BASE_DIR), categoryId);
+  let copied = 0;
+
+  for (const file of files) {
+    const topDir = file.relative_path.split("/")[0] ?? "";
+    if (!typeSet.has(topDir)) continue;
+    const src = join(categoryRoot, file.relative_path);
+    const dest = join(destRoot, file.relative_path);
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(src, dest);
+    copied++;
+  }
+
+  return copied;
 }
 
 /**
- * 智能问答前：清空 `task-repo/demo`，同步复制 Confluence 文档；代码库在后台异步克隆。
+ * 智能问答前：清空 `task-repo/<username>/`，同步复制 Confluence 文档与 `code_base` 代码文件。
  */
 export function prepareWikiQaDemoWorkspace(
   categoryId: string,
-  options: PrepareWikiQaDemoWorkspaceOptions = {},
+  options: PrepareWikiQaDemoWorkspaceOptions,
 ): PrepareWikiQaDemoWorkspaceResult {
   assertSafeWikiCategoryId(categoryId);
+  const username = normalizeWikiQaUsername(options.username);
   const includeConfluenceDocs = options.includeConfluenceDocs ?? false;
+  const includeAutomatedTestCases = options.includeAutomatedTestCases ?? false;
   const codeRepoSlots = [...new Set(options.codeRepoSlots ?? [])]
     .filter(isWikiQaCodeRepoSlot)
     .sort((a, b) => a - b);
 
-  if (!includeConfluenceDocs && codeRepoSlots.length === 0) {
-    throw new Error("请至少选择添加 Confluence 文档或添加代码库");
+  if (!includeConfluenceDocs && !includeAutomatedTestCases && codeRepoSlots.length === 0) {
+    throw new Error("请至少选择添加 Confluence 文档、自动化测试案例或添加代码库");
   }
 
-  const demoCwd = resolve(process.cwd(), "task-repo", DEMO_PID);
-  if (existsSync(demoCwd)) {
-    rmSync(demoCwd, { recursive: true, force: true });
+  const workspaceCwd = wikiQaWorkspaceDir(username);
+  if (existsSync(workspaceCwd)) {
+    rmSync(workspaceCwd, { recursive: true, force: true });
   }
-  mkdirSync(demoCwd, { recursive: true });
+  mkdirSync(workspaceCwd, { recursive: true });
 
-  const copied = includeConfluenceDocs ? copyWikiCategoryToDir(categoryId, demoCwd) : 0;
+  const copied = includeConfluenceDocs ? copyWikiCategoryToDir(categoryId, workspaceCwd) : 0;
 
-  let clone_started = false;
+  const test_case_copied = includeAutomatedTestCases
+    ? copyWikiCategorySourceTypesToDir(categoryId, workspaceCwd, [WIKI_SOURCE_TYPE.AutomatedTestCase])
+    : 0;
+
+  let code_copied = 0;
   if (codeRepoSlots.length > 0) {
     if (!options.db) {
-      throw new Error("clone code repo requires db");
+      throw new Error("copy code repo requires db");
     }
-    const config = getWikiDocSourceConfigByCategory(options.db, categoryId as WikiCategoryId);
-    const repos: GitRepoInitPair[] = [];
-    for (const slot of codeRepoSlots) {
-      const pair = resolveCodeRepoPairBySlot(config, slot);
-      if (!pair?.gitRemoteUrl) {
-        throw new Error(
-          `代码库 ${slot} 未配置，请先在「文档源配置」中填写${wikiCodeRepoConfigLabel(slot)}`,
-        );
-      }
-      repos.push(pair);
-    }
-    const plans = planWikiQaCloneDirs(repos);
-    startWikiQaRepoClonesAsync(demoCwd, plans, options.creator, options.log);
-    clone_started = true;
+    code_copied = copyCodeRepoSlotsToDir(options.db, categoryId, workspaceCwd, codeRepoSlots);
   }
 
-  return { copied, clone_started, clone_slots: codeRepoSlots, demo_cwd: demoCwd };
+  const copied_since_ms = Date.now();
+  writeWikiQaCopiedSinceMarker(workspaceCwd, copied_since_ms);
+
+  return {
+    copied,
+    test_case_copied,
+    code_copied,
+    code_slots: codeRepoSlots,
+    demo_cwd: workspaceCwd,
+    copied_since_ms,
+  };
 }

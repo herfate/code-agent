@@ -2,12 +2,15 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { AI_OUT_DIR } from "../../constants/commonKey.js";
 import { isTaskType, type TaskType } from "../../constants/taskType.js";
+import { assertSafePathSegment } from "./aiOutTaskPath.js";
 
 export type AiOutPreviewContentKind = "markdown" | "json" | "text";
 
 export type LatestAiOutMarkdownResult = {
   pid: string;
   task_type: TaskType;
+  /** 执行该 Agent 任务的 `tasks.id`（按 task_id 查询时有值） */
+  task_id?: string;
   /** 相对 `ai_out/<pid>/<taskType>/` 的路径 */
   relative_path: string;
   content: string;
@@ -145,6 +148,62 @@ function listTaskTypeDirs(pidDir: string): TaskType[] {
     if (isTaskType(n)) types.push(n);
   }
   return types;
+}
+
+export type AiOutFileInfo = {
+  /** 相对 `ai_out/<pid>/<taskType>/` 的路径 */
+  relative_path: string;
+  /** 文件 mtime（毫秒） */
+  updated_at: number;
+};
+
+/** 列出 `ai_out/<pid>/<taskType>/` 下全部可预览文档（按 mtime 升序） */
+export function listAiOutMarkdownFiles(pid: string, taskType: TaskType): AiOutFileInfo[] {
+  assertSafePid(pid);
+  const typeDir = join(aiOutRoot(), pid, String(taskType));
+  assertUnderAiOutRoot(typeDir);
+
+  const candidates: FileCandidate[] = [];
+  collectPreviewableFiles(typeDir, typeDir, taskType, candidates);
+  candidates.sort((a, b) => a.mtimeMs - b.mtimeMs);
+  return candidates.map((c) => ({
+    relative_path: c.relativePath,
+    updated_at: c.mtimeMs,
+  }));
+}
+
+/**
+ * 读取 `ai_out/<pid>/<taskType>/<taskId>/` 下 mtime 最新的可预览文档。
+ */
+export function readAiOutMarkdownByTaskId(
+  pid: string,
+  taskType: TaskType,
+  taskId: string,
+): LatestAiOutMarkdownResult | null {
+  assertSafePid(pid);
+  assertSafePathSegment(taskId, "task id");
+  const typeDir = join(aiOutRoot(), pid, String(taskType));
+  const taskDir = join(typeDir, taskId);
+  if (!existsSync(taskDir)) return null;
+  assertUnderAiOutRoot(taskDir);
+
+  const candidates: FileCandidate[] = [];
+  collectPreviewableFiles(taskDir, typeDir, taskType, candidates);
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const latest = candidates[0]!;
+  const content = readFileSync(latest.absPath, "utf8");
+
+  return {
+    pid,
+    task_type: taskType,
+    task_id: taskId,
+    relative_path: latest.relativePath,
+    content,
+    content_kind: contentKindForFile(latest.relativePath, content),
+    updated_at: latest.mtimeMs,
+  };
 }
 
 /** 列出 `ai_out/<pid>/` 下存在可预览文档的任务类型子目录 */

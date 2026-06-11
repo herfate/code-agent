@@ -4,6 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { AI_OUT_DIR } from "../../constants/commonKey.js";
 import { TASK_TYPE, type TaskType } from "../../constants/taskType.js";
 import { listTasksByPid, updateTask } from "../../db/workflow.js";
+import { resolveAiOutStoredRelativePath } from "../file/aiOutTaskPath.js";
 
 /** 按当前执行场景解析要更新 description 的子任务类型；未支持则返回空数组 */
 export function resolveDescriptionTargetTaskTypes(executingTaskType: TaskType): TaskType[] {
@@ -21,10 +22,11 @@ export function resolveDescriptionTargetTaskTypes(executingTaskType: TaskType): 
   }
 }
 
-/** 从 `ai_out/<pid>/<taskType>/` 读取变更文件内容，拼成 description 文本 */
+/** 从 `ai_out/<pid>/<taskType>/<taskId>/` 读取变更文件内容，拼成 description 文本 */
 export function updateDescription4Task(
   parentTaskId: string,
   taskType: TaskType,
+  executingTaskId: string,
   relativePaths: string[],
 ): string {
   if (relativePaths.length === 0) return "";
@@ -33,7 +35,8 @@ export function updateDescription4Task(
   const sections: string[] = [];
 
   for (const rel of relativePaths) {
-    const filePath = join(outRoot, rel);
+    const storedRel = resolveAiOutStoredRelativePath(executingTaskId, rel);
+    const filePath = join(outRoot, storedRel);
     if (!existsSync(filePath)) continue;
     const content = readFileSync(filePath, "utf8");
     sections.push(`${content}`);
@@ -50,12 +53,18 @@ export function saveDescription4TasksUnderParent(
   db: DatabaseSync,
   parentTaskId: string,
   executingTaskType: TaskType,
+  executingTaskId: string,
   relativePaths: string[],
 ): void {
   const targetTaskTypes = resolveDescriptionTargetTaskTypes(executingTaskType);
   if (targetTaskTypes.length === 0) return;
 
-  const description = updateDescription4Task(parentTaskId, executingTaskType, relativePaths);
+  const description = updateDescription4Task(
+    parentTaskId,
+    executingTaskType,
+    executingTaskId,
+    relativePaths,
+  );
   if (!description) return;
 
   const tasks = listTasksByPid(db, parentTaskId);

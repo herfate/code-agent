@@ -74,13 +74,24 @@
         </div>
         <div class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <h2 id="ptf-expand-title" class="min-w-0 truncate text-sm font-semibold text-slate-800">任务 SSE</h2>
-          <button
-            type="button"
-            id="ptf-expand-close"
-            class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-          >
-            关闭
-          </button>
+          <div class="flex shrink-0 items-center gap-2">
+            <span id="ptf-expand-stop-hint" class="hidden max-w-[12rem] truncate text-[11px] text-slate-500"></span>
+            <button
+              type="button"
+              id="ptf-expand-stop"
+              class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled
+            >
+              停止
+            </button>
+            <button
+              type="button"
+              id="ptf-expand-close"
+              class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              关闭
+            </button>
+          </div>
         </div>
         <iframe
           id="ptf-expand-iframe"
@@ -130,9 +141,16 @@
         8: "Code Review",
         9: "拆分故事",
         10: "头脑风暴",
+        11: "AI拆分故事",
+        12: "UI测试执行",
+        13: "沉淀记忆",
+        20: "功能测试用例生成",
+        21: "自动化用例生成",
+        22: "测试脑图分析",
         101: "测试环境发布",
         102: "部署间隔等待",
         103: "测试环境发布结果",
+        104: "申请拉取分支",
       };
       var MARVIS_IMG = "/img/Marvis.png";
 
@@ -239,6 +257,9 @@
       var expandResizeHandle = document.getElementById("ptf-expand-resize-handle");
       var expandTitle = document.getElementById("ptf-expand-title");
       var expandIframe = document.getElementById("ptf-expand-iframe");
+      var expandStopBtn = document.getElementById("ptf-expand-stop");
+      var expandStopHint = document.getElementById("ptf-expand-stop-hint");
+      var expandCurrentTaskId = "";
       var PTF_EXPAND_MIN_H = 180;
       var PTF_EXPAND_MAX_RATIO = 0.95;
       var expandResizeDrag = null;
@@ -280,12 +301,66 @@
         setExpandPanelHeight(expandResizeDrag.startHeight + deltaY);
       }
 
+      function setExpandStopHint(text, tone) {
+        if (!expandStopHint) return;
+        if (!text) {
+          expandStopHint.textContent = "";
+          expandStopHint.classList.add("hidden");
+          expandStopHint.classList.remove("text-slate-500", "text-green-600", "text-red-600");
+          return;
+        }
+        expandStopHint.textContent = text;
+        expandStopHint.classList.remove("hidden", "text-slate-500", "text-green-600", "text-red-600");
+        if (tone === "success") expandStopHint.classList.add("text-green-600");
+        else if (tone === "error") expandStopHint.classList.add("text-red-600");
+        else expandStopHint.classList.add("text-slate-500");
+      }
+
+      function setExpandStopEnabled(on) {
+        if (expandStopBtn) expandStopBtn.disabled = !on;
+      }
+
+      function requestExpandAgentAbort() {
+        if (!expandCurrentTaskId) return;
+        setExpandStopEnabled(false);
+        setExpandStopHint("正在停止 Agent…", "default");
+        fetch(apiBase() + "/api/tasks/" + encodeURIComponent(expandCurrentTaskId) + "/agent-abort", {
+          method: "POST",
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (res.ok && res.body && res.body.ok) {
+              setExpandStopHint("已发送停止请求，等待结束…", "success");
+              return;
+            }
+            var msg =
+              res.body && res.body.error
+                ? typeof res.body.error === "string"
+                  ? res.body.error
+                  : JSON.stringify(res.body.error)
+                : "停止失败 HTTP " + res.status;
+            setExpandStopHint(msg, "error");
+            setExpandStopEnabled(true);
+          })
+          .catch(function (e) {
+            setExpandStopHint("停止请求失败: " + e.message, "error");
+            setExpandStopEnabled(true);
+          });
+      }
+
       function closeExpandModal() {
         if (!expandRoot) return;
         stopExpandResize();
         expandRoot.classList.add("hidden");
         expandRoot.classList.remove("ptf-expand--half", "ptf-expand--full", "ptf-expand--resized");
         clearExpandPanelHeight();
+        expandCurrentTaskId = "";
+        setExpandStopEnabled(false);
+        setExpandStopHint("");
         if (expandIframe) expandIframe.removeAttribute("src");
       }
 
@@ -313,6 +388,10 @@
         if (!expandRoot || !expandIframe || !article) return;
         var src = article.getAttribute("data-stream-src");
         if (!src) return;
+        var taskId = article.getAttribute("data-task-id") || "";
+        expandCurrentTaskId = taskId;
+        setExpandStopEnabled(!!taskId);
+        setExpandStopHint("");
         var expandSrc = streamUrlForExpand(src);
         var titleEl = article.querySelector(".ptf-stage-title");
         if (expandTitle) {
@@ -798,6 +877,9 @@
       });
 
       document.getElementById("ptf-expand-close").addEventListener("click", closeExpandModal);
+      if (expandStopBtn) {
+        expandStopBtn.addEventListener("click", requestExpandAgentAbort);
+      }
       if (expandResizeHandle) {
         expandResizeHandle.addEventListener("mousedown", function (e) {
           if (!expandPanel || !expandRoot || expandRoot.classList.contains("hidden")) return;
@@ -869,14 +951,19 @@
           setLocalItem('token', keycloak.token.toString());
           setLocalItem('refreshToken', keycloak.refreshToken.toString());
           setLocalItem('tokenExpire', keycloak.tokenParsed?.exp);
-          //获取token的
-          let userName = null
-          if (keycloak.tokenParsed.email) {
-            userName = keycloak.tokenParsed.email.split('@')[0]
+          var tokenParsed = keycloak.tokenParsed;
+          var userName = null;
+          if (tokenParsed.email) {
+            userName = tokenParsed.email.split("@")[0];
           } else {
-            userName = keycloak.tokenParsed['preferred_username']
+            userName = tokenParsed["preferred_username"];
           }
-          setLocalItem('userName', userName);
+          setLocalItem("userName", userName);
+
+          var realName = resolveRealNameFromTokenParsed(tokenParsed);
+          if (realName) {
+            setLocalItem("realName", realName);
+          }
         }
       }).catch((error) => {
         console.error('Keycloak initialization failed', error);

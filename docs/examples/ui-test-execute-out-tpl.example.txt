@@ -1,0 +1,49 @@
+【输出要求】在任务仓库根目录生成 ui_test_report.md（Markdown），结构必须与 docs/examples/ui-test-execute-report.example.md 一致。
+同步将截图保存到 ui_test_screenshots/，并在报告中用相对路径引用。
+须已编写 Playwright 无头脚本（如 ui-tests/specs/*.spec.ts）并执行 npx playwright test（headless）后再写报告。
+
+【强制 — 机读门禁】
+1. 必须包含二级标题「## 执行摘要」，其下第一个 fenced 块为 ```json。
+2. JSON 必填字段：
+   - verdict：pass | pass_with_issues | fail | blocked | needs_human_review
+   - verdict_label：中文结论标签
+   - ready_for_review：boolean（存在 blocking 开放问题或分母为 0 时必须 false）
+   - pass_rate：number（0–100，与「测试用例通过率」一致）
+   - counts：{ total_planned, executed, passed, failed, blocked, skipped_non_ui }
+   - is_code_problem：boolean
+   - is_env_problem：boolean
+   - base_url：string（howbuy `get_base_url` 返回并实际用于 Playwright 的 Base URL；未知则空串）
+   - test_env：string
+   - app：string
+   - screenshot_count：number（ui_test_screenshots/ 下文件数）
+   - failed_case_ids：string[]（失败用例 ID）
+   - summary_zh：string（一句话中文总结）
+   - open_questions：{ blocking: string[], non_blocking: string[] }
+3. counts.failed > 0 时 verdict 不得为 pass。
+4. open_questions.blocking 非空时 ready_for_review 必须为 false。
+5. screenshot_count 必须 ≥ 每条 passed/failed 用例至少 1 张（合计）。
+
+【强制 — 测试结果表】
+必须包含二级标题「## 测试结果」，其下 Markdown 表格含且字段名一字不差：
+| 测试用例总数 | … |
+| 测试用例通过数 | … |
+| 测试用例失败数 | … |
+| 测试用例通过率 | `xx%` |   ← 可带（通过/执行）说明
+| 是否代码问题 | 是/否 |
+| 是否测试环境问题 | 是/否 |
+| 是否端到端测试 | 是/否 |
+| 测试总结简述 | … |
+
+【截图】
+- 目录：ui_test_screenshots/
+- 命名：{用例ID}_{步骤或结果简述}.png，例如 TC-01_结果页.png
+- 报告引用：![说明](ui_test_screenshots/TC-01_结果页.png)
+- 每条 passed/failed 用例至少 1 张结果截图；失败用例优先拍「实际错误/不符预期」画面
+- 截图来自脚本内 page.screenshot 或 Playwright 失败产物整理，禁止仅对话贴图
+
+【章节不可省略】
+文首元信息表（含执行方式：Playwright 无头脚本）、§执行摘要、§测试结果、§用例明细（含截图，可注明 spec 路径）、§缺陷与风险、§未执行用例、§开放问题；无内容时写「无」。
+
+【执行顺序】
+先读 task_prompt.md / design.md 提炼 UI 用例 → howbuy `get_base_url`(itNum={{testEnv}}, serverName={{app}}) 取 Base URL 与登录 → 编写 @playwright/test 脚本 → 无头执行 npx playwright test → 整理截图 → 最后写 ui_test_report.md。
+禁止用 Playwright MCP browser_* 代替脚本执行；禁止臆造 Base URL。

@@ -13,6 +13,7 @@ function placeholderVarsFromInputJson(inputJson: string | null): Record<string, 
       if (value === null || value === undefined) continue;
       if (typeof value === "string") out[key] = value;
       else if (typeof value === "number" || typeof value === "boolean") out[key] = String(value);
+      else if (Array.isArray(value)) out[key] = JSON.stringify(value);
     }
     return out;
   } catch {

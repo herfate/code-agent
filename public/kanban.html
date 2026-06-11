@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>任务耗时看板</title>
+  <link rel="stylesheet" href="/app.css" />
+  <script src="/vendor/chart.umd.min.js"></script>
+  <script src="/js/accessUser.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+  <div class="flex w-full flex-col gap-4 p-4">
+    <header class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <h1 class="text-lg font-semibold text-slate-800">任务耗时看板</h1>
+          <p class="mt-0.5 text-xs text-slate-500">
+            数据来源：<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET /api/tasks/duration-list</code>
+            与 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET /api/tasks/duration-by-parent</code>
+          </p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          <button type="button" id="export-btn" class="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">
+            导出 Excel
+          </button>
+          <button type="button" id="toggle-view" class="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+            表格展示
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 图表视图 -->
+    <div id="view-charts" class="grid gap-4 lg:grid-cols-2">
+      <!-- 图表 1：任务耗时分布（垂直柱状图） -->
+      <section class="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" style="height: 420px">
+        <div class="shrink-0 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+          <h2 class="text-sm font-semibold text-slate-800">任务耗时分布</h2>
+          <p class="mt-0.5 text-xs text-slate-500">按单个任务维度，颜色区分状态（绿=完成，红=失败，蓝=其他）</p>
+        </div>
+        <div class="min-h-0 flex-1 p-4">
+          <div id="chart1-loading" class="flex h-full items-center justify-center text-sm text-slate-500">
+            <span>加载中...</span>
+          </div>
+          <div id="chart1-error" class="hidden h-full items-center justify-center text-sm text-red-600"></div>
+          <canvas id="chart1" class="hidden"></canvas>
+        </div>
+      </section>
+
+      <!-- 图表 2：父任务维度统计（水平柱状图） -->
+      <section class="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" style="height: 420px">
+        <div class="shrink-0 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+          <h2 class="text-sm font-semibold text-slate-800">父任务维度统计</h2>
+          <p class="mt-0.5 text-xs text-slate-500">按父任务聚合子任务耗时，tooltip 显示子任务数与平均耗时</p>
+        </div>
+        <div class="min-h-0 flex-1 p-4">
+          <div id="chart2-loading" class="flex h-full items-center justify-center text-sm text-slate-500">
+            <span>加载中...</span>
+          </div>
+          <div id="chart2-error" class="hidden h-full items-center justify-center text-sm text-red-600"></div>
+          <canvas id="chart2" class="hidden"></canvas>
+        </div>
+      </section>
+    </div>
+
+    <!-- 表格视图 -->
+    <div id="view-tables" class="hidden space-y-4">
+      <!-- 任务耗时明细表 -->
+      <section class="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" style="max-height: 500px">
+        <div class="shrink-0 flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-800">任务耗时明细</h2>
+            <p class="mt-0.5 text-xs text-slate-500">按单个任务维度，按耗时倒序</p>
+          </div>
+          <span id="task-table-count" class="text-xs font-medium text-slate-500"></span>
+        </div>
+        <div class="min-h-0 flex-1 overflow-auto">
+          <p id="task-table-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700"></p>
+          <table class="w-max min-w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold tracking-wide text-slate-600 backdrop-blur-sm">
+                <tr>
+                  <th class="whitespace-nowrap px-4 py-3">序号</th>
+                  <th class="whitespace-nowrap px-4 py-3">任务标题</th>
+                  <th class="whitespace-nowrap px-4 py-3 text-center">状态</th>
+                  <th class="whitespace-nowrap px-4 py-3 text-right">耗时(分钟)</th>
+                  <th class="whitespace-nowrap px-4 py-3 text-right">耗时(小时)</th>
+                  <th class="whitespace-nowrap px-4 py-3">开始时间</th>
+                  <th class="whitespace-nowrap px-4 py-3">完成时间</th>
+                </tr>
+              </thead>
+              <tbody id="task-tbody" class="divide-y divide-slate-100 text-slate-800"></tbody>
+            </table>
+          <p id="task-table-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500">暂无数据</p>
+        </div>
+      </section>
+
+      <!-- 父任务维度统计表格 -->
+      <section id="parent-table-section" class="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" style="max-height: 500px">
+      <div class="shrink-0 flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-800">父任务维度统计明细</h2>
+          <p class="mt-0.5 text-xs text-slate-500">按父任务聚合子任务耗时明细，按总耗时倒序</p>
+        </div>
+        <span id="table-count" class="text-xs font-medium text-slate-500"></span>
+      </div>
+      <div class="min-h-0 flex-1 overflow-auto">
+        <p id="table-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700"></p>
+        <table class="w-max min-w-full border-collapse text-left text-sm">
+          <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold tracking-wide text-slate-600 backdrop-blur-sm">
+            <tr>
+              <th class="whitespace-nowrap px-4 py-3">序号</th>
+              <th class="whitespace-nowrap px-4 py-3">父任务</th>
+              <th class="whitespace-nowrap px-4 py-3 text-right">子任务数</th>
+              <th class="whitespace-nowrap px-4 py-3 text-right">总耗时(分钟)</th>
+              <th class="whitespace-nowrap px-4 py-3 text-right">平均耗时(分钟)</th>
+              <th class="whitespace-nowrap px-4 py-3 text-right">总耗时(小时)</th>
+            </tr>
+          </thead>
+          <tbody id="parent-tbody" class="divide-y divide-slate-100 text-slate-800"></tbody>
+        </table>
+        <p id="table-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500">暂无数据</p>
+      </div>
+    </section>
+    </div>
+
+    <footer class="shrink-0 text-center text-xs text-slate-400">
+      更新时间：<span id="update-time">-</span>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var apiBase = window.location.origin;
+      var isTableMode = false;
+      var tasksData = null;
+      var parentData = null;
+
+      // 导出按钮
+      var exportBtn = document.getElementById('export-btn');
+      exportBtn.addEventListener('click', function () {
+        var scope = isTableMode ? (tasksData && parentData ? 'all' : tasksData ? 'tasks' : 'parent') : 'all';
+        var url = apiBase + '/api/tasks/duration-export?scope=' + scope;
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = '任务耗时统计.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+
+      // 切换按钮
+      var toggleBtn = document.getElementById('toggle-view');
+      var viewCharts = document.getElementById('view-charts');
+      var viewTables = document.getElementById('view-tables');
+
+      toggleBtn.addEventListener('click', function () {
+        isTableMode = !isTableMode;
+        if (isTableMode) {
+          toggleBtn.textContent = '图表展示';
+          toggleBtn.classList.remove('bg-white', 'text-slate-700', 'border-slate-200', 'hover:bg-slate-50');
+          toggleBtn.classList.add('bg-blue-600', 'text-white', 'border-blue-600', 'hover:bg-blue-700');
+          viewCharts.classList.add('hidden');
+          viewTables.classList.remove('hidden');
+          // 表格模式时渲染表格
+          if (tasksData) renderTaskTable(tasksData);
+          if (parentData) renderParentTable(parentData);
+        } else {
+          toggleBtn.textContent = '表格展示';
+          toggleBtn.classList.add('bg-white', 'text-slate-700', 'border-slate-200', 'hover:bg-slate-50');
+          toggleBtn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600', 'hover:bg-blue-700');
+          viewCharts.classList.remove('hidden');
+          viewTables.classList.add('hidden');
+        }
+      });
+
+      function formatTime(ts) {
+        if (!ts) return '-';
+        var d = new Date(ts);
+        return d.toLocaleString('zh-CN', { hour12: false });
+      }
+
+      function truncate(str, maxLen) {
+        if (!str) return '无标题';
+        return str.length > maxLen ? str.slice(0, maxLen) + '...' : str;
+      }
+
+      function getColorByStatus(status) {
+        // 1=待执行, 2=执行中, 3=执行完成, 4=执行失败, 5=已暂停, 6=已取消
+        switch (status) {
+          case 3: return '#10b981'; // 完成-绿
+          case 4: return '#ef4444'; // 失败-红
+          default: return '#3b82f6'; // 其他-蓝
+        }
+      }
+
+      function getLabelByStatus(status) {
+        switch (status) {
+          case 1: return '待执行';
+          case 2: return '执行中';
+          case 3: return '执行完成';
+          case 4: return '执行失败';
+          case 5: return '已暂停';
+          case 6: return '已取消';
+          default: return '未知';
+        }
+      }
+
+      // 图表 1：任务耗时分布
+      function renderChart1(tasks) {
+        var canvas = document.getElementById('chart1');
+        var loading = document.getElementById('chart1-loading');
+        var errorEl = document.getElementById('chart1-error');
+
+        if (!tasks || tasks.length === 0) {
+          loading.classList.add('hidden');
+          errorEl.classList.remove('hidden');
+          errorEl.classList.add('flex');
+          errorEl.textContent = '暂无数据';
+          return;
+        }
+
+        loading.classList.add('hidden');
+        canvas.classList.remove('hidden');
+
+        var ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: tasks.map(function (t) { return truncate(t.title, 15); }),
+            datasets: [{
+              label: '耗时(分钟)',
+              data: tasks.map(function (t) { return t.duration_minutes; }),
+              backgroundColor: tasks.map(function (t) { return getColorByStatus(t.status); }),
+              borderWidth: 0,
+              borderRadius: 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: function (ctx) {
+                    var idx = ctx[0].dataIndex;
+                    var t = tasks[idx];
+                    return truncate(t.title, 40);
+                  },
+                  label: function (ctx) {
+                    var idx = ctx.dataIndex;
+                    var t = tasks[idx];
+                    return [
+                      '状态: ' + getLabelByStatus(t.status),
+                      '耗时: ' + t.duration_minutes + ' 分钟',
+                      '开始: ' + formatTime(t.started_at),
+                      '完成: ' + formatTime(t.completed_at),
+                    ];
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { maxRotation: 45, minRotation: 45, font: { size: 10 } },
+                grid: { display: false }
+              },
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: '分钟' },
+                grid: { color: 'rgba(0,0,0,0.05)' }
+              }
+            }
+          }
+        });
+      }
+
+      // 图表 2：父任务维度统计
+      function renderChart2(items) {
+        var canvas = document.getElementById('chart2');
+        var loading = document.getElementById('chart2-loading');
+        var errorEl = document.getElementById('chart2-error');
+
+        if (!items || items.length === 0) {
+          loading.classList.add('hidden');
+          errorEl.classList.remove('hidden');
+          errorEl.classList.add('flex');
+          errorEl.textContent = '暂无数据';
+          return;
+        }
+
+        loading.classList.add('hidden');
+        canvas.classList.remove('hidden');
+
+        var ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: items.map(function (i) { return truncate(i.parent_title, 25); }),
+            datasets: [{
+              label: '总耗时(分钟)',
+              data: items.map(function (i) { return i.total_duration_minutes; }),
+              backgroundColor: '#6366f1',
+              borderWidth: 0,
+              borderRadius: 4,
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: function (ctx) {
+                    var idx = ctx[0].dataIndex;
+                    var i = items[idx];
+                    return truncate(i.parent_title, 50) || '无标题';
+                  },
+                  label: function (ctx) {
+                    var idx = ctx.dataIndex;
+                    var i = items[idx];
+                    return [
+                      '总耗时: ' + i.total_duration_minutes + ' 分钟',
+                      '子任务数: ' + i.subtask_count,
+                      '平均耗时: ' + i.avg_duration_minutes + ' 分钟',
+                    ];
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                title: { display: true, text: '总耗时(分钟)' },
+                grid: { color: 'rgba(0,0,0,0.05)' }
+              },
+              y: {
+                ticks: { font: { size: 11 } },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      }
+
+      // 任务耗时明细表格
+      function renderTaskTable(tasks) {
+        var tbody = document.getElementById('task-tbody');
+        var countEl = document.getElementById('task-table-count');
+        var emptyEl = document.getElementById('task-table-empty');
+        var errorEl = document.getElementById('task-table-error');
+
+        if (!tasks || tasks.length === 0) {
+          emptyEl.classList.remove('hidden');
+          return;
+        }
+
+        tbody.innerHTML = '';
+        countEl.textContent = '共 ' + tasks.length + ' 条';
+
+        tasks.forEach(function (t, idx) {
+          var tr = document.createElement('tr');
+          var hours = (t.duration_minutes / 60).toFixed(2);
+          var statusLabel = getLabelByStatus(t.status);
+          var statusClass = t.status === 3 ? 'text-emerald-700 bg-emerald-50' :
+                            t.status === 4 ? 'text-red-700 bg-red-50' :
+                            'text-blue-700 bg-blue-50';
+          tr.innerHTML =
+            '<td class="whitespace-nowrap px-4 py-2.5 text-slate-500">' + (idx + 1) + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 font-medium text-slate-800" title="' + (t.title || '') + '">' + truncate(t.title, 50) + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-center"><span class="inline-block rounded px-2 py-0.5 text-xs font-medium ' + statusClass + '">' + statusLabel + '</span></td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-right font-mono">' + t.duration_minutes + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-right font-mono">' + hours + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-slate-600">' + formatTime(t.started_at) + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-slate-600">' + formatTime(t.completed_at) + '</td>';
+          tbody.appendChild(tr);
+        });
+      }
+
+      // 父任务维度统计表格
+      function renderParentTable(items) {
+        var tbody = document.getElementById('parent-tbody');
+        var countEl = document.getElementById('table-count');
+        var emptyEl = document.getElementById('table-empty');
+        var errorEl = document.getElementById('table-error');
+        if (!items || items.length === 0) {
+          emptyEl.classList.remove('hidden');
+          return;
+        }
+
+        tbody.innerHTML = '';
+        countEl.textContent = '共 ' + items.length + ' 条';
+
+        items.forEach(function (item, idx) {
+          var tr = document.createElement('tr');
+          var totalHours = (item.total_duration_minutes / 60).toFixed(2);
+          tr.innerHTML =
+            '<td class="whitespace-nowrap px-4 py-2.5 text-slate-500">' + (idx + 1) + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 font-medium text-slate-800" title="' + (item.parent_title || '无标题') + '">' + truncate(item.parent_title, 40) + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-right">' + item.subtask_count + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-right font-mono">' + item.total_duration_minutes + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-right font-mono">' + item.avg_duration_minutes + '</td>' +
+            '<td class="whitespace-nowrap px-4 py-2.5 text-right font-mono">' + totalHours + '</td>';
+          tbody.appendChild(tr);
+        });
+      }
+
+      // 并行请求两个 API
+      Promise.all([
+        fetch(apiBase + '/api/tasks/duration-list?limit=50').then(function (r) { return r.json(); }),
+        fetch(apiBase + '/api/tasks/duration-by-parent?limit=20').then(function (r) { return r.json(); })
+      ])
+        .then(function (results) {
+          var res1 = results[0];
+          var res2 = results[1];
+
+          if (res1.tasks) {
+            tasksData = res1.tasks;
+            renderChart1(res1.tasks);
+            if (isTableMode) renderTaskTable(res1.tasks);
+          } else {
+            document.getElementById('chart1-loading').classList.add('hidden');
+            document.getElementById('chart1-error').classList.remove('hidden');
+            document.getElementById('chart1-error').textContent = '加载失败: ' + JSON.stringify(res1.error || res1);
+            document.getElementById('task-table-error').classList.remove('hidden');
+            document.getElementById('task-table-error').textContent = '加载失败: ' + JSON.stringify(res1.error || res1);
+          }
+
+          if (res2.items) {
+            parentData = res2.items;
+            renderChart2(res2.items);
+            if (isTableMode) renderParentTable(res2.items);
+          } else {
+            document.getElementById('chart2-loading').classList.add('hidden');
+            document.getElementById('chart2-error').classList.remove('hidden');
+            document.getElementById('chart2-error').textContent = '加载失败: ' + JSON.stringify(res2.error || res2);
+            document.getElementById('table-error').classList.remove('hidden');
+            document.getElementById('table-error').textContent = '加载失败: ' + JSON.stringify(res2.error || res2);
+          }
+
+          document.getElementById('update-time').textContent = new Date().toLocaleString('zh-CN', { hour12: false });
+        })
+        .catch(function (err) {
+          console.error('Failed to load data:', err);
+          document.getElementById('chart1-loading').classList.add('hidden');
+          document.getElementById('chart2-loading').classList.add('hidden');
+          document.getElementById('chart1-error').classList.remove('hidden');
+          document.getElementById('chart1-error').textContent = '请求失败: ' + err.message;
+          document.getElementById('chart2-error').classList.remove('hidden');
+          document.getElementById('chart2-error').textContent = '请求失败: ' + err.message;
+          document.getElementById('table-error').classList.remove('hidden');
+          document.getElementById('table-error').textContent = '请求失败: ' + err.message;
+        });
+    })();
+  </script>
+</body>
+</html>

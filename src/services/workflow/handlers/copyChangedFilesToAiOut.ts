@@ -3,10 +3,11 @@ import { dirname, join } from "node:path";
 import { AI_OUT_DIR } from "../../../constants/commonKey.js";
 import { changedFilesParamKeyForTaskType } from "../../../constants/changedFilesType.js";
 import type { TaskType } from "../../../constants/taskType.js";
+import { resolveAiOutStoredRelativePath } from "../../file/aiOutTaskPath.js";
+import { AppLog } from "../../appLogger.js";
 import type { ParentTaskChangedFilesContext, ParentTaskChangedFilesHandler } from "../types.js";
-import {AppLog} from "../../appLogger.js";
 
-/** 设计 / 测试流水线 / Code Review：将变更文件复制到 `ai_out/<pid>/<taskType>/` */
+/** 设计 / 测试流水线 / Code Review / 拆分故事 / 头脑风暴 / 测试案例编排：将变更文件复制到 `ai_out/<pid>/<taskType>/<taskId>/` */
 export const copyChangedFilesToAiOutHandler: ParentTaskChangedFilesHandler = {
   supports(taskType: TaskType): boolean {
     return changedFilesParamKeyForTaskType(taskType) !== null;
@@ -17,7 +18,7 @@ export const copyChangedFilesToAiOutHandler: ParentTaskChangedFilesHandler = {
     const { relativePaths } = ctx;
     if (relativePaths.length === 0) {
       log.warn({ taskType: ctx.taskType }, "no changed files to copy");
-      return Promise.resolve()
+      return Promise.resolve();
     }
 
     const outRoot = join(process.cwd(), AI_OUT_DIR, ctx.parentTaskId, String(ctx.taskType));
@@ -26,7 +27,8 @@ export const copyChangedFilesToAiOutHandler: ParentTaskChangedFilesHandler = {
     for (const rel of relativePaths) {
       const src = join(ctx.taskRepoCwd, rel);
       if (!existsSync(src)) continue;
-      const dest = join(outRoot, rel);
+      const destRel = resolveAiOutStoredRelativePath(ctx.executingTaskId, rel);
+      const dest = join(outRoot, destRel);
       mkdirSync(dirname(dest), { recursive: true });
       copyFileSync(src, dest);
     }

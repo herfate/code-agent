@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skill 和 Prompt 配置</title>
+  <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
+</head>
+<body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
+  <div class="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-4 overflow-y-auto p-4 sm:p-6 lg:p-8">
+    <header class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5 sm:py-5">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+          <h1 class="text-base font-semibold text-slate-800">Skill 和 Prompt 配置</h1>
+          <p class="mt-1 max-w-3xl text-xs leading-relaxed text-slate-500">
+            读取时优先使用当前用户的覆盖配置，未配置则回退全局（<code class="rounded bg-slate-100 px-1 font-mono text-[10px]">username = '*'</code>）。
+            保存到用户级；内容留空保存即清除该用户覆盖、回退全局。
+          </p>
+        </div>
+        <div class="w-full shrink-0 sm:w-auto sm:min-w-[220px]">
+          <span class="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">当前用户</span>
+          <p id="spcfg-username" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">—</p>
+          <p id="spcfg-username-hint" class="mt-1.5 hidden text-[11px] leading-relaxed text-amber-700">
+            未获取到登录用户，请通过管理台完成 Keycloak 登录后再打开本页。
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <div class="shrink-0 space-y-3">
+      <p id="spcfg-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800"></p>
+      <p id="spcfg-success" class="hidden rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800"></p>
+    </div>
+
+    <!-- Skill 配置板块 -->
+    <section class="shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-800">Skill 配置</h2>
+          <p class="mt-0.5 text-[11px] text-slate-500">勾选要为当前用户启用的 skill；保存写入用户级配置，覆盖全局。</p>
+        </div>
+        <span id="spcfg-skill-source" class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">—</span>
+      </div>
+      <div class="px-4 py-4 sm:px-5">
+        <div id="spcfg-skill-list" class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <p class="col-span-full text-xs text-slate-500">加载中…</p>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <button type="button" id="spcfg-skill-save"
+            class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/35">
+            保存 Skill 配置
+          </button>
+          <button type="button" id="spcfg-skill-reset"
+            class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300/40">
+            重置为全局
+          </button>
+          <button type="button" id="spcfg-skill-reload"
+            class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-100">
+            重新发现 Skill
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Prompt 配置板块 -->
+    <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-800">Prompt 配置</h2>
+          <p class="mt-0.5 text-[11px] text-slate-500">按任务类型 × 模板类型展示。用户级输入框为空保存即清除覆盖。</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="spcfg-prompt-filter-tt" class="text-[11px] text-slate-500">任务类型</label>
+          <select id="spcfg-prompt-filter-tt"
+            class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+            <option value="">全部</option>
+          </select>
+          <label for="spcfg-prompt-filter-tk" class="text-[11px] text-slate-500">模板</label>
+          <select id="spcfg-prompt-filter-tk"
+            class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+            <option value="">全部</option>
+          </select>
+        </div>
+      </div>
+      <div id="spcfg-prompt-list" class="grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 lg:grid-cols-2">
+        <p class="col-span-full text-xs text-slate-500">加载中…</p>
+      </div>
+    </section>
+
+    <p class="shrink-0 pb-2 text-center text-[11px] text-slate-400 sm:text-left">
+      Skill 配置当前仅落库，是否影响 Agent 执行待后续接入；Prompt 用户级覆盖在任务认领时生效。
+    </p>
+  </div>
+
+  <script>
+    (function () {
+      var errEl = document.getElementById("spcfg-error");
+      var okEl = document.getElementById("spcfg-success");
+      var usernameEl = document.getElementById("spcfg-username");
+      var usernameHintEl = document.getElementById("spcfg-username-hint");
+      var skillListEl = document.getElementById("spcfg-skill-list");
+      var skillSourceEl = document.getElementById("spcfg-skill-source");
+      var skillSaveBtn = document.getElementById("spcfg-skill-save");
+      var skillResetBtn = document.getElementById("spcfg-skill-reset");
+      var skillReloadBtn = document.getElementById("spcfg-skill-reload");
+      var promptListEl = document.getElementById("spcfg-prompt-list");
+      var filterTtEl = document.getElementById("spcfg-prompt-filter-tt");
+      var filterTkEl = document.getElementById("spcfg-prompt-filter-tk");
+
+      var promptCells = [];
+      var filterTt = "";
+      var filterTk = "";
+
+      function apiBase() {
+        return window.location.origin;
+      }
+
+      function currentUser() {
+        try {
+          var u = window.localStorage.getItem("userName");
+          return u && String(u).trim() ? String(u).trim() : "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function renderUser() {
+        var u = currentUser();
+        if (u) {
+          usernameEl.textContent = u;
+          usernameHintEl.classList.add("hidden");
+          return u;
+        }
+        usernameEl.textContent = "（未登录）";
+        usernameHintEl.classList.remove("hidden");
+        return "";
+      }
+
+      function clearMessages() {
+        errEl.classList.add("hidden");
+        errEl.textContent = "";
+        okEl.classList.add("hidden");
+        okEl.textContent = "";
+      }
+      function showError(msg) {
+        okEl.classList.add("hidden");
+        errEl.textContent = msg;
+        errEl.classList.remove("hidden");
+      }
+      function showSuccess(msg) {
+        errEl.classList.add("hidden");
+        okEl.textContent = msg;
+        okEl.classList.remove("hidden");
+      }
+      function parseJsonResponse(r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, status: r.status, body: j };
+        });
+      }
+      function formatApiError(res) {
+        if (res.body && res.body.error) return JSON.stringify(res.body.error);
+        if (res.body && res.body.message) return res.body.message;
+        return JSON.stringify(res.body);
+      }
+      function fmtTime(ms) {
+        if (ms == null || ms === "") return "—";
+        try { return new Date(ms).toLocaleString(); } catch (e) { return String(ms); }
+      }
+      function escapeHtml(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function sourceLabel(src) {
+        if (src === "user") return "用户";
+        if (src === "global") return "全局";
+        if (src === "default") return "默认";
+        if (src === "none") return "未配置";
+        return src || "—";
+      }
+      function sourceBadgeClass(src) {
+        if (src === "user")
+          return "rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700";
+        if (src === "global")
+          return "rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600";
+        if (src === "none")
+          return "rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700";
+        if (src === "default")
+          return "rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600";
+        return "rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600";
+      }
+
+      // ----------- Skill -----------
+
+      function renderSkills(body) {
+        skillSourceEl.textContent = "来源: " + sourceLabel(body.source);
+        skillSourceEl.className = sourceBadgeClass(body.source);
+        var enabled = new Set((body.skills || []).map(function (s) { return String(s); }));
+        var discovered = body.discovered || [];
+
+        var unknownEnabled = [];
+        enabled.forEach(function (name) {
+          var found = discovered.some(function (d) { return d.name === name; });
+          if (!found) unknownEnabled.push(name);
+        });
+
+        if (discovered.length === 0 && unknownEnabled.length === 0) {
+          skillListEl.innerHTML = '<p class="col-span-full text-xs text-slate-500">未在 <code class="font-mono">task-repo/*/.claude/skills/</code> 下发现 SKILL.md。可点「重新发现 Skill」刷新。</p>';
+          return;
+        }
+
+        var html = "";
+        discovered.forEach(function (s) {
+          var checked = enabled.has(s.name) ? "checked" : "";
+          html +=
+            '<label class="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 hover:border-blue-300">' +
+            '<input type="checkbox" data-skill-name="' + escapeHtml(s.name) + '" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30" ' + checked + ' />' +
+            '<span class="min-w-0">' +
+            '<span class="block text-sm font-medium text-slate-800">' + escapeHtml(s.name) + '</span>' +
+            (s.description ? '<span class="mt-0.5 block text-[11px] leading-snug text-slate-500">' + escapeHtml(s.description) + '</span>' : '') +
+            '</span></label>';
+        });
+        // 已启用但磁盘上找不到的 skill，单独以"未发现"标签呈现，仍允许保留
+        unknownEnabled.forEach(function (name) {
+          html +=
+            '<label class="flex cursor-pointer items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 hover:border-amber-300">' +
+            '<input type="checkbox" data-skill-name="' + escapeHtml(name) + '" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30" checked />' +
+            '<span class="min-w-0">' +
+            '<span class="block text-sm font-medium text-amber-900">' + escapeHtml(name) + '</span>' +
+            '<span class="mt-0.5 block text-[11px] leading-snug text-amber-700">未在磁盘发现该 skill，取消勾选可移除</span>' +
+            '</span></label>';
+        });
+        skillListEl.innerHTML = html;
+      }
+
+      function loadSkills() {
+        var u = currentUser();
+        if (!u) return Promise.resolve();
+        return fetch(apiBase() + "/api/skills/config?" + new URLSearchParams({ username: u }))
+          .then(parseJsonResponse)
+          .then(function (res) {
+            if (!res.ok) { showError("加载 Skill 配置失败 " + res.status + ": " + formatApiError(res)); return; }
+            renderSkills(res.body);
+          })
+          .catch(function (e) { showError("网络错误: " + e.message); });
+      }
+
+      function saveSkills() {
+        clearMessages();
+        var u = currentUser();
+        if (!u) { showError("获取当前登录用户失败"); return; }
+        var checked = Array.prototype.slice.call(
+          skillListEl.querySelectorAll('input[type=checkbox][data-skill-name]'),
+        ).filter(function (i) { return i.checked; }).map(function (i) { return i.getAttribute("data-skill-name"); });
+        fetch(apiBase() + "/api/skills/config", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: u, skills: checked }),
+        }).then(parseJsonResponse).then(function (res) {
+          if (!res.ok) { showError("保存 Skill 配置失败 " + res.status + ": " + formatApiError(res)); return; }
+          showSuccess("已保存 " + u + " 的 Skill 配置 (" + (res.body.skills || []).length + " 项)");
+          return loadSkills();
+        }).catch(function (e) { showError("网络错误: " + e.message); });
+      }
+
+      function resetSkills() {
+        clearMessages();
+        var u = currentUser();
+        if (!u) { showError("获取当前登录用户失败"); return; }
+        fetch(apiBase() + "/api/skills/config?" + new URLSearchParams({ username: u }), {
+          method: "DELETE",
+        }).then(parseJsonResponse).then(function (res) {
+          if (!res.ok) { showError("重置 Skill 配置失败 " + res.status + ": " + formatApiError(res)); return; }
+          showSuccess("已删除 " + u + " 的 Skill 用户级配置，回退全局");
+          return loadSkills();
+        }).catch(function (e) { showError("网络错误: " + e.message); });
+      }
+
+      function reloadDiscover() {
+        clearMessages();
+        // 仅刷新可用清单：与 GET /api/skills/config 共用一次请求，server 端 60s 缓存到期会自动重扫
+        loadSkills();
+        showSuccess("已刷新可用 Skill 列表");
+      }
+
+      // ----------- Prompt -----------
+
+      function uniqueOptions(arr, key, label) {
+        var seen = new Set();
+        var out = [];
+        arr.forEach(function (c) {
+          var v = c[key];
+          if (seen.has(v)) return;
+          seen.add(v);
+          out.push({ v: v, label: c[label] });
+        });
+        return out;
+      }
+
+      function rebuildFilters() {
+        var tts = uniqueOptions(promptCells, "task_type", "task_type_label");
+        var tks = uniqueOptions(promptCells, "tpl_key", "tpl_key_label");
+        filterTtEl.innerHTML = '<option value="">全部任务类型</option>' + tts.map(function (o) {
+          return '<option value="' + o.v + '">' + escapeHtml(o.label) + '</option>';
+        }).join("");
+        filterTkEl.innerHTML = '<option value="">全部模板</option>' + tks.map(function (o) {
+          return '<option value="' + o.v + '">' + escapeHtml(o.label) + '</option>';
+        }).join("");
+        filterTtEl.value = filterTt;
+        filterTkEl.value = filterTk;
+      }
+
+      function cellId(c) { return "spcfg-cell-" + c.task_type + "-" + c.tpl_key; }
+      function userTaId(c) { return "spcfg-ta-" + c.task_type + "-" + c.tpl_key; }
+      function globalDetailsId(c) { return "spcfg-gd-" + c.task_type + "-" + c.tpl_key; }
+
+      function renderPromptCard(c) {
+        var hasGlobal = c.global_prompt && c.global_prompt.trim() !== "";
+        var hasUser = c.user_prompt && c.user_prompt.trim() !== "";
+        return (
+          '<article id="' + cellId(c) + '" class="flex flex-col rounded-lg border border-slate-200 bg-slate-50/40 shadow-sm">' +
+          '<header class="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">' +
+          '<div class="min-w-0">' +
+          '<div class="text-sm font-semibold text-slate-800">' + escapeHtml(c.task_type_label) + ' <span class="text-[11px] font-normal text-slate-500">· ' + escapeHtml(c.tpl_key_label) + '</span></div>' +
+          '<div class="mt-0.5 text-[10px] text-slate-400">task_type=' + c.task_type + ', tpl_key=' + c.tpl_key + '</div>' +
+          '</div>' +
+          '<span class="' + sourceBadgeClass(c.source) + '">' + sourceLabel(c.source) + '</span>' +
+          '</header>' +
+          '<div class="flex flex-col gap-2 px-3 py-3">' +
+          '<details id="' + globalDetailsId(c) + '" class="rounded border border-slate-200 bg-white">' +
+          '<summary class="cursor-pointer select-none px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50">' +
+          '全局模板 ' + (hasGlobal ? '<span class="text-slate-400">(' + c.global_prompt.length + ' 字符)</span>' : '<span class="text-red-500">(未配置)</span>') +
+          '</summary>' +
+          '<pre class="max-h-60 overflow-auto whitespace-pre-wrap break-words border-t border-slate-100 bg-slate-50/70 px-2 py-1.5 font-mono text-[11px] text-slate-700">' + escapeHtml(c.global_prompt || "（无）") + '</pre>' +
+          '</details>' +
+          '<label for="' + userTaId(c) + '" class="text-[11px] font-medium text-slate-600">用户级覆盖 ' + (hasUser ? '<span class="text-emerald-600">(已配置)</span>' : '<span class="text-slate-400">(留空=回退全局)</span>') + '</label>' +
+          '<textarea id="' + userTaId(c) + '" rows="6" placeholder="留空保存即清除该用户的覆盖" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 font-mono text-[12px] text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">' + escapeHtml(c.user_prompt || "") + '</textarea>' +
+          '<div class="flex flex-wrap items-center justify-between gap-2 pt-1">' +
+          '<div class="text-[10px] text-slate-400">' + (c.updated_at ? '最近更新: ' + fmtTime(c.updated_at) : '') + '</div>' +
+          '<div class="flex gap-2">' +
+          '<button type="button" data-action="prompt-save" data-tt="' + c.task_type + '" data-tk="' + c.tpl_key + '"' +
+          ' class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700">保存</button>' +
+          '<button type="button" data-action="prompt-reset" data-tt="' + c.task_type + '" data-tk="' + c.tpl_key + '"' +
+          ' class="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">重置</button>' +
+          '</div>' +
+          '</div>' +
+          '</div>' +
+          '</article>'
+        );
+      }
+
+      function renderPrompts() {
+        var filtered = promptCells.filter(function (c) {
+          if (filterTt && String(c.task_type) !== String(filterTt)) return false;
+          if (filterTk && String(c.tpl_key) !== String(filterTk)) return false;
+          return true;
+        });
+        if (filtered.length === 0) {
+          promptListEl.innerHTML = '<p class="col-span-full text-xs text-slate-500">无匹配模板</p>';
+          return;
+        }
+        promptListEl.innerHTML = filtered.map(renderPromptCard).join("");
+      }
+
+      function loadPrompts() {
+        var u = currentUser();
+        if (!u) return Promise.resolve();
+        return fetch(apiBase() + "/api/prompt-tpl/matrix?" + new URLSearchParams({ username: u }))
+          .then(parseJsonResponse)
+          .then(function (res) {
+            if (!res.ok) { showError("加载 Prompt 矩阵失败 " + res.status + ": " + formatApiError(res)); return; }
+            promptCells = res.body.cells || [];
+            rebuildFilters();
+            renderPrompts();
+          })
+          .catch(function (e) { showError("网络错误: " + e.message); });
+      }
+
+      function savePromptCell(taskType, tplKey) {
+        clearMessages();
+        var u = currentUser();
+        if (!u) { showError("获取当前登录用户失败"); return; }
+        var ta = document.getElementById("spcfg-ta-" + taskType + "-" + tplKey);
+        if (!ta) return;
+        var content = ta.value;
+        fetch(apiBase() + "/api/prompt-tpl/user", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: u, task_type: Number(taskType), tpl_key: Number(tplKey), prompt: content }),
+        }).then(parseJsonResponse).then(function (res) {
+          if (!res.ok) { showError("保存 Prompt 失败 " + res.status + ": " + formatApiError(res)); return; }
+          var action = res.body.action;
+          showSuccess(
+            action === "saved" ? "已保存用户级 Prompt" :
+            action === "deleted" ? "已清除用户级 Prompt，回退全局" :
+            "未做更改"
+          );
+          return loadPrompts();
+        }).catch(function (e) { showError("网络错误: " + e.message); });
+      }
+
+      function resetPromptCell(taskType, tplKey) {
+        clearMessages();
+        var u = currentUser();
+        if (!u) { showError("获取当前登录用户失败"); return; }
+        fetch(apiBase() + "/api/prompt-tpl/user?" + new URLSearchParams({
+          username: u, task_type: String(taskType), tpl_key: String(tplKey),
+        }), { method: "DELETE" }).then(parseJsonResponse).then(function (res) {
+          if (!res.ok) { showError("重置 Prompt 失败 " + res.status + ": " + formatApiError(res)); return; }
+          showSuccess(res.body.ok ? "已删除用户级 Prompt 行" : "本无用户级行");
+          return loadPrompts();
+        }).catch(function (e) { showError("网络错误: " + e.message); });
+      }
+
+      // 事件绑定
+      skillSaveBtn.onclick = saveSkills;
+      skillResetBtn.onclick = resetSkills;
+      skillReloadBtn.onclick = reloadDiscover;
+      filterTtEl.onchange = function () { filterTt = filterTtEl.value; renderPrompts(); };
+      filterTkEl.onchange = function () { filterTk = filterTkEl.value; renderPrompts(); };
+      promptListEl.addEventListener("click", function (ev) {
+        var btn = ev.target.closest("button[data-action]");
+        if (!btn) return;
+        var action = btn.getAttribute("data-action");
+        var tt = btn.getAttribute("data-tt");
+        var tk = btn.getAttribute("data-tk");
+        if (action === "prompt-save") savePromptCell(tt, tk);
+        else if (action === "prompt-reset") resetPromptCell(tt, tk);
+      });
+
+      renderUser();
+      if (currentUser()) {
+        loadSkills();
+        loadPrompts();
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import {
+  isCodeRepoWikiSourceType,
+  isConfluenceWikiSourceType,
+  isQaApiWikiSourceType,
   isWikiSourceType,
   WIKI_CODE_REPO_SOURCE_TYPES,
   WIKI_SOURCE_TYPE,
@@ -16,7 +19,7 @@ export type WikiSourceRow = {
   category_id: WikiCategoryId;
   /** Confluence / Wiki 页面地址 */
   wiki_url: string;
-  /** 文档源类型：`基线文档` / `迭代文档` / `spec文档` / `代码地址` */
+  /** 文档源类型：`基线文档` / `迭代文档` / `spec文档` / `系统优化文档` / `自动化测试案例` / `测试脑图` / `代码地址` */
   source_type: WikiSourceType;
   /** 创建人 */
   creator: string;
@@ -177,11 +180,14 @@ export function upsertWikiSourceByCategoryAndType(
   return updated!;
 }
 
-/** 「文档源配置」：业务分类下的基线文档、迭代文档与代码仓库地址（最多 5 个槽位） */
+/** 「文档源配置」：业务分类下的基线、迭代、系统优化、自动化测试案例、测试脑图与代码仓库地址（最多 5 个槽位） */
 export type WikiDocSourceConfig = {
   baseline_doc: WikiSourceRow | null;
   requirement_iteration_doc: WikiSourceRow | null;
-  /** 槽位 1..5，索引 0 对应代码库 1 */
+  system_optimization_doc: WikiSourceRow | null;
+  automated_test_case: WikiSourceRow | null;
+  test_mind_map: WikiSourceRow | null;
+  /** 槽位 1..10，索引 0 对应代码库 1 */
   code_repos: (WikiSourceRow | null)[];
 };
 
@@ -190,6 +196,52 @@ export function getCodeRepoRowBySlot(
   slot: WikiQaCodeRepoSlot,
 ): WikiSourceRow | null {
   return config.code_repos[slot - 1] ?? null;
+}
+
+/** 至少有一条 Confluence 类且 `wiki_url` 非空的文档源配置 */
+export function listWikiCategoryIdsWithConfluenceConfig(db: DatabaseSync): WikiCategoryId[] {
+  const rows = listWikiSources(db, { limit: 500 });
+  const ids = new Set<WikiCategoryId>();
+  for (const row of rows) {
+    if (!isConfluenceWikiSourceType(row.source_type)) continue;
+    if (!row.wiki_url.trim()) continue;
+    ids.add(row.category_id);
+  }
+  return [...ids].sort();
+}
+
+/** 至少有一条代码库且 `wiki_url` 非空的配置 */
+export function listWikiCategoryIdsWithCodeRepoConfig(db: DatabaseSync): WikiCategoryId[] {
+  const rows = listWikiSources(db, { limit: 500 });
+  const ids = new Set<WikiCategoryId>();
+  for (const row of rows) {
+    if (!isCodeRepoWikiSourceType(row.source_type)) continue;
+    if (!row.wiki_url.trim()) continue;
+    ids.add(row.category_id);
+  }
+  return [...ids].sort();
+}
+
+/** 至少有一条 QA API 类且 `wiki_url` 非空的配置 */
+export function listWikiCategoryIdsWithQaTestCaseConfig(db: DatabaseSync): WikiCategoryId[] {
+  const rows = listWikiSources(db, { limit: 500 });
+  const ids = new Set<WikiCategoryId>();
+  for (const row of rows) {
+    if (!isQaApiWikiSourceType(row.source_type)) continue;
+    if (!row.wiki_url.trim()) continue;
+    ids.add(row.category_id);
+  }
+  return [...ids].sort();
+}
+
+/** Confluence、QA API 或代码库至少配置一项的分类 ID（去重并排序） */
+export function listWikiCategoryIdsWithSyncConfig(db: DatabaseSync): WikiCategoryId[] {
+  const ids = new Set<WikiCategoryId>([
+    ...listWikiCategoryIdsWithConfluenceConfig(db),
+    ...listWikiCategoryIdsWithQaTestCaseConfig(db),
+    ...listWikiCategoryIdsWithCodeRepoConfig(db),
+  ]);
+  return [...ids].sort();
 }
 
 export function getWikiDocSourceConfigByCategory(
@@ -206,6 +258,13 @@ export function getWikiDocSourceConfigByCategory(
     requirement_iteration_doc:
       getWikiSourceByCategoryAndType(db, categoryId, WIKI_SOURCE_TYPE.IterationDoc) ??
       null,
+    system_optimization_doc:
+      getWikiSourceByCategoryAndType(db, categoryId, WIKI_SOURCE_TYPE.SystemOptimizationDoc) ??
+      null,
+    automated_test_case:
+      getWikiSourceByCategoryAndType(db, categoryId, WIKI_SOURCE_TYPE.AutomatedTestCase) ?? null,
+    test_mind_map:
+      getWikiSourceByCategoryAndType(db, categoryId, WIKI_SOURCE_TYPE.TestMindMap) ?? null,
     code_repos,
   };
 }

@@ -1,3 +1,14 @@
+/** 从 Keycloak tokenParsed 解析汉字姓名：姓 + 名（family_name + given_name） */
+function resolveRealNameFromTokenParsed(tokenParsed) {
+  if (!tokenParsed) return null;
+  var family = String(tokenParsed.family_name || "").trim();
+  var given = String(tokenParsed.given_name || "").trim();
+  if (family && given) return family + given;
+  if (family) return family;
+  if (given) return given;
+  return null;
+}
+
 /** 将 localStorage.userName 同步到 Cookie，并在 fetch 请求中附带 X-User-Name */
 (function () {
   function syncUserNameCookie() {

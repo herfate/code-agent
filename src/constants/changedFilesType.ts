@@ -11,6 +11,20 @@ export const CHANGED_FILES_TYPE = {
   TestCaseDesignOut: "TestCaseDesignOut",
   TestCaseExecuteOut: "TestCaseExecuteOut",
   CodeReviewOut: "CodeReviewOut",
+  StorySplitOut: "StorySplitOut",
+  BrainstormOut: "BrainstormOut",
+  /** AI 拆分故事（task_type=11）输出 */
+  AiStorySplitOut: "AiStorySplitOut",
+  /** UI 测试执行（task_type=12）输出 */
+  UiTestExecuteOut: "UiTestExecuteOut",
+  /** 沉淀记忆（task_type=13）输出 */
+  PersistMemoryOut: "PersistMemoryOut",
+  /** 功能测试用例生成（task_type=20）输出 */
+  FuncTestCaseGenOut: "FuncTestCaseGenOut",
+  /** 自动化用例生成（task_type=21）输出 */
+  AutoTestCaseGenOut: "AutoTestCaseGenOut",
+  /** 测试脑图分析（task_type=22）输出 */
+  TestMindMapAnalysisOut: "TestMindMapAnalysisOut",
 } as const;
 
 export type ChangedFilesType = (typeof CHANGED_FILES_TYPE)[keyof typeof CHANGED_FILES_TYPE];
@@ -44,6 +58,22 @@ export function changedFilesTypeLabel(code: ChangedFilesType | string): string {
       return "测试用例执行输出";
     case CHANGED_FILES_TYPE.CodeReviewOut:
       return "Code Review 输出";
+    case CHANGED_FILES_TYPE.StorySplitOut:
+      return "拆分故事输出";
+    case CHANGED_FILES_TYPE.BrainstormOut:
+      return "头脑风暴输出";
+    case CHANGED_FILES_TYPE.AiStorySplitOut:
+      return "AI拆分故事输出";
+    case CHANGED_FILES_TYPE.UiTestExecuteOut:
+      return "UI测试执行输出";
+    case CHANGED_FILES_TYPE.PersistMemoryOut:
+      return "沉淀记忆输出";
+    case CHANGED_FILES_TYPE.FuncTestCaseGenOut:
+      return "功能测试用例生成输出";
+    case CHANGED_FILES_TYPE.AutoTestCaseGenOut:
+      return "自动化用例生成输出";
+    case CHANGED_FILES_TYPE.TestMindMapAnalysisOut:
+      return "测试脑图分析输出";
     default:
       return String(code);
   }
@@ -64,6 +94,22 @@ export function changedFilesParamKeyForTaskType(taskType: TaskType): ChangedFile
       return CHANGED_FILES_TYPE.TestCaseExecuteOut;
     case TASK_TYPE.CodeReview:
       return CHANGED_FILES_TYPE.CodeReviewOut;
+    case TASK_TYPE.StorySplit:
+      return CHANGED_FILES_TYPE.StorySplitOut;
+    case TASK_TYPE.Brainstorm:
+      return CHANGED_FILES_TYPE.BrainstormOut;
+    case TASK_TYPE.AiStorySplit:
+      return CHANGED_FILES_TYPE.AiStorySplitOut;
+    case TASK_TYPE.UiTestExecute:
+      return CHANGED_FILES_TYPE.UiTestExecuteOut;
+    case TASK_TYPE.PersistMemory:
+      return CHANGED_FILES_TYPE.PersistMemoryOut;
+    case TASK_TYPE.FuncTestCaseGen:
+      return CHANGED_FILES_TYPE.FuncTestCaseGenOut;
+    case TASK_TYPE.AutoTestCaseGen:
+      return CHANGED_FILES_TYPE.AutoTestCaseGenOut;
+    case TASK_TYPE.TestMindMapAnalysis:
+      return CHANGED_FILES_TYPE.TestMindMapAnalysisOut;
     default:
       return null;
   }

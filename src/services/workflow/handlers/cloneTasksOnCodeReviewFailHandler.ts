@@ -1,8 +1,8 @@
 import { TASK_TYPE, type TaskType } from "../../../constants/taskType.js";
-import { getGlobalMaxRetryCount } from "../../dbConfig.js";
+import { getGlobalMaxCodeReviewRunCount } from "../../dbConfig.js";
 import { parseCodeReviewGateFromChangedFiles } from "../../file/parseTaskOutCodeReviewResult.js";
 import {
-  buildCodeReviewReportDescription,
+  buildCodeReviewReportFollowUpMessage,
   cloneTasksOnCodeReviewNotPassed,
   countCodeReviewTasksUnderParent,
 } from "../../loop/cloneTasksOnCodeReviewNotPassed.js";
@@ -23,22 +23,22 @@ export const cloneTasksOnCodeReviewFailHandler: ParentTaskChangedFilesHandler = 
       return;
     }
 
-    const maxRetry = getGlobalMaxRetryCount(ctx.db);
+    const maxRunCount = getGlobalMaxCodeReviewRunCount(ctx.db);
     const codeReviewRunCount = countCodeReviewTasksUnderParent(ctx.db, ctx.parentTaskId);
-    if (codeReviewRunCount > maxRetry) {
+    if (codeReviewRunCount >= maxRunCount) {
       AppLog.logger.info(
-        { parentTaskId: ctx.parentTaskId, codeReviewRunCount, maxRetry },
-        "cloneTasksOnCodeReviewFail: max retry count reached, skip retry",
+        { parentTaskId: ctx.parentTaskId, codeReviewRunCount, maxRunCount },
+        "cloneTasksOnCodeReviewFail: max code review run count reached, skip retry",
       );
       return;
     }
 
-    const reportDescription = buildCodeReviewReportDescription(parsed);
+    const followUpMessage = buildCodeReviewReportFollowUpMessage(parsed);
     cloneTasksOnCodeReviewNotPassed(
       ctx.db,
       ctx.parentTaskId,
       ctx.executingTaskId,
-      reportDescription,
+      followUpMessage,
     );
     return;
   },

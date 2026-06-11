@@ -50,6 +50,8 @@ export type TaskRow = {
   updated_at: number;
   started_at: number | null;
   completed_at: number | null;
+  /** 累计执行耗时（毫秒），仅通过 {@link addTaskCost} 累加 */
+  cost: number;
 };
 
 /** 与表 `subtasks` 一一对应的持久化行 */
@@ -165,6 +167,11 @@ function now(): number {
   return Date.now();
 }
 
+/** tasks 表常用列（含累计耗时 cost） */
+const TASK_SELECT_COLUMNS = `id, title, description, status, task_type, creator, pid, thread_id,
+              input_json, output_json, error_message, meta_json,
+              created_at, updated_at, started_at, completed_at, cost`;
+
 export function createTask(db: DatabaseSync, input: CreateTaskInput): TaskRow {
   const t = input.created_at ?? now();
   const u = input.updated_at ?? t;
@@ -177,8 +184,8 @@ export function createTask(db: DatabaseSync, input: CreateTaskInput): TaskRow {
     `INSERT INTO tasks (
        id, title, description, status, task_type, creator, pid, thread_id,
        input_json, output_json, error_message, meta_json,
-       created_at, updated_at, started_at, completed_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, NULL)`,
+       created_at, updated_at, started_at, completed_at, cost
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, NULL, 0)`,
   ).run(
     input.id,
     title,
@@ -198,12 +205,7 @@ export function createTask(db: DatabaseSync, input: CreateTaskInput): TaskRow {
 
 export function getTask(db: DatabaseSync, id: string): TaskRow | undefined {
   return db
-    .prepare(
-      `SELECT id, title, description, status, task_type, creator, pid, thread_id,
-              input_json, output_json, error_message, meta_json,
-              created_at, updated_at, started_at, completed_at
-       FROM tasks WHERE id = ?`,
-    )
+    .prepare(`SELECT ${TASK_SELECT_COLUMNS} FROM tasks WHERE id = ?`)
     .get(id) as TaskRow | undefined;
 }
 
@@ -230,12 +232,7 @@ export function listTaskStatusesByPids(
 /** 按父任务 `pid` 列出关联任务（创建时间升序） */
 export function listTasksByPid(db: DatabaseSync, pid: string): TaskRow[] {
   return db
-    .prepare(
-      `SELECT id, title, description, status, task_type, creator, pid, thread_id,
-              input_json, output_json, error_message, meta_json,
-              created_at, updated_at, started_at, completed_at
-       FROM tasks WHERE pid = ? ORDER BY created_at ASC`,
-    )
+    .prepare(`SELECT ${TASK_SELECT_COLUMNS} FROM tasks WHERE pid = ? ORDER BY created_at ASC`)
     .all(pid) as TaskRow[];
 }
 
@@ -273,22 +270,14 @@ export function releaseClaimedTaskToPending(db: DatabaseSync, id: string): boole
 
 export function listTasks(db: DatabaseSync, limit = 100): TaskRow[] {
   return db
-    .prepare(
-      `SELECT id, title, description, status, task_type, creator, pid, thread_id,
-              input_json, output_json, error_message, meta_json,
-              created_at, updated_at, started_at, completed_at
-       FROM tasks ORDER BY created_at DESC LIMIT ?`,
-    )
+    .prepare(`SELECT ${TASK_SELECT_COLUMNS} FROM tasks ORDER BY created_at DESC LIMIT ?`)
     .all(limit) as TaskRow[];
 }
 
 export function listTasksByStatus(db: DatabaseSync, status: TaskStatus, limit = 100): TaskRow[] {
   return db
     .prepare(
-      `SELECT id, title, description, status, task_type, creator, pid, thread_id,
-              input_json, output_json, error_message, meta_json,
-              created_at, updated_at, started_at, completed_at
-       FROM tasks WHERE status = ? ORDER BY created_at DESC LIMIT ?`,
+      `SELECT ${TASK_SELECT_COLUMNS} FROM tasks WHERE status = ? ORDER BY created_at DESC LIMIT ?`,
     )
     .all(status, limit) as TaskRow[];
 }
@@ -317,10 +306,7 @@ export function listTasksFiltered(
   }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
-  const sql = `SELECT id, title, description, status, task_type, creator, pid, thread_id,
-              input_json, output_json, error_message, meta_json,
-              created_at, updated_at, started_at, completed_at
-       FROM tasks ${where} ORDER BY created_at DESC LIMIT ?`;
+  const sql = `SELECT ${TASK_SELECT_COLUMNS} FROM tasks ${where} ORDER BY created_at DESC LIMIT ?`;
   params.push(limit);
   return db.prepare(sql).all(...params) as TaskRow[];
 }
@@ -344,6 +330,8 @@ export function updateTask(db: DatabaseSync, id: string, patch: UpdateTaskPatch)
     meta_json: patch.meta_json !== undefined ? patch.meta_json : row.meta_json,
     started_at: patch.started_at !== undefined ? patch.started_at : row.started_at,
     completed_at: patch.completed_at !== undefined ? patch.completed_at : row.completed_at,
+    // cost 仅由 addTaskCost 累加，此处保留原值
+    cost: row.cost,
     updated_at: u,
   };
   db.prepare(
@@ -369,6 +357,22 @@ export function updateTask(db: DatabaseSync, id: string, patch: UpdateTaskPatch)
     next.completed_at,
     id,
   );
+  return getTask(db, id);
+}
+
+/**
+ * 原子累加任务耗时（毫秒）。`deltaMs <= 0` 时不写库，直接返回当前行。
+ */
+export function addTaskCost(db: DatabaseSync, id: string, deltaMs: number): TaskRow | undefined {
+  const row = getTask(db, id);
+  if (!row) return undefined;
+  const delta = Math.floor(deltaMs);
+  if (!(delta > 0)) return row;
+  const u = now();
+  const res = db
+    .prepare(`UPDATE tasks SET cost = cost + ?, updated_at = ? WHERE id = ?`)
+    .run(delta, u, id);
+  if (Number(res.changes) === 0) return undefined;
   return getTask(db, id);
 }
 
@@ -582,4 +586,26 @@ export function deleteParentTaskParamByParentAndKey(
     .prepare(`DELETE FROM parent_task_params WHERE parent_task_id = ? AND param_key = ?`)
     .run(parentTaskId, paramKey);
   return r.changes > 0;
+}
+
+/** 批量读取指定父任务在某 param_key 下的 value_json */
+export function listParentTaskParamValueJsonByParentIdsAndKey(
+  db: DatabaseSync,
+  parentTaskIds: readonly string[],
+  paramKey: string,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  if (parentTaskIds.length === 0) return map;
+  const placeholders = parentTaskIds.map(() => "?").join(",");
+  const rows = db
+    .prepare(
+      `SELECT parent_task_id, value_json
+       FROM parent_task_params
+       WHERE param_key = ? AND parent_task_id IN (${placeholders})`,
+    )
+    .all(paramKey, ...parentTaskIds) as { parent_task_id: string; value_json: string }[];
+  for (const row of rows) {
+    map.set(row.parent_task_id, row.value_json);
+  }
+  return map;
 }

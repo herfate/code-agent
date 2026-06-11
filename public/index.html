@@ -6,7 +6,7 @@
   <title>code-agent 管理台</title>
   <link rel="stylesheet" href="/app.css" />
   <script src="/js/accessUser.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script src="/vendor/mermaid.min.js"></script>
   <script>
     mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { 'primaryColor': '#dbeafe', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#93c5fd', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#e2e8f0', 'background': '#ffffff', 'mainBkg': '#dbeafe', 'nodeBorder': '#3b82f6', 'clusterBkg': '#f8fafc', 'clusterBorder': '#cbd5e1', 'titleColor': '#1e293b', 'edgeLabelBackground': '#ffffff', 'fontSize': '14px' } });
   </script>
@@ -38,10 +38,19 @@
           Wiki Agent
         </button>
         <button type="button" data-nav-page="dagent" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
-          开发自测Agent
+          开发Agent
+        </button>
+        <button type="button" data-nav-page="tagent" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          测试Agent
+        </button>
+        <button type="button" data-nav-page="kanban" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          看板
         </button>
         <button type="button" data-nav-page="ucfg" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
           用户配置
+        </button>
+        <button type="button" data-nav-page="spcfg" class="nav-btn w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white">
+          Skill 和 Prompt 配置
         </button>
       </nav>
       <div class="shrink-0 border-t border-slate-800 px-4 py-3 text-[11px] leading-relaxed text-slate-500">
@@ -57,8 +66,11 @@
           <a id="header-demo-link" href="/demo" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开演示</a>
           <a id="header-agentdev-link" href="/agent-dev" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开开发 Agent</a>
           <a id="header-devagent-link" href="/dev-agent" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开父任务</a>
-          <a id="header-wikiagent-link" href="/wiki-agent" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开 Wiki Agent</a>
+          <a id="header-wikiagent-link" href="/?page=wagent" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开 Wiki Agent</a>
+          <a id="header-kanban-link" href="/kanban" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开看板</a>
           <a id="header-ucfg-link" href="/user-config" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开用户配置</a>
+          <a id="header-spcfg-link" href="/skill-prompt-config" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开 Skill 和 Prompt 配置</a>
+          <a id="header-tagent-link" href="/test-agent" target="_blank" rel="noopener noreferrer" class="hidden text-blue-600 hover:underline">新窗口打开测试Agent</a>
         </div>
       </header>
 
@@ -66,46 +78,53 @@
         <div id="view-home" class="h-full overflow-y-auto p-6">
           <div class="mx-auto max-w-5xl space-y-6">
             <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 class="text-lg font-semibold text-slate-800">多Agent工作流循环</h2>
-              <div class="mt-4 mermaid">
-graph LR
-    A[开发设计] --> B[测试设计]
-    B --> C[代码开发]
-    C --> D[部署平台发布]
-    D --> E[Code Review]
-    E -.->|失败重试| C
-    E --> F[测试案例设计]
-    F --> G[基线数据设计]
-    G --> H[测试案例执行]
-    H -.->|失败重试 默认3次| C
-              </div>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 class="text-lg font-semibold text-slate-800">流程说明</h2>
-              <p class="mt-2 text-sm font-medium text-slate-700">完整闭环流程（自愈循环，默认3次）：</p>
+              <p class="mt-2 text-sm font-medium text-slate-700">完整闭环流程（从需求同步到上线，自愈循环默认3次）：</p>
               <pre class="mt-3 overflow-x-auto rounded-lg bg-slate-100 p-4 text-xs text-slate-800 leading-relaxed border border-slate-200">
-┌───────────────────────────────────────────────────────────────────────────────┐
-│                                                                               │
-│    开发设计 ──→ 测试设计 ──→ 代码开发 ──→ 部署平台发布                        │
-│                               ↑                      │                        │
-│                               │                      ↓                        │
-│    测试案例执行 ──失败──┐   Code Review                              │
-│         │               │          │                     │                  │
-│         成功            │          └────── 失败重试 ──────┘                  │
-│         ↓               │                                                     │
-│    基线数据设计 ←── 测试案例设计 ←────────── 成功 ──────────┘                 │
-│                                                                               │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  需求同步      产品维护 → Confluence基线/迭代 → 定时同步导出Markdown           │
+│         │                                                         │
+│         ↓                                                         │
+│  需求澄清 ←─── GitLab代码                                         │
+│         │                                                         │
+│         ↓                                                         │
+│  需求拆分 → 生成开发任务                                            │
+│         │                                                         │
+│         ↓              ┌──────── LLM Wiki ────────┐               │
+│  开发设计 ←── 代码规范/业务知识库 ←── AI生成 / 人工补充              │
+│         │              └────────────┬─────────────┘               │
+│         ↓                           │                             │
+│  测试设计 ──→ 代码开发 ──→ 部署平台发布                              │
+│                     ↑                      │                      │
+│                     │                      ↓                      │
+│                     │            部署平台门禁                       │
+│                     │              │         │                    │
+│                     │         门禁失败    门禁通过                   │
+│                     │              │         │                    │
+│  测试案例执行 ←── 测试执行规范/业务知识库 ←┘    ↓                     │
+│        │               │                 Code Review               │
+│        │──失败──┐      └── 重试 ──┘          │         │            │
+│        成功     │                       失败重试    成功            │
+│        ↓        │                          │         │            │
+│   基线数据设计 ←── 测试案例设计 ←─────────────┘         │            │
+│                                                      ↓            │
+│                                                   上线             │
+└──────────────────────────────────────────────────────────────────────────────┘
               </pre>
             </div>
             <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 class="text-lg font-semibold text-slate-800">核心特性</h2>
               <ul class="mt-3 space-y-3 text-sm text-slate-600">
                 <li class="flex items-start gap-2">
+                  <span class="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"></span>
+                  <div><strong class="text-slate-800">LLM Wiki 知识底座</strong>：AI 生成 + 人工补充双通道，沉淀代码规范、业务知识库与测试执行规范；开发设计消费代码规范/业务知识库，测试案例执行消费测试执行规范/业务知识库</div>
+                </li>
+                <li class="flex items-start gap-2">
                   <span class="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"></span>
-                  <div><strong class="text-slate-800">双重自愈循环</strong>：
+                  <div><strong class="text-slate-800">三重自愈循环</strong>：
                     <ul class="mt-1 ml-4 space-y-1 list-disc list-inside">
-                      <li>Code Review 失败 → 回退到代码开发节点</li>
+                      <li>部署平台门禁失败 → 回退到代码开发节点（默认重试 3 次）</li>
+                      <li>Code Review 失败 → 回退到代码开发节点（默认重试 3 次）</li>
                       <li>测试案例执行失败 → 回退到代码开发节点（默认重试 3 次）</li>
                     </ul>
                   </div>
@@ -120,6 +139,53 @@ graph LR
                 </li>
               </ul>
             </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 class="text-lg font-semibold text-slate-800">完整开发流程（从需求到上线）</h2>
+              <div class="mt-4 mermaid">
+graph TB
+    subgraph 需求管理
+        P[产品维护需求] --> A
+        P --> B
+        A[Confluence基线] --> C[定时同步导出Markdown]
+        B[Confluence迭代] --> C
+    end
+
+    subgraph 需求分析
+        C --> E[需求澄清]
+        D[GitLab代码] --> E
+        E --> F[需求拆分]
+        F --> G[生成开发任务]
+    end
+
+    subgraph LLM Wiki
+        AI[AI生成] --> LW[LLM Wiki]
+        HUM[人工补充] --> LW
+        LW --> CS[代码规范]
+        LW --> BK[业务知识库]
+        LW --> TS[测试执行规范]
+    end
+
+    subgraph 开发循环
+        G --> H[开发设计]
+        CS --> H
+        BK --> H
+        H --> I[测试设计]
+        I --> J[代码开发]
+        J --> K[部署平台发布]
+        K --> L{部署平台门禁}
+        L -->|门禁失败| J
+        L -->|门禁通过| M[Code Review]
+        M -->|失败重试| J
+        M -->|成功| N[测试案例设计]
+        N --> O[基线数据设计]
+        O --> Q{测试案例执行}
+        TS --> Q
+        BK --> Q
+        Q -->|失败重试 默认3次| J
+        Q -->|成功| R[上线]
+    end
+              </div>
+            </div>
           </div>
         </div>
         <div id="view-demo" class="absolute inset-0 hidden bg-white">
@@ -129,13 +195,22 @@ graph LR
           <iframe id="adev-frame" class="h-full w-full border-0" title="开发 Agent"></iframe>
         </div>
         <div id="view-dagent" class="absolute inset-0 hidden bg-white">
-          <iframe id="dagent-frame" class="h-full w-full border-0" title="开发自测Agent"></iframe>
+          <iframe id="dagent-frame" class="h-full w-full border-0" title="开发Agent"></iframe>
+        </div>
+        <div id="view-tagent" class="absolute inset-0 hidden bg-white">
+           <iframe id="tagent-frame" class="h-full w-full border-0" title="测试Agent"></iframe>
         </div>
         <div id="view-wagent" class="absolute inset-0 hidden bg-white">
           <iframe id="wagent-frame" class="h-full w-full border-0" title="Wiki Agent"></iframe>
         </div>
+        <div id="view-kanban" class="absolute inset-0 hidden bg-white">
+          <iframe id="kanban-frame" class="h-full w-full border-0" title="任务耗时看板"></iframe>
+        </div>
         <div id="view-ucfg" class="absolute inset-0 hidden bg-white">
           <iframe id="ucfg-frame" class="h-full w-full border-0" title="用户配置"></iframe>
+        </div>
+        <div id="view-spcfg" class="absolute inset-0 hidden bg-white">
+          <iframe id="spcfg-frame" class="h-full w-full border-0" title="Skill 和 Prompt 配置"></iframe>
         </div>
       </main>
     </div>
@@ -148,11 +223,17 @@ graph LR
       var dagent = document.getElementById("view-dagent");
       var wagent = document.getElementById("view-wagent");
       var ucfg = document.getElementById("view-ucfg");
+      var spcfg = document.getElementById("view-spcfg");
+      var tagent = document.getElementById("view-tagent");
+      var kanban = document.getElementById("view-kanban");
       var frame = document.getElementById("demo-frame");
       var adevFrame = document.getElementById("adev-frame");
       var dagentFrame = document.getElementById("dagent-frame");
       var wagentFrame = document.getElementById("wagent-frame");
       var ucfgFrame = document.getElementById("ucfg-frame");
+      var spcfgFrame = document.getElementById("spcfg-frame");
+      var tagentFrame = document.getElementById("tagent-frame");
+      var kanbanFrame = document.getElementById("kanban-frame");
       var title = document.getElementById("page-title");
       var badge = document.getElementById("page-badge");
       var headerDemoLink = document.getElementById("header-demo-link");
@@ -160,6 +241,9 @@ graph LR
       var headerDevAgentLink = document.getElementById("header-devagent-link");
       var headerWikiAgentLink = document.getElementById("header-wikiagent-link");
       var headerUcfgLink = document.getElementById("header-ucfg-link");
+      var headerSpcfgLink = document.getElementById("header-spcfg-link");
+      var headerTagentLink = document.getElementById("header-tagent-link");
+      var headerKanbanLink = document.getElementById("header-kanban-link");
       var navBtns = document.querySelectorAll("[data-nav-page]");
 
       function syncUrl(page) {
@@ -175,7 +259,13 @@ graph LR
                   ? "/?page=wagent"
                   : page === "ucfg"
                     ? "/?page=ucfg"
-                    : "/";
+                    : page === "spcfg"
+                      ? "/?page=spcfg"
+                      : page === "tagent"
+                        ? "/?page=tagent"
+                        : page === "kanban"
+                          ? "/?page=kanban"
+                          : "/";
         if (location.pathname + location.search !== target) {
           history.replaceState({}, "", target);
         }
@@ -200,11 +290,17 @@ graph LR
         dagent.classList.toggle("hidden", page !== "dagent");
         wagent.classList.toggle("hidden", page !== "wagent");
         ucfg.classList.toggle("hidden", page !== "ucfg");
+        spcfg.classList.toggle("hidden", page !== "spcfg");
+        tagent.classList.toggle("hidden", page !== "tagent");
+        kanban.classList.toggle("hidden", page !== "kanban");
         headerDemoLink.classList.add("hidden");
         headerAgentDevLink.classList.toggle("hidden", page !== "adev");
         headerDevAgentLink.classList.toggle("hidden", page !== "dagent");
         headerWikiAgentLink.classList.toggle("hidden", page !== "wagent");
         headerUcfgLink.classList.toggle("hidden", page !== "ucfg");
+        headerSpcfgLink.classList.toggle("hidden", page !== "spcfg");
+        headerTagentLink.classList.toggle("hidden", page !== "tagent");
+        headerKanbanLink.classList.toggle("hidden", page !== "kanban");
 
         if (page === "demo") {
           title.textContent = "对话演示";
@@ -223,7 +319,7 @@ graph LR
             adevFrame.src = "/agent-dev";
           }
         } else if (page === "dagent") {
-          title.textContent = "开发自测Agent";
+          title.textContent = "开发Agent";
           badge.textContent = "嵌入 /dev-agent";
           badge.className =
             "rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800";
@@ -236,7 +332,15 @@ graph LR
           badge.className =
             "rounded-full bg-cyan-50 px-2 py-0.5 font-medium text-cyan-800";
           if (!wagentFrame.getAttribute("src") || wagentFrame.getAttribute("src") === "about:blank") {
-            wagentFrame.src = "/wiki-agent";
+            wagentFrame.src = "/wiki-agent?embed=1";
+          }
+        } else if (page === "kanban") {
+          title.textContent = "任务耗时看板";
+          badge.textContent = "嵌入 /kanban";
+          badge.className =
+            "rounded-full bg-teal-50 px-2 py-0.5 font-medium text-teal-800";
+          if (!kanbanFrame.getAttribute("src") || kanbanFrame.getAttribute("src") === "about:blank") {
+            kanbanFrame.src = "/kanban";
           }
         } else if (page === "ucfg") {
           title.textContent = "用户配置";
@@ -245,6 +349,22 @@ graph LR
             "rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700";
           if (!ucfgFrame.getAttribute("src") || ucfgFrame.getAttribute("src") === "about:blank") {
             ucfgFrame.src = "/user-config";
+          }
+        } else if (page === "spcfg") {
+          title.textContent = "Skill 和 Prompt 配置";
+          badge.textContent = "嵌入 /skill-prompt-config";
+          badge.className =
+            "rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700";
+          if (!spcfgFrame.getAttribute("src") || spcfgFrame.getAttribute("src") === "about:blank") {
+            spcfgFrame.src = "/skill-prompt-config";
+          }
+        } else if (page === "tagent") {
+          title.textContent = "测试Agent";
+          badge.textContent = "嵌入 /test-agent";
+          badge.className =
+            "rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-700";
+          if (!tagentFrame.getAttribute("src") || tagentFrame.getAttribute("src") === "about:blank") {
+            tagentFrame.src = "/test-agent";
           }
         } else {
           title.textContent = "工作台";
@@ -263,7 +383,7 @@ graph LR
 
       var q = new URLSearchParams(location.search).get("page");
       var initial =
-        q === "adev" ? "adev" : q === "dagent" ? "dagent" : q === "wagent" ? "wagent" : q === "ucfg" ? "ucfg" : "home";
+        q === "adev" ? "adev" : q === "dagent" ? "dagent" : q === "wagent" ? "wagent" : q === "ucfg" ? "ucfg" : q === "spcfg" ? "spcfg" : q === "tagent" ? "tagent" : q === "kanban" ? "kanban" : "home";
       show(initial);
     })();
   </script>
@@ -284,14 +404,20 @@ graph LR
           setLocalItem('token', keycloak.token.toString());
           setLocalItem('refreshToken', keycloak.refreshToken.toString());
           setLocalItem('tokenExpire', keycloak.tokenParsed?.exp);
-          //获取token的
-          let userName = null
-          if (keycloak.tokenParsed.email) {
-            userName = keycloak.tokenParsed.email.split('@')[0]
+          console.log('tokenParsed' , keycloak.tokenParsed);
+          var tokenParsed = keycloak.tokenParsed;
+          var userName = null;
+          if (tokenParsed.email) {
+            userName = tokenParsed.email.split("@")[0];
           } else {
-            userName = keycloak.tokenParsed['preferred_username']
+            userName = tokenParsed["preferred_username"];
           }
-          setLocalItem('userName', userName);
+          setLocalItem("userName", userName);
+
+          var realName = resolveRealNameFromTokenParsed(tokenParsed);
+          if (realName) {
+            setLocalItem("realName", realName);
+          }
         }
       }).catch((error) => {
         console.error('Keycloak initialization failed', error);

@@ -3,6 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { migrateTasksSubtasksStatusToNumeric } from "./migrateTaskStatusNumeric.js";
 import { migrateProviderCursor } from "./migrateProviderCursor.js";
+import { migrateTaskCost } from "./migrateTaskCost.js";
 
 let db: DatabaseSync | null = null;
 
@@ -50,7 +51,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   started_at INTEGER,
-  completed_at INTEGER
+  completed_at INTEGER,
+  cost INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS subtasks (
@@ -165,9 +167,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_run_events_run ON agent_run_events(run_id, 
 
 CREATE TABLE IF NOT EXISTS wiki_source (
   id TEXT PRIMARY KEY,
-  category_id TEXT NOT NULL CHECK (category_id IN ('1', '2', '3', '4')),
+  category_id TEXT NOT NULL CHECK (category_id IN ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10')),
   wiki_url TEXT NOT NULL,
-  source_type TEXT NOT NULL CHECK (source_type IN ('基线文档', '迭代文档', 'spec文档', '代码地址', '代码地址2', '代码地址3', '代码地址4', '代码地址5')),
+  source_type TEXT NOT NULL CHECK (source_type IN ('基线文档', '迭代文档', 'spec文档', '系统优化文档', '自动化测试案例', '测试脑图', '代码地址', '代码地址2', '代码地址3', '代码地址4', '代码地址5', '代码地址6', '代码地址7', '代码地址8', '代码地址9', '代码地址10')),
   creator TEXT NOT NULL,
   synced_at INTEGER,
   created_at INTEGER NOT NULL,
@@ -188,6 +190,7 @@ export function getDb(databasePath: string): DatabaseSync {
   db.exec(initSql);
   migrateTasksSubtasksStatusToNumeric(db);
   migrateProviderCursor(db);
+  migrateTaskCost(db);
   return db;
 }
 

@@ -1,0 +1,220 @@
+# 需求开发澄清 — design.md
+
+| 字段 | 值 |
+|------|-----|
+| 需求来源 | TAPD `884215` — 支持用户取消未支付订单 |
+| 文档版本 | v1 |
+| 澄清时间 | `2026-05-28T16:00:00+08:00` |
+
+---
+
+## 澄清摘要
+
+> **一句话**：取消未支付订单主流程与现有状态机可衔接，但重复提交幂等规则与部分退款口径未确认，**暂不可直接开发**。
+
+```json
+{
+  "ready_for_dev": false,
+  "blocking_questions_count": 2,
+  "non_blocking_questions_count": 1,
+  "requirement_items_count": 4,
+  "acceptance_criteria_count": 6,
+  "dev_task_count": 5,
+  "summary_zh": "待支付订单可取消、释放库存路径清晰；重复取消幂等与退款金额口径需产品确认后方可开发。",
+  "clarification_form": {
+    "version": 1,
+    "questions": [
+      {
+        "id": "Q-B-001",
+        "severity": "blocking",
+        "title": "重复取消同一订单的幂等策略",
+        "description": "重复 POST 取消同一订单时的接口行为与是否引入 cancelToken",
+        "input_type": "single",
+        "required": true,
+        "allow_custom": true,
+        "options": [
+          { "id": "idem_200", "label": "重复请求返回 200 且 body 与首次相同（推荐幂等键 cancelToken）", "recommended": true },
+          { "id": "conflict_409", "label": "重复请求返回 409 Conflict" },
+          { "id": "always_write", "label": "每次请求均写库（不做幂等，需产品确认风险）" }
+        ]
+      },
+      {
+        "id": "Q-B-002",
+        "severity": "blocking",
+        "title": "取消与支付回调竞态处理",
+        "description": "用户取消与支付成功回调并发时的互斥方案",
+        "input_type": "single",
+        "required": true,
+        "options": [
+          { "id": "use_existing_lock", "label": "复用现有 PaymentCallbackLock 覆盖取消路径", "recommended": true },
+          { "id": "new_cancel_lock", "label": "为取消单独引入分布式锁" },
+          { "id": "db_version", "label": "仅依赖数据库乐观锁/版本号" }
+        ]
+      },
+      {
+        "id": "Q-N-001",
+        "severity": "non_blocking",
+        "title": "取消原因枚举",
+        "input_type": "single",
+        "required": false,
+        "options": [
+          { "id": "reuse_enum", "label": "沿用 OrderReasonEnum 现有 5 项", "recommended": true },
+          { "id": "extend_enum", "label": "扩展枚举并同步前端" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 1. 需求理解
+
+### 1.1 业务背景
+
+用户在下单后未支付前可能放弃购买，需支持主动取消并释放占用的库存，避免超卖与客诉。
+
+### 1.2 用户与场景
+
+| 角色 | 场景 |
+|------|------|
+| 普通用户 | App/小程序在「待支付」页点击取消 |
+| 运营 | 后台查询取消记录（本期不做后台入口，仅 API 可查） |
+
+### 1.3 成功指标
+
+- 待支付订单可成功取消，状态变为 `cancelled`
+- 库存占用在取消后释放
+- 不产生重复退款（待澄清幂等规则后验收）
+
+---
+
+## 2. 需求条目清单
+
+| ID | 描述 | 优先级 | 来源 | 状态 |
+|----|------|--------|------|------|
+| REQ-8842-01 | 仅「待支付」状态订单允许用户取消 | P0 | TAPD 原文 | 已确认 |
+| REQ-8842-02 | 取消成功后释放预占库存 | P0 | TAPD 原文 | 已确认 |
+| REQ-8842-03 | 重复取消请求应幂等，不产生重复副作用 | P0 | TAPD 原文 | 待确认 |
+| REQ-8842-04 | 取消原因必填，且为枚举值之一 | P1 | 推断 + 类似订单模块 | 推断 |
+
+---
+
+## 3. 待澄清问题
+
+### 3.1 阻塞级
+
+| # | 问题 | 影响 | 默认假设 | 建议确认方 |
+|---|------|------|----------|------------|
+| Q-B-001 | 重复 POST 取消同一订单时，返回 200 相同 body 还是 409？是否写入 cancelToken？ | 无法实现 REQ-8842-03，可能导致重复退款 | 无（必须确认） | 产品 + 支付域 |
+| Q-B-002 | 已发起支付但尚未回调成功时，用户取消与支付成功如何互斥？ | 资金与状态一致性 | 代码中已有分布式锁（`PaymentCallbackLock`），需确认是否覆盖取消路径 | 产品 + 架构 |
+
+### 3.2 非阻塞级
+
+| # | 问题 | 影响 | 默认假设 | 建议确认方 |
+|---|------|------|----------|------------|
+| Q-N-001 | 取消原因枚举是否沿用 `OrderReasonEnum`？ | 校验规则 | 沿用现有 5 项枚举 | 产品（验收前确认） |
+
+---
+
+## 4. 范围界定
+
+### In scope
+
+- 用户侧取消待支付订单 API
+- 订单状态流转 `pending` → `cancelled`
+- 调用库存服务释放预占
+- 单元测试与接口文档更新
+
+### Out of scope
+
+- 已支付订单退款取消（走退款流程，本期不做）
+- 运营后台批量取消
+- 消息通知（短信/推送）文案与通道
+
+---
+
+## 5. 技术方案
+
+### 5.1 改动层级
+
+| 层级 | 改动 |
+|------|------|
+| 接口 | 新增 `POST /api/v1/orders/{orderId}/cancel` |
+| 服务 | 扩展 `OrderCancelService`（或新建，见清单） |
+| 数据 | `orders` 表状态字段；可选 `cancel_token` 唯一索引（待 Q-B-001 确认） |
+| 配置 | 无 |
+| 前端 | 本期后端任务，前端联调由其他迭代负责 |
+
+### 5.2 核心流程
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant API as OrderController
+  participant S as OrderCancelService
+  participant DB as orders
+  participant Inv as InventoryClient
+
+  U->>API: POST /orders/{id}/cancel
+  API->>S: cancel(orderId, reason)
+  S->>DB: 校验状态=pending
+  alt 非 pending
+    S-->>API: 4xx
+  else pending
+    S->>DB: 更新 cancelled
+    S->>Inv: release(sku, qty)
+    S-->>API: 200 + body
+  end
+```
+
+### 5.3 与现状差异
+
+| 项 | 现状（代码证据） | 目标 |
+|----|------------------|------|
+| 取消入口 | `OrderService` 仅有支付完成路径 | 新增取消专用服务方法 |
+| 状态机 | `OrderStatus` 含 `pending/cancelled` | 复用，不新增枚举 |
+| 库存 | `InventoryClient.reserve` 已用于下单 | 复用 `release` |
+
+证据路径：`src/domain/order/OrderStatus.ts`、`src/clients/InventoryClient.ts`
+
+### 5.4 本期不做的技术项
+
+- 取消事件 MQ 广播（Out of scope 通知）
+- 跨机房缓存同步
+
+---
+
+## 6. 验收标准
+
+| AC-ID | 关联 REQ | 场景 | 步骤 | 期望结果 | 边界/异常 |
+|-------|----------|------|------|----------|-----------|
+| AC-01 | REQ-8842-01 | 待支付取消 | 创建 pending 订单 → 调取消 API | HTTP 200，`status=cancelled` | — |
+| AC-02 | REQ-8842-01 | 非待支付 | 对已支付订单调取消 | HTTP 4xx，状态不变 | 403/400 与现有错误码一致 |
+| AC-03 | REQ-8842-02 | 释放库存 | 取消成功后查库存 | 预占量恢复 | 库存服务超时时有重试 |
+| AC-04 | REQ-8842-03 | 幂等 | 同一订单连续两次取消 | **待 Q-B-001 确认后填写** | — |
+| AC-05 | REQ-8842-04 | 原因校验 | reason 为空 | HTTP 400 | — |
+| AC-06 | REQ-8842-04 | 原因枚举 | reason 非法值 | HTTP 400 | — |
+
+---
+
+## 7. 开发任务清单
+
+- [ ] T-001 新增 `OrderCancelController` 路由与 DTO 校验（REQ-8842-01、REQ-8842-04，`src/api/order/`）
+- [ ] T-002 实现 `OrderCancelService.cancel`：状态校验 + 落库（REQ-8842-01，`src/services/order/`）
+- [ ] T-003 取消后调用 `InventoryClient.release`（REQ-8842-02，`src/clients/InventoryClient.ts`）
+- [ ] T-004 幂等实现（REQ-8842-03，**依赖 Q-B-001 结论**，`OrderCancelService`）
+- [ ] T-005 单元测试 + OpenAPI 文档（AC-01～AC-06，`tests/`、`docs/api/`）
+
+---
+
+## 8. 风险与依赖
+
+| 风险 | 等级 | 缓解 |
+|------|------|------|
+| 取消与支付回调竞态 | 高 | 确认 `PaymentCallbackLock` 覆盖范围（Q-B-002） |
+| 库存 release 失败导致不一致 | 中 | 事务/outbox 或补偿任务（参考现有 `InventoryRetryJob`） |
+| 依赖库存服务 SLA | 低 | 超时与重试策略与下单路径对齐 |
+
+**外部依赖**：库存服务 `inventory-service` 测试环境可用（`{{testEnv}}`）。

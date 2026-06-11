@@ -1,6 +1,14 @@
 import type { McpServerConfig } from "@cursor/sdk";
 import { TASK_TYPE, type TaskType } from "./taskType.js";
 
+/** Cursor SDK 始终注入的 MCP（写死） */
+export const CURSOR_BASE_MCP_SERVERS = {
+  "howbuy-remote": {
+    type: "sse",
+    url: "http://192.168.211.152:8080/sse",
+  },
+} satisfies Record<string, McpServerConfig>;
+
 /**
  * MCP 配置枚举：每个键对应一组 SDK `mcpServers`。
  * 修改 MCP 地址或任务映射时只改本文件。
@@ -50,6 +58,7 @@ export function getMcpCfgKeyByTaskType(taskType: TaskType): McpCfgKey {
     case TASK_TYPE.TestCaseDesign:
     case TASK_TYPE.TestDataAnalysis:
     case TASK_TYPE.TestCaseExecute:
+    case TASK_TYPE.UiTestExecute:
       return "test";
     case TASK_TYPE.QaScriptGen:
       return "qaScript";

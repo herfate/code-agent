@@ -14,7 +14,7 @@
         <div class="min-w-0">
           <h1 class="text-base font-semibold text-slate-800">用户配置</h1>
           <p class="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
-            为当前登录用户保存 GitLab Token 与 Claude Auth Token；已保存内容仅以脱敏摘要展示。
+            为当前登录用户保存 GitLab Token、TAPD Token 与 Claude Auth Token；已保存内容仅以脱敏摘要展示。
           </p>
         </div>
         <div class="w-full shrink-0 sm:w-auto sm:min-w-[220px]">
@@ -32,7 +32,7 @@
       <p id="ucfg-success" class="hidden rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800"></p>
     </div>
 
-    <div class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
+    <div class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 lg:items-stretch">
       <section class="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
           <h2 class="text-sm font-semibold text-slate-800">GitLab Token</h2>
@@ -79,8 +79,52 @@
 
       <section class="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
+          <h2 class="text-sm font-semibold text-slate-800">TAPD Token</h2>
+          <p class="mt-0.5 text-[11px] text-slate-500">用于开发/设计任务中 TAPD 接口认证</p>
+        </div>
+        <div class="flex flex-1 flex-col gap-4 px-4 py-4 sm:px-5">
+          <div>
+            <label for="ucfg-tapd-token" class="mb-1.5 block text-xs font-medium text-slate-600">API Token</label>
+            <input
+              id="ucfg-tapd-token"
+              type="password"
+              placeholder="粘贴 TAPD Access Token"
+              maxlength="500"
+              autocomplete="off"
+              class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 shadow-sm placeholder:font-sans placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+            <p class="mt-1.5 text-[11px] leading-relaxed text-slate-500">请求 TAPD API 时使用 <code class="rounded bg-slate-100 px-1 font-mono text-[10px]">Authorization: Bearer …</code>；留空并保存可清除。</p>
+          </div>
+          <dl class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <dt class="text-slate-500">配置状态</dt>
+              <dd id="ucfg-tapd-status-configured" class="mt-0.5 font-medium text-slate-800">—</dd>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <dt class="text-slate-500">Token 摘要</dt>
+              <dd id="ucfg-tapd-status-masked" class="mt-0.5 truncate font-mono text-slate-800" title="">—</dd>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+              <dt class="text-slate-500">最近更新</dt>
+              <dd id="ucfg-tapd-status-updated" class="mt-0.5 text-slate-800">—</dd>
+            </div>
+          </dl>
+          <div class="mt-auto pt-1">
+            <button
+              type="button"
+              id="ucfg-tapd-btn-save"
+              class="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/35 sm:w-auto"
+            >
+              保存 TAPD Token
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
           <h2 class="text-sm font-semibold text-slate-800">Claude Auth Token</h2>
-          <p class="mt-0.5 text-[11px] text-slate-500">任务执行时写入 <code class="rounded bg-slate-100 px-1 font-mono text-[10px]">~/.claude.json</code></p>
+          <p class="mt-0.5 text-[11px] text-slate-500">任务执行时写入 <code class="rounded bg-slate-100 px-1 font-mono text-[10px]">task-repo/&lt;工作区&gt;/.claude/settings.json</code></p>
         </div>
         <div class="flex flex-1 flex-col gap-4 px-4 py-4 sm:px-5">
           <div>
@@ -144,6 +188,14 @@
           saveBtnId: "ucfg-btn-save",
           saveLabel: "GitLab Token",
           statusPrefix: "ucfg-status",
+        },
+        {
+          apiPath: "/api/user-config/tapd-token",
+          bodyKey: "tapd_token",
+          inputId: "ucfg-tapd-token",
+          saveBtnId: "ucfg-tapd-btn-save",
+          saveLabel: "TAPD Token",
+          statusPrefix: "ucfg-tapd-status",
         },
         {
           apiPath: "/api/user-config/anthropic-api-key",

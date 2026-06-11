@@ -8,20 +8,45 @@ export const APPS = {
     gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/fds-batch-new",
     category: "大陆清算",
   },
+  fbs_online_service: {
+    repoId: "fbs-online-service",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/fbs-online",
+    category: "大陆联机",
+  },
+  fbs_online_search_service: {
+    repoId: "fbs-online-search-service",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/fbs-online-search",
+    category: "大陆联机查询",
+  },
+  fds_dis_console: {
+    repoId: "param-console",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/fds-dis-console",
+    category: "大陆清算文件分发",
+  },
   param_console: {
     repoId: "param-console",
     gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/param-center-new",
-    category: "大陆参数",
+    category: "大陆参数控制台",
   },
   param_server: {
     repoId: "param-server",
     gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/param-center-new",
-    category: "大陆参数",
+    category: "大陆参数联机",
   },
-  fds_console_web: {
+  param_data_sync: {
+    repoId: "param-data-sync",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/param-data-sync",
+    category: "大陆参数同步",
+  },
+  fds_console: {
+    repoId: "fds-console",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/fds-console",
+    category: "大陆控制台后端",
+  },
+  fds_console_new: {
     repoId: "fds-console-web",
     gitlabUrl: "http://gitlab-code.howbuy.pa/tradenew/fds-console-new",
-    category: "大陆控制台",
+    category: "大陆控制台前端",
   },
   fin_console: {
     repoId: "fin-console-web",
@@ -32,6 +57,16 @@ export const APPS = {
     repoId: "fin-online-service",
     gitlabUrl: "http://gitlab-code.howbuy.pa/fin/fin-online",
     category: "大陆资金联机",
+  },
+  settle_mock: {
+    repoId: "trade-mock",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/test/trade-mock",
+    category: "资金mock",
+  },
+  dtms_settle_mock: {
+    repoId: "dtms-settle-mock",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/test/dtms-settle-mock",
+    category: "清算Mock",
   },
   hk_fin: {
     repoId: "hk-fin-service",
@@ -108,9 +143,14 @@ export const APPS = {
     gitlabUrl: "http://gitlab-code.howbuy.pa/hk-acc/hk-acc-console",
     category: "海外账户控制台",
   },
-  acc_center: {
-    repoId: "acc-center",
+  acc_center_server: {
+    repoId: "acc-center-server",
     gitlabUrl: "http://gitlab-code.howbuy.pa/acc/acc-center",
+    category: "大陆账户",
+  },
+  acc_console: {
+    repoId: "acc-console-web",
+    gitlabUrl: "http://gitlab-code.howbuy.pa/acc/acc-console",
     category: "大陆账户",
   },
   es_web: {

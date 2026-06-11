@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { WikiCategoryId } from "../../constants/wikiCategory.js";
-import { WIKI_SOURCE_TYPE, isCodeRepoWikiSourceType, wikiSourceTypeLabel, type WikiSourceType } from "../../constants/wikiSourceType.js";
+import { WIKI_SOURCE_TYPE, isCodeRepoWikiSourceType, isQaApiWikiSourceType, wikiSourceTypeLabel, type WikiSourceType } from "../../constants/wikiSourceType.js";
 import { listWikiSources, touchWikiSourceSyncedAt } from "../../db/wikiSource.js";
 import {
   clearWikiBaseCategorySourceDir,
@@ -88,6 +88,15 @@ export async function syncWikiCategoryFromConfluence(
         ...base,
         skipped: true,
         skip_reason: "代码地址不参与 Confluence 同步",
+      });
+      continue;
+    }
+
+    if (isQaApiWikiSourceType(row.source_type)) {
+      sources.push({
+        ...base,
+        skipped: true,
+        skip_reason: "QA 平台类文档源通过专用接口同步",
       });
       continue;
     }

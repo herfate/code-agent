@@ -5,6 +5,9 @@ import type { CreateParentTaskWithParamsResult } from "../../../db/parentTask.js
 import { PARENT_AGENT_TYPE, type ParentAgentType } from "../../../constants/parentAgentType.js";
 import { TASK_TYPE, taskTypeLabel, type TaskType } from "../../../constants/taskType.js";
 import { createTask, type TaskRow } from "../../../db/workflow.js";
+import { filterWorkflowTypesForTestEnv } from "../../workflow/skipTestEnvForDevReview.js";
+import type { DevOpsBranchApplyPayload } from "../../tools/devOpsBranchApplyClient.js";
+import { buildBranchApplyPayloadFromInit } from "../branchApplyPayloadBuilder.js";
 import type { CreateParentTaskWorkflowInput } from "./parentTaskCreateTypes.js";
 
 /** 开发任务编排上下文（父任务与 init 参数已写入库） */
@@ -48,8 +51,29 @@ export const FUNC_TEST_WORKFLOW_TASK_TYPES = [
   TASK_TYPE.TestCaseExecute,
 ] as const;
 
-/** 业务 Agent 父任务编排：拆分故事 → 头脑风暴 */
+/** 业务 Agent 父任务编排：按分隔符拆分故事 → 头脑风暴 */
 export const BIZ_AGENT_WORKFLOW_TASK_TYPES = [TASK_TYPE.StorySplit, TASK_TYPE.Brainstorm] as const;
+
+/** 业务 Agent 父任务编排：按 AI 理解拆分故事 → 头脑风暴 */
+export const BIZ_AGENT_AI_STORY_SPLIT_WORKFLOW_TASK_TYPES = [
+  TASK_TYPE.AiStorySplit,
+  TASK_TYPE.Brainstorm,
+] as const;
+
+/** 业务 Agent 单故事编排：仅头脑风暴（跳过拆分故事） */
+export const BIZ_AGENT_SINGLE_STORY_WORKFLOW_TASK_TYPES = [TASK_TYPE.Brainstorm] as const;
+
+/** 测试案例编排父任务（`parent_task.task_type = 5`）：功能测试用例生成 → 测试脑图分析 */
+export const TEST_CASE_ORCHESTRATE_WORKFLOW_TASK_TYPES = [
+  TASK_TYPE.FuncTestCaseGen,
+  TASK_TYPE.TestMindMapAnalysis,
+] as const;
+
+/** 自动化测试父任务（`parent_task.task_type = 6`）：功能测试用例生成 → 自动化用例生成 */
+export const AUTO_TEST_WORKFLOW_TASK_TYPES = [
+  TASK_TYPE.FuncTestCaseGen,
+  TASK_TYPE.AutoTestCaseGen,
+] as const;
 
 export type DevParentTaskWorkflowResult = {
   /** 设计 → 开发 → 测试环境发布 → … → 测试数据分析 → 测试案例执行 */
@@ -60,9 +84,19 @@ export type DevParentTaskWorkflowResult = {
 
 function buildTaskInputJson(opts: {
   app?: string;
+  qaVersion?: string;
+  qaApiPath?: string;
+  scriptId?: string;
+  labelIds?: number[];
   gitRepos: ParentTaskInitJson["gitRepos"];
   testEnv: string;
   requirement: string;
+  testScriptRepo?: string;
+  useTradeMock?: boolean;
+  pullBranch?: boolean;
+  tapdTaskId?: string;
+  /** BranchApply 节点的请求体（仅 task_type=104 任务注入） */
+  branchApply?: DevOpsBranchApplyPayload;
 }): string {
   const payload: Record<string, unknown> = {
     gitRepos: opts.gitRepos,
@@ -70,8 +104,22 @@ function buildTaskInputJson(opts: {
   };
   const app = opts.app?.trim();
   if (app) payload.app = app;
+  const qaVersion = opts.qaVersion?.trim();
+  if (qaVersion) payload.qaVersion = qaVersion;
+  const qaApiPath = opts.qaApiPath?.trim();
+  if (qaApiPath) payload.qaApiPath = qaApiPath;
+  const scriptId = opts.scriptId?.trim();
+  if (scriptId) payload.scriptId = scriptId;
+  if (opts.labelIds?.length) payload.labelIds = opts.labelIds;
   const testEnv = opts.testEnv?.trim();
   if (testEnv) payload.testEnv = testEnv;
+  const testScriptRepo = opts.testScriptRepo?.trim();
+  if (testScriptRepo) payload.testScriptRepo = testScriptRepo;
+  if (opts.useTradeMock === true) payload.useTradeMock = true;
+  if (opts.pullBranch === true) payload.pullBranch = true;
+  if (opts.branchApply) payload.branchApply = opts.branchApply;
+  const tapdTaskId = opts.tapdTaskId?.trim();
+  if (tapdTaskId) payload.tapdTaskId = tapdTaskId;
   return JSON.stringify(payload);
 }
 
@@ -83,6 +131,25 @@ function resolveBaseTitle(
   return input.title?.trim() || parentPart.parent_task.title || pid;
 }
 
+/**
+ * 勾选拉取分支时，在工作流首位前置 BranchApply 节点。
+ * 仅开发自测(1)/开发自review(2)支持；`payload` 为空（未勾选或 payload 不可推导）时不前置。
+ */
+function prependBranchApplyIfEnabled(
+  parentTaskType: ParentAgentType,
+  branchApplyPayload: DevOpsBranchApplyPayload | undefined,
+  workflowTypes: readonly TaskType[],
+): TaskType[] {
+  if (!branchApplyPayload) return [...workflowTypes];
+  if (
+    parentTaskType !== PARENT_AGENT_TYPE.DevSelfTest &&
+    parentTaskType !== PARENT_AGENT_TYPE.DevReviewNoTest
+  ) {
+    return [...workflowTypes];
+  }
+  return [TASK_TYPE.BranchApply, ...workflowTypes];
+}
+
 function createWorkflowTasks(
   db: DatabaseSync,
   ctx: DevParentTaskWorkflowContext,
@@ -90,17 +157,35 @@ function createWorkflowTasks(
 ): DevParentTaskWorkflowResult {
   const { pid, input, parentPart, requirement, init } = ctx;
   const baseTitle = resolveBaseTitle(input, parentPart, pid);
-  const inputJson = buildTaskInputJson({
-    app: input.app,
-    gitRepos: init.gitRepos,
-    testEnv: init.testEnv,
-    requirement,
-  });
   const metaJson = JSON.stringify({ parentTaskPid: pid });
+  const filteredTypes = filterWorkflowTypesForTestEnv(ctx.taskType, init.testEnv, workflowTypes);
+  // 勾选拉取分支时前置 BranchApply 节点；payload 不可推导（gitRepos 为空等）时不前置
+  const branchApplyPayload =
+    init.pullBranch === true ? buildBranchApplyPayloadFromInit(init, requirement) ?? undefined : undefined;
+  const effectiveWorkflowTypes = prependBranchApplyIfEnabled(ctx.taskType, branchApplyPayload, filteredTypes);
 
   const baseCreatedAt = Date.now();
-  const tasks = workflowTypes.map((workflowTaskType, index) => {
+  const tasks = effectiveWorkflowTypes.map((workflowTaskType, index) => {
     const at = baseCreatedAt + index * 100;
+    const inputJson = buildTaskInputJson({
+      app: input.app,
+      qaVersion: input.qaVersion,
+      qaApiPath: input.qaApiPath,
+      scriptId: input.scriptId,
+      labelIds: input.labelIds,
+      gitRepos: init.gitRepos,
+      testEnv: init.testEnv,
+      requirement,
+      useTradeMock: init.useTradeMock,
+      pullBranch: init.pullBranch,
+      tapdTaskId: init.tapdTaskId,
+      branchApply:
+        workflowTaskType === TASK_TYPE.BranchApply ? branchApplyPayload : undefined,
+      testScriptRepo:
+        workflowTaskType === TASK_TYPE.TestMindMapAnalysis
+          ? input.testScriptRepo?.trim()
+          : undefined,
+    });
     return createTask(db, {
       id: randomUUID(),
       title: `${baseTitle} - ${taskTypeLabel(workflowTaskType)}`,
@@ -126,7 +211,7 @@ export function runDevParentTaskWorkflow(
   return createWorkflowTasks(db, ctx, DEV_PARENT_WORKFLOW_TASK_TYPES);
 }
 
-/** 开发自Review父任务（`parent_task.task_type = 2`）：设计 → 开发 → 测试环境发布 → Code Review */
+/** 开发自Review父任务（`parent_task.task_type = 2`）：设计 → 开发 → [测试环境发布 → Code Review → 发布结果]（无 testEnv 时不含发布节点） */
 export function runDevReviewNoTestParentTaskWorkflow(
   db: DatabaseSync,
   ctx: DevParentTaskWorkflowContext,
@@ -151,13 +236,43 @@ export const DEV_REVIEW_NO_TEST_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.DevReviewNo
 /** 功能测试父任务 Agent 类型（供编排层路由） */
 export const FUNC_TEST_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.FuncTest;
 
-/** 业务 Agent 父任务（`parent_task.task_type = 4`）：拆分故事 → 头脑风暴 */
+/** 业务 Agent 父任务（`parent_task.task_type = 4`）：拆分故事 → 头脑风暴；单故事时仅头脑风暴 */
 export function runBizParentTaskWorkflow(
   db: DatabaseSync,
   ctx: DevParentTaskWorkflowContext,
 ): DevParentTaskWorkflowResult {
-  return createWorkflowTasks(db, ctx, BIZ_AGENT_WORKFLOW_TASK_TYPES);
+  let workflowTypes: readonly TaskType[];
+  if (ctx.init.skipStorySplit === true) {
+    workflowTypes = BIZ_AGENT_SINGLE_STORY_WORKFLOW_TASK_TYPES;
+  } else if (ctx.init.storySplitMode === "ai") {
+    workflowTypes = BIZ_AGENT_AI_STORY_SPLIT_WORKFLOW_TASK_TYPES;
+  } else {
+    workflowTypes = BIZ_AGENT_WORKFLOW_TASK_TYPES;
+  }
+  return createWorkflowTasks(db, ctx, workflowTypes);
 }
 
 /** 业务 Agent 父任务类型（供编排层路由） */
 export const BIZ_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.BizAgent;
+
+/** 测试案例编排父任务（`parent_task.task_type = 5`）：功能测试用例生成 → 测试脑图分析 */
+export function runTestCaseOrchestrateParentTaskWorkflow(
+  db: DatabaseSync,
+  ctx: DevParentTaskWorkflowContext,
+): DevParentTaskWorkflowResult {
+  return createWorkflowTasks(db, ctx, TEST_CASE_ORCHESTRATE_WORKFLOW_TASK_TYPES);
+}
+
+/** 测试案例编排父任务类型（供编排层路由） */
+export const TEST_CASE_ORCHESTRATE_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.TestCaseOrchestrate;
+
+/** 自动化测试父任务（`parent_task.task_type = 6`）：功能测试用例生成 → 自动化用例生成 */
+export function runAutoTestParentTaskWorkflow(
+  db: DatabaseSync,
+  ctx: DevParentTaskWorkflowContext,
+): DevParentTaskWorkflowResult {
+  return createWorkflowTasks(db, ctx, AUTO_TEST_WORKFLOW_TASK_TYPES);
+}
+
+/** 自动化测试父任务类型（供编排层路由） */
+export const AUTO_TEST_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.AutoTest;

@@ -7,11 +7,13 @@ import { TASK_TYPE, type TaskType } from "../../constants/taskType.js";
 import { getParentTask } from "../../db/parentTask.js";
 import { listTaskInputGitRepos, type TaskInputJson } from "../../db/taskInputJson.js";
 import { AppLog } from "../appLogger.js";
-import { filterRepoSourceRelPaths } from "../file/repoArtifactFilter.js";
+import { filterRepoSourceRelPaths, hasUiSourceRelPaths } from "../file/repoArtifactFilter.js";
+import { cloneUiTestExecuteFromDesign } from "../loop/cloneUiTestExecuteFromDesign.js";
 import {
   applyHttpsTokenToRemoteUrl,
   getGitlabUserToken,
 } from "../tools/gitlabTool.js";
+import { gitCliArgs } from "../tools/gitExec.js";
 import {
   groupChangedPathsByRepoWorkspace,
   planGitRepoWorkspaceDirs,
@@ -32,6 +34,8 @@ export type DevMrGitContext = {
 
 export type TryCreateDevMrInput = DevMrGitContext & {
   parentTaskId: string;
+  /** 当前认领执行的开发任务 id（提交成功后可据此克隆 UI 测试任务） */
+  executingTaskId: string;
   /** 当前认领执行的任务类型 */
   executingTaskType: TaskType;
   relativePaths: string[];
@@ -47,7 +51,7 @@ async function runGit(
   opts: { cwd: string; env?: NodeJS.ProcessEnv },
 ): Promise<{ stdout: string; stderr: string }> {
   try {
-    const r = await execFileAsync("git", args, {
+    const r = await execFileAsync("git", gitCliArgs(args), {
       cwd: opts.cwd,
       env: opts.env ? { ...process.env, ...opts.env } : process.env,
       maxBuffer: 50 * 1024 * 1024,
@@ -136,8 +140,16 @@ async function commitAndPushDevBranch(input: {
  */
 export async function tryCreateDevMergeRequest(input: TryCreateDevMrInput): Promise<void> {
   const log = AppLog.logger;
-  const { db, taskInputJson, creator, taskRepoCwd, parentTaskId, executingTaskType, relativePaths } =
-    input;
+  const {
+    db,
+    taskInputJson,
+    creator,
+    taskRepoCwd,
+    parentTaskId,
+    executingTaskId,
+    executingTaskType,
+    relativePaths,
+  } = input;
 
   if (executingTaskType !== TASK_TYPE.Dev) return;
   if (relativePaths.length === 0) {
@@ -163,6 +175,7 @@ export async function tryCreateDevMergeRequest(input: TryCreateDevMrInput): Prom
   const plans = planGitRepoWorkspaceDirs(repos);
   const pathsByRepo = groupChangedPathsByRepoWorkspace(relativePaths, plans);
 
+  let anyCommitted = false;
   for (const plan of plans) {
     const repoPaths = pathsByRepo.get(plan.relDir) ?? [];
     if (repoPaths.length === 0) continue;
@@ -193,6 +206,7 @@ export async function tryCreateDevMergeRequest(input: TryCreateDevMrInput): Prom
         relativePaths: repoPaths,
         commitMessage,
       });
+      anyCommitted = true;
       log.info(
         { parentTaskId, gitRemoteUrl: plan.gitRemoteUrl, targetBranch, fileCount: repoPaths.length },
         "dev git: 已提交并推送",
@@ -201,5 +215,10 @@ export async function tryCreateDevMergeRequest(input: TryCreateDevMrInput): Prom
       const msg = e instanceof Error ? e.message : String(e);
       log.error({ parentTaskId, gitRemoteUrl: plan.gitRemoteUrl, err: msg }, "dev git: 提交 git 失败");
     }
+  }
+
+  // 至少有一次提交成功，且变更含 js/vue/jsp/html：复制 Design 生成 UI 测试执行（每父任务仅一次）
+  if (anyCommitted && hasUiSourceRelPaths(relativePaths)) {
+    cloneUiTestExecuteFromDesign(db, parentTaskId, executingTaskId);
   }
 }

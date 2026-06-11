@@ -6,6 +6,7 @@
   <title>父任务 — 查询与新增</title>
   <link rel="stylesheet" href="/app.css" />
   <script src="/js/accessUser.js"></script>
+  <script src="/js/tapdStoryId.js"></script>
 </head>
 <body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
   <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
@@ -16,10 +17,10 @@
     <section class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
       <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
-        <div class="lg:col-span-2">
+        <div class="lg:col-span-3">
           <label id="dag-taskType-label" for="dag-taskType-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
-          <div id="dag-taskType-root" class="ui-combobox relative min-w-0">
-            <input type="hidden" id="dag-taskType" value="" autocomplete="off" />
+          <div id="dag-taskType-root" class="ui-multiselect relative min-w-0">
+            <input type="hidden" id="dag-taskType" value="1,2,3,4" autocomplete="off" />
             <div
               id="dag-taskType-trigger"
               role="combobox"
@@ -27,31 +28,50 @@
               aria-controls="dag-taskType-listbox"
               aria-labelledby="dag-taskType-label"
               tabindex="0"
-              class="ui-combobox-trigger"
+              class="ui-multiselect-trigger"
             >
-              <span class="ui-combobox-value min-w-0 truncate">全部</span>
+              <div class="ui-multiselect-tags" aria-live="polite"></div>
               <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </div>
-            <div id="dag-taskType-listbox" role="listbox" class="ui-combobox-list hidden">
-              <div role="option" data-value="" class="ui-combobox-opt">全部</div>
-              <div role="option" data-value="1" class="ui-combobox-opt">1 — 开发自测Agent</div>
-              <div role="option" data-value="2" class="ui-combobox-opt">2 — 开发自Review Agent</div>
-              <div role="option" data-value="3" class="ui-combobox-opt">3 — 功能测试Agent</div>
-              <div role="option" data-value="4" class="ui-combobox-opt">4 — 业务Agent</div>
+            <div id="dag-taskType-listbox" role="listbox" aria-multiselectable="true" class="ui-multiselect-list hidden">
+              <label class="ui-multiselect-opt" data-value="1">
+                <input type="checkbox" data-value="1" checked />
+                <span>1 — 开发自测Agent</span>
+              </label>
+              <label class="ui-multiselect-opt" data-value="2">
+                <input type="checkbox" data-value="2" checked />
+                <span>2 — 开发自Review Agent</span>
+              </label>
+              <label class="ui-multiselect-opt" data-value="3">
+                <input type="checkbox" data-value="3" checked />
+                <span>3 — 功能测试Agent</span>
+              </label>
+              <label class="ui-multiselect-opt" data-value="4">
+                <input type="checkbox" data-value="4" checked />
+                <span>4 — 业务Agent</span>
+              </label>
+              <div class="ui-multiselect-footer">
+                <button type="button" data-preset="1,2,3,4">全选</button>
+                <button type="button" data-action="clear">清空</button>
+              </div>
             </div>
           </div>
         </div>
-        <div class="lg:col-span-3">
+        <div class="lg:col-span-2">
           <label for="dag-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题包含</label>
           <input id="dag-title" type="text" placeholder="模糊匹配 title" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
         </div>
-        <div class="lg:col-span-3">
+        <div class="lg:col-span-2">
           <label for="dag-creator" class="mb-1.5 block text-xs font-medium text-slate-600">创建人</label>
           <input id="dag-creator" type="text" placeholder="精确匹配 tasks.creator" maxlength="200" autocomplete="username" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
         </div>
-        <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-4">
+        <div class="lg:col-span-2">
+          <label for="dag-tapdTaskId" class="mb-1.5 block text-xs font-medium text-slate-600">TAPD</label>
+          <input id="dag-tapdTaskId" type="text" placeholder="短 ID / 链接，查询时自动格式化" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-3">
           <span class="mb-1.5 hidden text-xs lg:block lg:invisible" aria-hidden="true">操作</span>
           <div class="flex flex-nowrap items-center gap-2">
             <button type="button" id="dag-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增父任务</button>
@@ -147,7 +167,7 @@
       >
         <div class="shrink-0 border-b border-slate-100 px-5 py-4">
           <h3 id="dag-modal-title" class="text-sm font-semibold text-slate-800">新增父任务</h3>
-          <p class="mt-1 text-xs text-slate-500">说明必填；任务类型为 1/2/3/4 时仓库与分支（一对一）、测试环境必填（git 保存时自动去掉末尾 <code class="font-mono text-[11px]">.git</code>）。创建后标题默认为 <code class="font-mono text-[11px]">thinking</code>，后台 AI 根据说明等自动汇总；上述字段与模型 <code class="font-mono text-[11px]">provider</code> 写入 <code class="font-mono text-[11px]">param_key=init</code>。</p>
+          <p class="mt-1 text-xs text-slate-500">说明必填；任务类型为 1/2/3/4 时仓库与分支（一对一）必填（git 保存时自动去掉末尾 <code class="font-mono text-[11px]">.git</code>）；测试环境在类型 1/3 时必填，类型 2（开发自Review）可选，留空则不生成测试环境发布节点。创建后标题默认为 <code class="font-mono text-[11px]">thinking</code>，后台 AI 根据说明等自动汇总；上述字段与模型 <code class="font-mono text-[11px]">provider</code> 写入 <code class="font-mono text-[11px]">param_key=init</code>。</p>
         </div>
         <form id="dag-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -216,46 +236,60 @@
                     <div role="option" data-value="1" class="ui-combobox-opt">1 — 开发自测Agent</div>
                     <div role="option" data-value="2" class="ui-combobox-opt">2 — 开发自Review Agent</div>
                     <div role="option" data-value="3" class="ui-combobox-opt">3 — 功能测试Agent</div>
-                    <div role="option" data-value="4" class="ui-combobox-opt">4 — 业务Agent</div>
                   </div>
                 </div>
               </div>
-              <div>
-                <label id="dag-new-provider-label" for="dag-new-provider-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">模型</label>
-                <div id="dag-new-provider-root" class="ui-combobox relative min-w-0">
-                  <input type="hidden" id="dag-new-provider" name="provider" value="claude" autocomplete="off" />
-                  <div
-                    id="dag-new-provider-trigger"
-                    role="combobox"
-                    aria-expanded="false"
-                    aria-controls="dag-new-provider-listbox"
-                    aria-labelledby="dag-new-provider-label"
-                    tabindex="0"
-                    class="ui-combobox-trigger"
+              <div class="sm:col-span-2 grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label id="dag-new-provider-label" for="dag-new-provider-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">模型</label>
+                  <div id="dag-new-provider-root" class="ui-combobox relative min-w-0">
+                    <input type="hidden" id="dag-new-provider" name="provider" value="claude" autocomplete="off" />
+                    <div
+                      id="dag-new-provider-trigger"
+                      role="combobox"
+                      aria-expanded="false"
+                      aria-controls="dag-new-provider-listbox"
+                      aria-labelledby="dag-new-provider-label"
+                      tabindex="0"
+                      class="ui-combobox-trigger"
+                    >
+                      <span class="ui-combobox-value min-w-0 truncate">claude</span>
+                      <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    <div id="dag-new-provider-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                      <div role="option" data-value="claude" class="ui-combobox-opt">claude</div>
+                      <div role="option" data-value="cursor" class="ui-combobox-opt">cursor</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex items-end">
+                  <label
+                    class="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5"
+                    title="勾选后设计任务全部完成时不暂停，调度器自动继续执行后续子任务（默认需人工确认）"
                   >
-                    <span class="ui-combobox-value min-w-0 truncate">claude</span>
-                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                  <div id="dag-new-provider-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
-                    <div role="option" data-value="claude" class="ui-combobox-opt">claude</div>
-                    <div role="option" data-value="cursor" class="ui-combobox-opt">cursor</div>
-                  </div>
+                    <input
+                      id="dag-new-directDevAfterDesign"
+                      type="checkbox"
+                      class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                    />
+                    <span class="min-w-0 text-xs font-medium text-slate-700">设计完成直接执行</span>
+                  </label>
                 </div>
-              </div>
-              <div class="sm:col-span-2">
-                <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <input
-                    id="dag-new-directDevAfterDesign"
-                    type="checkbox"
-                    class="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
-                  />
-                  <span class="min-w-0">
-                    <span class="block text-sm font-medium text-slate-800">设计完成直接执行</span>
-                    <span class="mt-0.5 block text-xs text-slate-500">勾选后设计任务全部完成时不暂停，调度器自动继续执行后续子任务（默认需人工确认）</span>
-                  </span>
-                </label>
+                <div class="flex items-end">
+                  <label
+                    class="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5"
+                    title="勾选后允许与同创建人当日其他父任务并行调度（默认同日不并行）"
+                  >
+                    <input
+                      id="dag-new-parallel"
+                      type="checkbox"
+                      class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                    />
+                    <span class="min-w-0 text-xs font-medium text-slate-700">是否并行</span>
+                  </label>
+                </div>
               </div>
               <div class="sm:col-span-2">
                 <label for="dag-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明 <span class="text-red-500">*</span></label>
@@ -267,6 +301,41 @@
                   class="w-full resize-y rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
                   placeholder="任务背景、需求要点等（必填）"
                 ></textarea>
+              </div>
+              <div class="flex flex-col justify-end gap-2 pb-3">
+                <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                  <input
+                    id="dag-new-useTradeMock"
+                    type="checkbox"
+                    class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                  />
+                  <span class="whitespace-nowrap text-xs font-medium text-slate-700">使用 trade-mock 辅助测试</span>
+                </label>
+                <div id="dag-pullBranch-section">
+                  <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                    <input
+                      id="dag-new-pullBranch"
+                      type="checkbox"
+                      class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/40"
+                    />
+                    <span class="whitespace-nowrap text-xs font-medium text-slate-700">拉取分支（仅开发自测/自review）</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label id="dag-new-tapdTaskId-label" for="dag-new-tapdTaskId" class="mb-1.5 block text-xs font-medium text-slate-600">开启 TAPD 故事关联</label>
+                <input
+                  id="dag-new-tapdTaskId"
+                  type="text"
+                  maxlength="200"
+                  autocomplete="off"
+                  aria-invalid="false"
+                  aria-describedby="dag-new-tapdTaskId-hint dag-new-tapdTaskId-error"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  placeholder="story=1364737@tapd-59626479，留空不关联"
+                />
+                <p id="dag-new-tapdTaskId-hint" class="mt-1.5 text-[11px] text-slate-500">可直接粘贴 TAPD 链接，失焦后自动提取并格式化</p>
+                <p id="dag-new-tapdTaskId-error" class="mt-1.5 hidden rounded-md border border-red-300 bg-red-50 px-2.5 py-2 text-xs font-medium text-red-700" role="alert"></p>
               </div>
             </div>
             <div>
@@ -299,6 +368,153 @@
     </div>
   </div>
 
+  <div id="dag-desc-modal-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="dag-desc-modal-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="dag-desc-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dag-desc-modal-title"
+        class="flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="dag-desc-modal-title" class="text-sm font-semibold text-slate-800">任务说明</h3>
+            <p id="dag-desc-modal-pid" class="mt-1 text-xs text-slate-500"></p>
+          </div>
+          <button type="button" id="dag-desc-modal-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+        </div>
+        <div id="dag-desc-modal-body" class="min-h-0 flex-1 overflow-x-auto overflow-y-auto px-5 py-4 text-sm text-slate-800"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dag-tapd-menu-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="dag-tapd-menu-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="dag-tapd-menu-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dag-tapd-menu-title"
+        class="flex w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="dag-tapd-menu-title" class="text-sm font-semibold text-slate-800">TAPD 功能</h3>
+            <a
+              id="dag-tapd-menu-story-link"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mt-2 hidden max-w-full items-center gap-1.5 truncate rounded-md border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-sm font-semibold text-blue-700 underline decoration-blue-400 underline-offset-2 shadow-sm transition hover:border-blue-400 hover:bg-blue-100 hover:text-blue-900 hover:decoration-blue-600"
+              title="在 TAPD 中打开故事"
+            ></a>
+            <p id="dag-tapd-menu-sub" class="mt-1 truncate font-mono text-[11px] text-slate-500"></p>
+          </div>
+          <button type="button" id="dag-tapd-menu-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+        </div>
+        <div class="px-5 py-4">
+          <p id="dag-tapd-menu-error" class="mb-3 hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"></p>
+          <div id="dag-tapd-menu-list" class="grid gap-3">
+            <section class="rounded-lg border border-orange-200 bg-gradient-to-b from-orange-50 to-white p-4 shadow-sm">
+              <h4 class="text-sm font-semibold text-orange-950">故事完成并填充工时</h4>
+              <p class="mt-1 text-[11px] leading-relaxed text-orange-900/75">
+                按本地任务标题创建 TAPD 子任务（设计 / 开发 / 自测），按所选日期填报工时并标记需求已实现。
+              </p>
+              <div class="mt-4">
+                <div class="mb-3">
+                  <label for="dag-tapd-spentdate" class="mb-1.5 block text-xs font-medium text-slate-600">工时日期</label>
+                  <input
+                    id="dag-tapd-spentdate"
+                    type="date"
+                    class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/25"
+                  />
+                  <p class="mt-1.5 text-[11px] text-slate-500">任务起止日与花费日；默认当天</p>
+                </div>
+                <div class="mb-2 flex items-center justify-between gap-2">
+                  <span class="text-xs font-medium text-slate-600">任务工时（小时）</span>
+                  <span class="text-[11px] text-slate-500">步阶 0.5h</span>
+                </div>
+                <div class="grid gap-2.5">
+                  <div class="dag-tapd-effort-row flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <label for="dag-tapd-effort-design" class="w-10 shrink-0 text-xs font-medium text-slate-700">设计</label>
+                    <div class="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                      <button type="button" class="dag-tapd-effort-step rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100" data-target="dag-tapd-effort-design" data-delta="-0.5" aria-label="设计工时减 0.5">−</button>
+                      <input id="dag-tapd-effort-design" type="number" inputmode="decimal" step="0.5" min="0.5" value="2" class="dag-tapd-effort-input w-[4.5rem] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-center text-sm font-medium text-slate-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/25" />
+                      <button type="button" class="dag-tapd-effort-step rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100" data-target="dag-tapd-effort-design" data-delta="0.5" aria-label="设计工时加 0.5">+</button>
+                      <span class="w-6 shrink-0 text-xs text-slate-500">h</span>
+                    </div>
+                  </div>
+                  <div class="dag-tapd-effort-row flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <label for="dag-tapd-effort-dev" class="w-10 shrink-0 text-xs font-medium text-slate-700">开发</label>
+                    <div class="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                      <button type="button" class="dag-tapd-effort-step rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100" data-target="dag-tapd-effort-dev" data-delta="-0.5" aria-label="开发工时减 0.5">−</button>
+                      <input id="dag-tapd-effort-dev" type="number" inputmode="decimal" step="0.5" min="0.5" value="8" class="dag-tapd-effort-input w-[4.5rem] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-center text-sm font-medium text-slate-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/25" />
+                      <button type="button" class="dag-tapd-effort-step rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100" data-target="dag-tapd-effort-dev" data-delta="0.5" aria-label="开发工时加 0.5">+</button>
+                      <span class="w-6 shrink-0 text-xs text-slate-500">h</span>
+                    </div>
+                  </div>
+                  <div class="dag-tapd-effort-row flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <label for="dag-tapd-effort-test" class="w-10 shrink-0 text-xs font-medium text-slate-700">自测</label>
+                    <div class="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                      <button type="button" class="dag-tapd-effort-step rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100" data-target="dag-tapd-effort-test" data-delta="-0.5" aria-label="自测工时减 0.5">−</button>
+                      <input id="dag-tapd-effort-test" type="number" inputmode="decimal" step="0.5" min="0.5" value="2" class="dag-tapd-effort-input w-[4.5rem] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-center text-sm font-medium text-slate-900 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/25" />
+                      <button type="button" class="dag-tapd-effort-step rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100" data-target="dag-tapd-effort-test" data-delta="0.5" aria-label="自测工时加 0.5">+</button>
+                      <span class="w-6 shrink-0 text-xs text-slate-500">h</span>
+                    </div>
+                  </div>
+                </div>
+                <p class="mt-3 flex items-center justify-between rounded-md border border-dashed border-orange-200 bg-orange-50/50 px-3 py-2 text-xs text-slate-600">
+                  <span>合计工时</span>
+                  <span class="font-semibold text-orange-900"><span id="dag-tapd-effort-total">12</span>h</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                id="dag-tapd-action-complete"
+                class="mt-4 w-full rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                确认执行
+              </button>
+            </section>
+            <section class="rounded-lg border border-violet-200 bg-gradient-to-b from-violet-50 to-white p-4 shadow-sm">
+              <h4 class="text-sm font-semibold text-violet-950">文档同步到 TAPD</h4>
+              <p class="mt-1 text-[11px] leading-relaxed text-violet-900/75">
+                读取 <code class="rounded bg-violet-100/80 px-1 font-mono text-[10px]">ai_out/&lt;pid&gt;/&lt;taskType&gt;/</code> 下最新 Markdown（0 设计 / 6 测试案例执行 / 8 Code Review），转为 HTML 后以评论同步到关联 TAPD 需求。
+              </p>
+              <div class="mt-3 flex gap-1.5">
+                <button
+                  type="button"
+                  class="dag-tapd-action-sync-doc min-w-0 flex-1 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  data-task-type="0"
+                  title="同步设计文档（0）"
+                >
+                  设计(0)
+                </button>
+                <button
+                  type="button"
+                  class="dag-tapd-action-sync-doc min-w-0 flex-1 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  data-task-type="6"
+                  title="同步测试案例执行文档（6）"
+                >
+                  测试(6)
+                </button>
+                <button
+                  type="button"
+                  class="dag-tapd-action-sync-doc min-w-0 flex-1 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  data-task-type="8"
+                  title="同步 Code Review 文档（8）"
+                >
+                  CR(8)
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="dag-preview-pick-root" class="pointer-events-none fixed inset-0 z-50 hidden">
     <div id="dag-preview-pick-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
       <div
@@ -324,13 +540,13 @@
   </div>
 
   <div id="dag-preview-root" class="pointer-events-none fixed inset-0 z-50 hidden">
-    <div id="dag-preview-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+    <div id="dag-preview-backdrop" class="pointer-events-auto h-full w-full bg-white">
       <div
         id="dag-preview-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="dag-preview-title"
-        class="flex h-[90vh] w-[80vw] max-h-[90vh] max-w-[80vw] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+        class="flex h-full w-full flex-col overflow-hidden bg-white"
       >
         <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div class="min-w-0">
@@ -338,6 +554,7 @@
             <p id="dag-preview-meta" class="mt-1 truncate font-mono text-[11px] text-slate-500"></p>
           </div>
           <div class="flex shrink-0 items-center gap-2">
+            <button type="button" id="dag-preview-related" disabled class="hidden rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50">测试结果</button>
             <button type="button" id="dag-preview-download" disabled class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">下载</button>
             <button type="button" id="dag-preview-close" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
           </div>
@@ -347,13 +564,52 @@
     </div>
   </div>
 
+  <!-- 预览「测试结果」：仅测试案例执行(task_type=6) 文档解析展示 -->
+  <div id="dag-preview-related-root" class="pointer-events-none fixed inset-0 z-[60] hidden">
+    <div id="dag-preview-related-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="dag-preview-related-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dag-preview-related-title"
+        class="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-6 py-4">
+          <div class="min-w-0">
+            <h3 id="dag-preview-related-title" class="text-base font-semibold text-slate-800">测试结果</h3>
+            <p class="mt-1 text-sm text-slate-500">从测试案例执行文档解析的字段</p>
+          </div>
+          <button type="button" id="dag-preview-related-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+        </div>
+        <div id="dag-preview-related-body" class="min-h-0 flex-1 overflow-y-auto px-6 py-5 text-base text-slate-800">
+          <p id="dag-preview-related-empty" class="hidden text-center text-base text-slate-500">未解析到测试结果字段</p>
+          <div id="dag-preview-related-table-wrap" class="hidden overflow-x-auto">
+            <table class="w-full border-collapse text-base">
+              <thead>
+                <tr>
+                  <th class="w-44 border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700">字段</th>
+                  <th class="border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700">值</th>
+                </tr>
+              </thead>
+              <tbody id="dag-preview-related-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <style>
+    /* 预览铺满 iframe 内容区；管理台左侧菜单在父页 aside，不受影响 */
     #dag-preview-panel {
       display: flex;
       flex-direction: column;
-      height: 90vh;
-      max-height: 90vh;
+      height: 100%;
+      width: 100%;
+      max-height: 100%;
+      max-width: 100%;
       min-height: 0;
+      border-radius: 0;
     }
     #dag-preview-body {
       flex: 1 1 0%;
@@ -392,10 +648,33 @@
     #dag-preview-body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8125rem; }
     #dag-preview-body th, #dag-preview-body td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
     #dag-preview-body th { background: #f8fafc; font-weight: 600; }
+    .dag-md h1 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+    .dag-md h2 { font-size: 1.125rem; font-weight: 600; margin: 0.875rem 0 0.5rem; }
+    .dag-md h3 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+    .dag-md p { margin: 0.5rem 0; line-height: 1.625; }
+    .dag-md ul, .dag-md ol { margin: 0.5rem 0; padding-left: 1.25rem; }
+    .dag-md li { margin: 0.25rem 0; }
+    .dag-md pre { margin: 0.75rem 0; overflow-x: auto; border-radius: 0.5rem; background: #f1f5f9; padding: 0.75rem; font-size: 0.75rem; line-height: 1.5; }
+    .dag-md code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    .dag-md :not(pre) > code { background: #f1f5f9; padding: 0.125rem 0.25rem; border-radius: 0.25rem; }
+    .dag-md blockquote { margin: 0.75rem 0; border-left: 3px solid #cbd5e1; padding-left: 0.75rem; color: #475569; }
+    .dag-md table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8125rem; }
+    .dag-md th, .dag-md td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
+    .dag-md th { background: #f8fafc; font-weight: 600; }
+    .dag-tapd-effort-input::-webkit-outer-spin-button,
+    .dag-tapd-effort-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .dag-tapd-effort-input {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
   </style>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/js/ui-combobox.js"></script>
+  <script src="/js/ui-multiselect.js"></script>
   <script>
     (function () {
       var tbody = document.getElementById("dag-tbody");
@@ -416,12 +695,11 @@
       var TASK_STATUS_COMPLETED = 3;
       var TASK_STATUS_PAUSED = 5;
 
-      var dagTaskTypeLabels = {
-        "": "全部",
-        "1": "1 — 开发自测Agent",
-        "2": "2 — 开发自Review Agent",
-        "3": "3 — 功能测试Agent",
-        "4": "4 — 业务Agent",
+      var dagQueryTaskTypeLabels = {
+        "1": "开发自测",
+        "2": "自Review",
+        "3": "功能测试",
+        "4": "业务Agent",
       };
       /** 与 `src/constants/taskType.ts` 一致（ai_out 子目录名） */
       var dagWorkflowTaskTypeLabels = {
@@ -436,12 +714,19 @@
         8: "Code Review",
         9: "拆分故事",
         10: "头脑风暴",
+        11: "AI拆分故事",
+        12: "UI测试执行",
+        13: "沉淀记忆",
+        20: "功能测试用例生成",
+        21: "自动化用例生成",
+        22: "测试脑图分析",
         101: "测试环境发布",
         102: "部署间隔等待",
         103: "测试环境发布结果",
       };
-      var dagQueryTaskTypeCombo = window.UiCombobox.attach(document.getElementById("dag-taskType-root"), {
-        labelMap: dagTaskTypeLabels,
+      window.UiMultiselect.attach(document.getElementById("dag-taskType-root"), {
+        labelMap: dagQueryTaskTypeLabels,
+        emptyLabel: "全部类型",
       });
       var dagNewTaskTypeCombo = window.UiCombobox.attach(document.getElementById("dag-new-taskType-root"), {
         onChange: function () {
@@ -474,6 +759,19 @@
         window.open(u, "_blank", "noopener,noreferrer");
       }
 
+      /** 业务 Agent 父任务：新标签打开故事列表（同 wikiAgent） */
+      function openStoryListInNewTab(pid) {
+        if (!pid) return;
+        var pageOrigin = window.location.origin;
+        var u =
+          pageOrigin +
+          "/wiki-agent/brainstorm-stories?pid=" +
+          encodeURIComponent(pid) +
+          "&base=" +
+          encodeURIComponent(dagBase());
+        window.open(u, "_blank", "noopener,noreferrer");
+      }
+
       /** 与管理台 Keycloak 脚本写入的 `localStorage.userName` 一致，用作任务创建人（HTTPS 克隆用户名）。 */
       function dagCurrentLoginUser() {
         try {
@@ -482,6 +780,15 @@
         } catch (e) {
           return "";
         }
+      }
+
+      /** TAPD 花费人：优先 localStorage.realName（汉字姓名），否则回退 userName */
+      function dagCurrentLoginRealName() {
+        try {
+          var real = window.localStorage.getItem("realName");
+          if (real && String(real).trim()) return String(real).trim();
+        } catch (e) {}
+        return dagCurrentLoginUser();
       }
 
       function fmtTime(ms) {
@@ -509,10 +816,16 @@
         return String(code ?? "");
       }
 
-      /** 任务类型 1/2/3/4 时需填写 git、分支、测试环境 */
+      /** 任务类型 1/2/3/4 时需填写 git、分支 */
       function isDevAgentParentTaskType(taskType) {
         var n = Number(taskType);
         return n === 1 || n === 2 || n === 3 || n === 4;
+      }
+
+      /** 测试环境必填：类型 1/3/4；类型 2（开发自Review）可选 */
+      function isTestEnvRequired(taskType) {
+        var n = Number(taskType);
+        return n === 1 || n === 3 || n === 4;
       }
 
       /** 去掉 Git 远程地址末尾的 .git（仅去尾部一次，不改动路径中间） */
@@ -524,14 +837,19 @@
 
       /** 按任务类型切换 git / testEnv 的星号显示 */
       function updateNewFormRequiredState() {
-        var required = isDevAgentParentTaskType(document.getElementById("dag-new-taskType").value);
+        var taskType = document.getElementById("dag-new-taskType").value;
+        var gitRequired = isDevAgentParentTaskType(taskType);
+        var testEnvRequired = isTestEnvRequired(taskType);
         var testEnvEl = document.getElementById("dag-new-testEnv");
-        if (required) testEnvEl.setAttribute("required", "required");
+        if (testEnvRequired) testEnvEl.setAttribute("required", "required");
         else testEnvEl.removeAttribute("required");
-        ["dag-req-git", "dag-req-testEnv"].forEach(function (id) {
-          var el = document.getElementById(id);
-          if (el) el.classList.toggle("hidden", !required);
-        });
+        var gitReqEl = document.getElementById("dag-req-git");
+        if (gitReqEl) gitReqEl.classList.toggle("hidden", !gitRequired);
+        var testEnvReqEl = document.getElementById("dag-req-testEnv");
+        if (testEnvReqEl) testEnvReqEl.classList.toggle("hidden", !testEnvRequired);
+        var pullBranchSection = document.getElementById("dag-pullBranch-section");
+        var showPullBranch = taskType === "1" || taskType === "2";
+        if (pullBranchSection) pullBranchSection.classList.toggle("hidden", !showPullBranch);
         updateGitRepoRowRemoveButtons();
       }
 
@@ -628,9 +946,100 @@
         setGitRepos(repos.length ? repos : [{ gitRemoteUrl: "", branch_version: "" }]);
       }
 
-      /** 从 `param_key=init` 的 value_json 解析 gitRepos / testEnv / provider / directDevAfterDesign */
+      var TAPD_TASK_ID_VALIDATION_MSG =
+        "TAPD 关联格式须为 story={故事短ID}@tapd-{空间ID}，例如 story=1364737@tapd-59626479";
+
+      var tapdTaskIdInputClassesDefault =
+        "w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25";
+      var tapdTaskIdInputClassesInvalid =
+        "w-full rounded-lg border-2 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-sm placeholder:text-red-400 transition-colors focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-500/40";
+
+      function setTapdTaskIdFieldError(message) {
+        var el = document.getElementById("dag-new-tapdTaskId");
+        var errEl = document.getElementById("dag-new-tapdTaskId-error");
+        var labelEl = document.getElementById("dag-new-tapdTaskId-label");
+        if (message) {
+          el.className = tapdTaskIdInputClassesInvalid;
+          el.setAttribute("aria-invalid", "true");
+          errEl.textContent = message;
+          errEl.classList.remove("hidden");
+          labelEl.classList.remove("text-slate-600");
+          labelEl.classList.add("text-red-700");
+        } else {
+          el.className = tapdTaskIdInputClassesDefault;
+          el.setAttribute("aria-invalid", "false");
+          errEl.textContent = "";
+          errEl.classList.add("hidden");
+          labelEl.classList.remove("text-red-700");
+          labelEl.classList.add("text-slate-600");
+        }
+      }
+
+      function clearTapdTaskIdFieldError() {
+        setTapdTaskIdFieldError(null);
+      }
+
+      /** 格式化为 story={短ID}@tapd-{workspaceId}（含链接解析与长 ID 转短 ID） */
+      function formatTapdTaskIdInput(raw) {
+        return TapdStoryId.formatTapdTaskIdInput(raw);
+      }
+
+      /**
+       * 将原始输入格式化后写回指定输入框（查询条件用；不校验是否完整规范格式）
+       * @returns {string} 格式化结果；空输入返回 ""
+       */
+      function applyTapdTaskIdFormatToEl(el, raw) {
+        if (!el) return "";
+        var value = String(raw == null ? el.value : raw).trim();
+        if (!value) {
+          el.value = "";
+          return "";
+        }
+        var formatted = formatTapdTaskIdInput(value);
+        el.value = formatted;
+        return formatted;
+      }
+
+      function validateTapdTaskId(raw) {
+        var value = String(raw || "").trim();
+        if (!value) return null;
+        var formatted = formatTapdTaskIdInput(value);
+        if (!/^story=\d+@tapd-\d+$/i.test(formatted)) return TAPD_TASK_ID_VALIDATION_MSG;
+        return null;
+      }
+
+      /** 先格式化写回输入框，再返回格式化结果（留空则清空） */
+      function applyTapdTaskIdToInput(raw, showError) {
+        var el = document.getElementById("dag-new-tapdTaskId");
+        var value = String(raw || "").trim();
+        if (!value) {
+          el.value = "";
+          clearTapdTaskIdFieldError();
+          return "";
+        }
+        var formatted = formatTapdTaskIdInput(value);
+        el.value = formatted;
+        var err = validateTapdTaskId(formatted);
+        if (err && showError !== false) {
+          setTapdTaskIdFieldError(err);
+        } else if (!err) {
+          clearTapdTaskIdFieldError();
+        }
+        return formatted;
+      }
+
+      /** 从 `param_key=init` 的 value_json 解析 gitRepos / testEnv / provider / directDevAfterDesign / parallel / useTradeMock / tapdTaskId */
       function initParamFields(taskParams) {
-        var empty = { repos: [], testEnv: "", provider: "claude", directDevAfterDesign: false };
+        var empty = {
+          repos: [],
+          testEnv: "",
+          provider: "claude",
+          directDevAfterDesign: false,
+          parallel: false,
+          useTradeMock: false,
+          pullBranch: false,
+          tapdTaskId: "",
+        };
         var row = (taskParams || []).find(function (p) {
           return p.param_key === "init";
         });
@@ -657,6 +1066,10 @@
             testEnv: typeof o.testEnv === "string" ? o.testEnv : "",
             provider: prov,
             directDevAfterDesign: o.directDevAfterDesign === true,
+            parallel: o.parallel === true,
+            useTradeMock: o.useTradeMock === true,
+            pullBranch: o.pullBranch === true,
+            tapdTaskId: typeof o.tapdTaskId === "string" ? o.tapdTaskId.trim() : "",
           };
         } catch (e) {
           return empty;
@@ -694,6 +1107,8 @@
 
       function renderRow(t, pausedTaskIds) {
         var hasPaused = pausedTaskIds && pausedTaskIds.length > 0;
+        var isBizAgent = Number(t.task_type) === 4;
+        var tapdTaskId = t.tapdTaskId && String(t.tapdTaskId).trim() ? String(t.tapdTaskId).trim() : "";
         var tr = document.createElement("tr");
         tr.className = "transition-colors hover:bg-slate-50";
         tr.innerHTML =
@@ -705,10 +1120,16 @@
           '">' +
           esc(t.title || "—") +
           "</td>" +
-          '<td class="max-w-md truncate px-4 py-3 text-slate-600 sm:max-w-xl" title="' +
-          esc(t.description || "") +
-          '">' +
-          esc(t.description || "—") +
+          '<td class="max-w-md truncate px-4 py-3 sm:max-w-xl">' +
+          (t.description
+            ? '<a href="javascript:void(0)" class="dag-desc-link cursor-pointer text-blue-600 hover:text-blue-800 transition-colors" data-pid="' +
+              esc(t.pid) +
+              '" data-desc="' +
+              esc(t.description).replace(/"/g, "&quot;") +
+              '" title="点击查看完整说明">' +
+              esc(t.description) +
+              "</a>"
+            : '<span class="text-slate-500">—</span>') +
           "</td>" +
           '<td class="w-12 max-w-[3rem] whitespace-nowrap px-2 py-3 text-center text-xs text-slate-700" title="' +
           esc(parentAgentTypeLabel(t.task_type || "")) +
@@ -730,15 +1151,33 @@
           "</td>" +
           '<td class="whitespace-nowrap px-4 py-3">' +
           '<div class="flex flex-nowrap items-center gap-1">' +
-          '<button type="button" class="dag-copy-new-btn shrink-0 cursor-pointer rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100" data-pid="' +
-          esc(t.pid) +
-          '">复制新增</button>' +
+          (isBizAgent
+            ? '<button type="button" class="dag-story-list-btn shrink-0 cursor-pointer rounded-md border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-800 hover:bg-teal-100" data-pid="' +
+              esc(t.pid) +
+              '">故事列表</button>'
+            : "") +
+          (!isBizAgent
+            ? '<button type="button" class="dag-copy-new-btn shrink-0 cursor-pointer rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100" data-pid="' +
+              esc(t.pid) +
+              '">复制新增</button>'
+            : "") +
           '<button type="button" class="dag-flow-tab-btn shrink-0 cursor-pointer rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100" data-pid="' +
           esc(t.pid) +
           '">多Agent‌视图</button>' +
           '<button type="button" class="dag-preview-doc-btn shrink-0 cursor-pointer rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100" data-pid="' +
           esc(t.pid) +
           '">预览文档</button>' +
+          (tapdTaskId
+            ? '<button type="button" class="dag-tapd-btn shrink-0 cursor-pointer rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-medium text-orange-800 hover:bg-orange-100" data-pid="' +
+              esc(t.pid) +
+              '" data-tapd-task-id="' +
+              esc(tapdTaskId) +
+              '" data-local-task-title="' +
+              esc(t.title || "").replace(/"/g, "&quot;") +
+              '" title="' +
+              esc(tapdTaskId) +
+              '">TAPD</button>'
+            : "") +
           (hasPaused
             ? '<button type="button" class="dag-confirm-exec-btn shrink-0 cursor-pointer rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100" data-task-ids="' +
               esc(pausedTaskIds.join(",")) +
@@ -813,6 +1252,35 @@
         patchNext();
       }
 
+      var descModalRoot = document.getElementById("dag-desc-modal-root");
+      var descModalBackdrop = document.getElementById("dag-desc-modal-backdrop");
+      var descModalTitleEl = document.getElementById("dag-desc-modal-title");
+      var descModalPidEl = document.getElementById("dag-desc-modal-pid");
+      var descModalBodyEl = document.getElementById("dag-desc-modal-body");
+
+      /** HTML 实体解码（用于还原 data-desc 中转义后的描述文本） */
+      function decodeEntities(s) {
+        var t = document.createElement("textarea");
+        t.innerHTML = String(s || "");
+        return t.value;
+      }
+
+      function closeDescModal() {
+        descModalRoot.classList.add("hidden");
+        descModalBodyEl.innerHTML = "";
+        descModalPidEl.textContent = "";
+        document.body.style.overflow = "";
+      }
+
+      function openDescModal(pid, description) {
+        descModalTitleEl.textContent = "任务说明 · pid " + pid;
+        descModalPidEl.textContent = pid ? "pid " + pid : "";
+        descModalBodyEl.innerHTML =
+          '<div class="dag-md">' + renderMarkdownHtml(description) + "</div>";
+        descModalRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+      }
+
       var previewRoot = document.getElementById("dag-preview-root");
       var previewBackdrop = document.getElementById("dag-preview-backdrop");
       var previewTitleEl = document.getElementById("dag-preview-title");
@@ -825,11 +1293,610 @@
       var previewPickListEl = document.getElementById("dag-preview-pick-list");
       var previewPickEmptyEl = document.getElementById("dag-preview-pick-empty");
       var previewDownloadBtn = document.getElementById("dag-preview-download");
+      var previewRelatedBtn = document.getElementById("dag-preview-related");
+      var previewRelatedRoot = document.getElementById("dag-preview-related-root");
+      var previewRelatedBackdrop = document.getElementById("dag-preview-related-backdrop");
+      var previewRelatedEmptyEl = document.getElementById("dag-preview-related-empty");
+      var previewRelatedTableWrap = document.getElementById("dag-preview-related-table-wrap");
+      var previewRelatedTbody = document.getElementById("dag-preview-related-tbody");
+
+      var tapdMenuRoot = document.getElementById("dag-tapd-menu-root");
+      var tapdMenuBackdrop = document.getElementById("dag-tapd-menu-backdrop");
+      var tapdMenuSubEl = document.getElementById("dag-tapd-menu-sub");
+      var tapdMenuStoryLinkEl = document.getElementById("dag-tapd-menu-story-link");
+      var tapdMenuErrEl = document.getElementById("dag-tapd-menu-error");
+      var tapdMenuActionCompleteBtn = document.getElementById("dag-tapd-action-complete");
+      var tapdEffortDesignInput = document.getElementById("dag-tapd-effort-design");
+      var tapdEffortDevInput = document.getElementById("dag-tapd-effort-dev");
+      var tapdEffortTestInput = document.getElementById("dag-tapd-effort-test");
+      var tapdEffortTotalEl = document.getElementById("dag-tapd-effort-total");
+      var tapdSpentdateInput = document.getElementById("dag-tapd-spentdate");
+      var TAPD_DEFAULT_EFFORTS = { 设计: 1, 开发: 2, 自测: 1 };
+      var TAPD_EFFORT_STEP = 0.5;
+      var tapdMenuCurrentTaskId = "";
+      var tapdMenuCurrentLocalTitle = "";
+      var tapdMenuCurrentPid = "";
+      var tapdMenuStoryResolveSeq = 0;
+
+      /** 本地当天日期 YYYY-MM-DD（供 date input 默认值） */
+      function formatLocalDateYmd(d) {
+        var date = d instanceof Date ? d : new Date();
+        var y = date.getFullYear();
+        var m = String(date.getMonth() + 1).padStart(2, "0");
+        var day = String(date.getDate()).padStart(2, "0");
+        return y + "-" + m + "-" + day;
+      }
+
+      function resetTapdSpentdateInput() {
+        if (!tapdSpentdateInput) return;
+        tapdSpentdateInput.value = formatLocalDateYmd(new Date());
+      }
+
+      /** 读取并校验工时日期；失败返回 { ok:false, error } */
+      function collectTapdSpentdate() {
+        if (!tapdSpentdateInput) {
+          return { ok: false, error: "缺少工时日期输入" };
+        }
+        var value = String(tapdSpentdateInput.value || "").trim();
+        if (!value) {
+          return { ok: false, error: "请选择工时日期" };
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          return { ok: false, error: "工时日期格式须为 YYYY-MM-DD" };
+        }
+        return { ok: true, spentdate: value };
+      }
+
+      function formatTapdEffortValue(n) {
+        if (!Number.isFinite(n)) return "";
+        var rounded = Math.round(n * 2) / 2;
+        return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+      }
+
+      function isValidTapdEffortStep(value) {
+        var n = Number(value);
+        if (!Number.isFinite(n) || n < TAPD_EFFORT_STEP) return false;
+        return Math.abs(n * 2 - Math.round(n * 2)) < 1e-9;
+      }
+
+      function snapTapdEffortInput(el) {
+        if (!el) return TAPD_EFFORT_STEP;
+        var n = Number(el.value);
+        if (!Number.isFinite(n)) n = TAPD_EFFORT_STEP;
+        n = Math.max(TAPD_EFFORT_STEP, Math.round(n * 2) / 2);
+        el.value = formatTapdEffortValue(n);
+        return n;
+      }
+
+      function readTapdEffortInput(el) {
+        if (!el) return 0;
+        var n = Number(el.value);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function updateTapdEffortTotal() {
+        if (!tapdEffortTotalEl) return;
+        var total =
+          readTapdEffortInput(tapdEffortDesignInput) +
+          readTapdEffortInput(tapdEffortDevInput) +
+          readTapdEffortInput(tapdEffortTestInput);
+        tapdEffortTotalEl.textContent = formatTapdEffortValue(total);
+      }
+
+      function resetTapdEffortInputs() {
+        if (tapdEffortDesignInput) tapdEffortDesignInput.value = formatTapdEffortValue(TAPD_DEFAULT_EFFORTS.设计);
+        if (tapdEffortDevInput) tapdEffortDevInput.value = formatTapdEffortValue(TAPD_DEFAULT_EFFORTS.开发);
+        if (tapdEffortTestInput) tapdEffortTestInput.value = formatTapdEffortValue(TAPD_DEFAULT_EFFORTS.自测);
+        updateTapdEffortTotal();
+      }
+
+      function collectTapdEfforts() {
+        var fields = [
+          { key: "设计", el: tapdEffortDesignInput },
+          { key: "开发", el: tapdEffortDevInput },
+          { key: "自测", el: tapdEffortTestInput },
+        ];
+        var efforts = {};
+        for (var i = 0; i < fields.length; i++) {
+          var row = fields[i];
+          if (!row.el) continue;
+          var value = snapTapdEffortInput(row.el);
+          if (!isValidTapdEffortStep(value)) {
+            return { ok: false, error: "「" + row.key + "」工时须为 " + TAPD_EFFORT_STEP + " 的倍数且不小于 " + TAPD_EFFORT_STEP };
+          }
+          efforts[row.key] = formatTapdEffortValue(value);
+        }
+        return { ok: true, efforts: efforts };
+      }
+
+      function tapdMenuClearError() {
+        if (!tapdMenuErrEl) return;
+        tapdMenuErrEl.textContent = "";
+        tapdMenuErrEl.classList.add("hidden");
+      }
+
+      function tapdMenuShowError(msg) {
+        if (!tapdMenuErrEl) return;
+        tapdMenuErrEl.textContent = msg || "";
+        tapdMenuErrEl.classList.remove("hidden");
+      }
+
+      /** 重置 / 更新弹框内故事名称超链接 */
+      var TAPD_STORY_LINK_CLASS_BASE =
+        "mt-2 max-w-full items-center gap-1.5 truncate rounded-md border px-2.5 py-1.5 text-sm font-semibold shadow-sm transition";
+      var TAPD_STORY_LINK_CLASS_READY =
+        TAPD_STORY_LINK_CLASS_BASE +
+        " inline-flex border-blue-300 bg-blue-50 text-blue-700 underline decoration-blue-400 underline-offset-2 hover:border-blue-400 hover:bg-blue-100 hover:text-blue-900 hover:decoration-blue-600";
+      var TAPD_STORY_LINK_CLASS_LOADING =
+        TAPD_STORY_LINK_CLASS_BASE +
+        " inline-flex border-slate-200 bg-slate-50 text-slate-400 no-underline pointer-events-none";
+      var TAPD_STORY_LINK_CLASS_HIDDEN = TAPD_STORY_LINK_CLASS_BASE + " hidden";
+
+      function setTapdMenuStoryLink(opts) {
+        if (!tapdMenuStoryLinkEl) return;
+        var name = opts && opts.name ? String(opts.name).trim() : "";
+        var href = opts && opts.href ? String(opts.href).trim() : "";
+        var loading = !!(opts && opts.loading);
+        if (loading) {
+          tapdMenuStoryLinkEl.textContent = "正在加载故事名称…";
+          tapdMenuStoryLinkEl.removeAttribute("href");
+          tapdMenuStoryLinkEl.className = TAPD_STORY_LINK_CLASS_LOADING;
+          return;
+        }
+        if (!name || !href) {
+          tapdMenuStoryLinkEl.textContent = "";
+          tapdMenuStoryLinkEl.removeAttribute("href");
+          tapdMenuStoryLinkEl.className = TAPD_STORY_LINK_CLASS_HIDDEN;
+          return;
+        }
+        tapdMenuStoryLinkEl.textContent = "";
+        var label = document.createElement("span");
+        label.className = "min-w-0 truncate";
+        label.textContent = name;
+        var icon = document.createElement("span");
+        icon.className = "shrink-0 text-[11px] font-bold tracking-tight";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = "↗";
+        tapdMenuStoryLinkEl.appendChild(label);
+        tapdMenuStoryLinkEl.appendChild(icon);
+        tapdMenuStoryLinkEl.href = href;
+        tapdMenuStoryLinkEl.title = "在 TAPD 中打开：" + name;
+        tapdMenuStoryLinkEl.className = TAPD_STORY_LINK_CLASS_READY;
+      }
+
+      function closeTapdMenu() {
+        if (!tapdMenuRoot) return;
+        tapdMenuRoot.classList.add("hidden");
+        tapdMenuCurrentTaskId = "";
+        tapdMenuCurrentLocalTitle = "";
+        tapdMenuCurrentPid = "";
+        tapdMenuStoryResolveSeq += 1;
+        setTapdMenuStoryLink(null);
+        tapdMenuClearError();
+        document.body.style.overflow = "";
+      }
+
+      function openTapdMenu(tapdTaskId, localTaskTitle, pid) {
+        if (!tapdMenuRoot || !tapdTaskId) return;
+        tapdMenuCurrentTaskId = String(tapdTaskId).trim();
+        tapdMenuCurrentLocalTitle = String(localTaskTitle || "").trim();
+        tapdMenuCurrentPid = String(pid || "").trim();
+        if (tapdMenuSubEl) {
+          var subParts = [];
+          if (tapdMenuCurrentLocalTitle) subParts.push(tapdMenuCurrentLocalTitle);
+          if (tapdMenuCurrentPid) subParts.push("pid " + tapdMenuCurrentPid);
+          subParts.push(tapdMenuCurrentTaskId);
+          tapdMenuSubEl.textContent = subParts.join(" · ");
+        }
+        resetTapdEffortInputs();
+        resetTapdSpentdateInput();
+        tapdMenuClearError();
+        setTapdMenuStoryLink({ loading: true });
+        tapdMenuRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        loadTapdMenuStoryLink(tapdMenuCurrentTaskId);
+      }
+
+      /** 解析关联 ID 并请求故事名称，填充可跳转超链接 */
+      function loadTapdMenuStoryLink(tapdTaskId) {
+        var ref = TapdStoryId.parseTapdStoryRef(tapdTaskId);
+        var seq = ++tapdMenuStoryResolveSeq;
+        if (!ref) {
+          setTapdMenuStoryLink(null);
+          return;
+        }
+        var href = TapdStoryId.buildTapdStoryPageUrl(ref.workspaceId, ref.storyId);
+        var creator = dagCurrentLoginUser();
+        if (!creator) {
+          // 无登录用户时仍给出可点链接，文案用关联 ID
+          setTapdMenuStoryLink({ name: tapdTaskId, href: href });
+          return;
+        }
+        fetch(dagBase() + "/api/tapd/stories/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ story_ref: tapdTaskId, creator: creator }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            if (seq !== tapdMenuStoryResolveSeq) return;
+            if (!res.ok || !res.body || !res.body.name) {
+              setTapdMenuStoryLink({ name: tapdTaskId, href: href });
+              return;
+            }
+            var storyHref =
+              TapdStoryId.buildTapdStoryPageUrl(res.body.workspace_id, res.body.story_id) || href;
+            setTapdMenuStoryLink({ name: String(res.body.name).trim(), href: storyHref });
+          })
+          .catch(function () {
+            if (seq !== tapdMenuStoryResolveSeq) return;
+            setTapdMenuStoryLink({ name: tapdTaskId, href: href });
+          });
+      }
+
+      function runTapdStoryCompleteWithTasks(triggerBtn) {
+        var tapdTaskId = tapdMenuCurrentTaskId;
+        var localTaskTitle = tapdMenuCurrentLocalTitle;
+        if (!tapdTaskId) return;
+        if (!localTaskTitle) {
+          tapdMenuShowError("本地任务标题为空，无法创建 TAPD 子任务");
+          return;
+        }
+        var creator = dagCurrentLoginUser();
+        if (!creator) {
+          tapdMenuShowError("获取当前登录用户失败，请先通过管理台完成 Keycloak 登录");
+          return;
+        }
+        var owner = dagCurrentLoginRealName();
+        if (!owner) {
+          tapdMenuShowError("无法获取 TAPD 花费人姓名，请确认 Keycloak 登录后 localStorage 中有 realName");
+          return;
+        }
+        var spentCollected = collectTapdSpentdate();
+        if (!spentCollected.ok) {
+          tapdMenuShowError(spentCollected.error);
+          return;
+        }
+        var spentdate = spentCollected.spentdate;
+        var effortCollected = collectTapdEfforts();
+        if (!effortCollected.ok) {
+          tapdMenuShowError(effortCollected.error);
+          return;
+        }
+        var efforts = effortCollected.efforts;
+        var confirmed = window.confirm(
+          "确认执行「故事完成并填充工时」？\n\n本地标题：" +
+            localTaskTitle +
+            "\n关联：" +
+            tapdTaskId +
+            "\n花费人：" +
+            owner +
+            "\n工时日期：" +
+            spentdate +
+            "\n\n将创建任务：" +
+            localTaskTitle +
+            "-设计(" +
+            efforts.设计 +
+            "h)、" +
+            localTaskTitle +
+            "-开发(" +
+            efforts.开发 +
+            "h)、" +
+            localTaskTitle +
+            "-自测(" +
+            efforts.自测 +
+            "h)，合计 " +
+            formatTapdEffortValue(
+              Number(efforts.设计) + Number(efforts.开发) + Number(efforts.自测),
+            ) +
+            "h，填报 " +
+            spentdate +
+            " 工时，并将需求状态设为「已实现」。"
+        );
+        if (!confirmed) return;
+
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "处理中…";
+        }
+        tapdMenuClearError();
+
+        fetch(dagBase() + "/api/tapd/stories/complete-with-tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tapd_task_id: tapdTaskId,
+            local_task_title: localTaskTitle,
+            creator: creator,
+            owner: owner,
+            efforts: efforts,
+            spentdate: spentdate,
+          }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "确认执行";
+            }
+            if (!res.ok) {
+              var errMsg =
+                res.body && res.body.error
+                  ? typeof res.body.error === "string"
+                    ? res.body.error
+                    : JSON.stringify(res.body.error)
+                  : "请求失败 " + res.status;
+              tapdMenuShowError(errMsg);
+              return;
+            }
+            closeTapdMenu();
+            var tasks = (res.body && res.body.tasks) || [];
+            var lines = tasks.map(function (t) {
+              return (t.name || "") + " · " + (t.effort || "") + "h · task " + (t.task_id || "");
+            });
+            window.alert(
+              "TAPD 操作成功\n\n本地标题：" +
+                (res.body.local_task_title || localTaskTitle) +
+                "\n需求：" +
+                (res.body.story_name || "") +
+                "\n状态：" +
+                (res.body.story_v_status || "已实现") +
+                "\n工时日期：" +
+                spentdate +
+                "\n完成工时：" +
+                (res.body.effort_completed || "") +
+                "h\n\n" +
+                lines.join("\n")
+            );
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "确认执行";
+            }
+            tapdMenuShowError("网络错误: " + e.message);
+          });
+      }
+
+      function runTapdSyncDoc(taskType, triggerBtn) {
+        var tapdTaskId = tapdMenuCurrentTaskId;
+        var pid = tapdMenuCurrentPid;
+        if (!tapdTaskId) return;
+        if (!pid) {
+          tapdMenuShowError("缺少父任务 pid，无法定位文档");
+          return;
+        }
+        var tt = Number(taskType);
+        var label =
+          dagWorkflowTaskTypeLabels[tt] != null ? dagWorkflowTaskTypeLabels[tt] : String(taskType);
+        var creator = dagCurrentLoginUser();
+        if (!creator) {
+          tapdMenuShowError("获取当前登录用户失败，请先通过管理台完成 Keycloak 登录");
+          return;
+        }
+        var author = dagCurrentLoginRealName();
+        if (!author) {
+          tapdMenuShowError("无法获取 TAPD 评论人姓名，请确认 Keycloak 登录后 localStorage 中有 realName");
+          return;
+        }
+        var confirmed = window.confirm(
+          "确认将「" +
+            label +
+            "」文档同步到 TAPD 需求评论？\n\npid：" +
+            pid +
+            "\n关联：" +
+            tapdTaskId +
+            "\n评论人：" +
+            author +
+            "\n\n将读取 ai_out/" +
+            pid +
+            "/" +
+            tt +
+            "/ 下最新 Markdown，转为 HTML 后发布为需求评论。"
+        );
+        if (!confirmed) return;
+
+        var defaultText = triggerBtn ? triggerBtn.textContent : "";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "同步中…";
+        }
+        tapdMenuClearError();
+
+        fetch(dagBase() + "/api/tapd/stories/sync-design-doc-comment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tapd_task_id: tapdTaskId,
+            pid: pid,
+            creator: creator,
+            author: author,
+            task_type: tt,
+          }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = defaultText;
+            }
+            if (!res.ok) {
+              var errMsg =
+                res.body && res.body.error
+                  ? typeof res.body.error === "string"
+                    ? res.body.error
+                    : JSON.stringify(res.body.error)
+                  : "请求失败 " + res.status;
+              tapdMenuShowError(errMsg);
+              return;
+            }
+            closeTapdMenu();
+            var body = res.body || {};
+            var syncedType = body.task_type != null ? body.task_type : tt;
+            var syncedLabel =
+              dagWorkflowTaskTypeLabels[syncedType] != null
+                ? dagWorkflowTaskTypeLabels[syncedType]
+                : String(syncedType);
+            var msg =
+              syncedLabel +
+              " 文档已同步到 TAPD 评论\n\n文件：ai_out/" +
+              (body.pid || pid) +
+              "/" +
+              syncedType +
+              "/" +
+              (body.relative_path || "") +
+              "\n评论 ID：" +
+              (body.comment_id || "—") +
+              (body.truncated ? "\n（正文已按 TAPD 长度上限截断）" : "");
+            window.alert(msg);
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = defaultText;
+            }
+            tapdMenuShowError("网络错误: " + e.message);
+          });
+      }
+
       var previewPickPid = "";
       var previewCurrentDoc = null;
 
+      /** 与 src/services/file/parseTaskOutTestResult.ts 中 TEST_RESULT_DISPLAY_FIELDS 保持一致 */
+      var TEST_RESULT_DISPLAY_FIELDS = [
+        "测试用例总数",
+        "测试用例通过数",
+        "测试用例失败数",
+        "测试用例通过率",
+        "是否代码问题",
+        "是否测试环境问题",
+        "是否端到端测试",
+        "测试总结简述",
+      ];
+
       function setPreviewDownloadEnabled(enabled) {
         previewDownloadBtn.disabled = !enabled;
+      }
+
+      /** 仅「测试案例执行」(task_type=6) 文档预览时展示「测试结果」按钮 */
+      function setPreviewRelatedVisible(visible) {
+        if (visible) {
+          previewRelatedBtn.classList.remove("hidden");
+          previewRelatedBtn.disabled = false;
+        } else {
+          previewRelatedBtn.classList.add("hidden");
+          previewRelatedBtn.disabled = true;
+          closePreviewRelatedModal();
+        }
+      }
+
+      /** 复用 parseTaskOutTestResult：取「测试结果」之后正文 */
+      function sliceTestResultText(content) {
+        var idx = String(content || "").indexOf("测试结果");
+        if (idx < 0) return String(content || "");
+        return String(content || "").slice(idx + "测试结果".length);
+      }
+
+      function normalizeTestResultCellValue(raw) {
+        var t = String(raw || "").trim();
+        var m = /^`([^`]*)`$/.exec(t);
+        return (m ? m[1] : t).trim();
+      }
+
+      function extractTestResultFieldFromJson(text, key) {
+        var escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        var re = new RegExp('"' + escaped + '"\\s*:\\s*(?:"([^"]*)"|(-?\\d+(?:\\.\\d+)?))');
+        var m = re.exec(text);
+        if (!m) return null;
+        var v = (m[1] != null ? m[1] : m[2] != null ? m[2] : "").trim();
+        return v === "" ? null : v;
+      }
+
+      function extractTestResultFieldFromMarkdownTable(text, key) {
+        var escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        var re = new RegExp(
+          "\\|\\s*" + escaped + "\\s*\\|\\s*(?:`([^`]*)`|([^|\\n]+?))\\s*\\|",
+        );
+        var m = re.exec(text);
+        if (!m) return null;
+        var v = normalizeTestResultCellValue(
+          (m[1] != null ? m[1] : m[2] != null ? m[2] : "").trim(),
+        );
+        return v === "" ? null : v;
+      }
+
+      function extractTestResultField(text, key) {
+        var fromJson = extractTestResultFieldFromJson(text, key);
+        if (fromJson != null) return fromJson;
+        return extractTestResultFieldFromMarkdownTable(text, key);
+      }
+
+      /** 复用 parseTestResultDisplayFields：解析测试结果表格行 */
+      function parseTestResultDisplayFields(content) {
+        var text = sliceTestResultText(content);
+        var rows = [];
+        var any = false;
+        for (var i = 0; i < TEST_RESULT_DISPLAY_FIELDS.length; i++) {
+          var key = TEST_RESULT_DISPLAY_FIELDS[i];
+          var value = extractTestResultField(text, key);
+          if (value != null) {
+            any = true;
+            rows.push({ key: key, value: value });
+          } else {
+            rows.push({ key: key, value: "" });
+          }
+        }
+        return any ? rows : null;
+      }
+
+      function closePreviewRelatedModal() {
+        previewRelatedRoot.classList.add("hidden");
+        previewRelatedTbody.innerHTML = "";
+        previewRelatedEmptyEl.classList.add("hidden");
+        previewRelatedTableWrap.classList.add("hidden");
+      }
+
+      /** 展示用：在英文/中文分号后插入换行，便于长总结分段阅读 */
+      function formatTestResultDisplayValue(raw) {
+        return String(raw || "").replace(/([;；])\s*/g, "$1\n");
+      }
+
+      function openPreviewRelatedModal() {
+        if (!previewCurrentDoc || previewCurrentDoc.content == null) return;
+        var rows = parseTestResultDisplayFields(previewCurrentDoc.content);
+        previewRelatedTbody.innerHTML = "";
+        if (!rows) {
+          previewRelatedEmptyEl.classList.remove("hidden");
+          previewRelatedTableWrap.classList.add("hidden");
+        } else {
+          previewRelatedEmptyEl.classList.add("hidden");
+          previewRelatedTableWrap.classList.remove("hidden");
+          rows.forEach(function (row) {
+            var tr = document.createElement("tr");
+            var displayVal =
+              row.value !== "" ? formatTestResultDisplayValue(row.value) : "—";
+            tr.innerHTML =
+              '<td class="border border-slate-200 px-4 py-3 align-top text-sm font-medium text-slate-700 whitespace-nowrap">' +
+              esc(row.key) +
+              '</td><td class="border border-slate-200 px-4 py-3 text-sm leading-relaxed text-slate-800 break-words whitespace-pre-wrap">' +
+              esc(displayVal) +
+              "</td>";
+            previewRelatedTbody.appendChild(tr);
+          });
+        }
+        previewRelatedRoot.classList.remove("hidden");
       }
 
       function previewDownloadFilename(doc) {
@@ -885,11 +1952,13 @@
       }
 
       function closePreviewModal() {
+        closePreviewRelatedModal();
         previewRoot.classList.add("hidden");
         previewBodyEl.innerHTML = "";
         previewMetaEl.textContent = "";
         previewCurrentDoc = null;
         setPreviewDownloadEnabled(false);
+        setPreviewRelatedVisible(false);
         if (previewPickRoot.classList.contains("hidden")) {
           document.body.style.overflow = "";
         }
@@ -1041,6 +2110,7 @@
         closePreviewPicker();
         previewCurrentDoc = null;
         setPreviewDownloadEnabled(false);
+        setPreviewRelatedVisible(false);
         previewTitleEl.textContent = "文档预览 · pid " + pid;
         previewMetaEl.textContent = "加载中…";
         previewBodyEl.innerHTML =
@@ -1090,11 +2160,13 @@
               fmtTime(doc.updated_at);
             previewCurrentDoc = doc;
             setPreviewDownloadEnabled(true);
+            setPreviewRelatedVisible(Number(doc.task_type) === 6);
             previewBodyEl.innerHTML = renderPreviewContent(doc);
           })
           .catch(function (e) {
             previewCurrentDoc = null;
             setPreviewDownloadEnabled(false);
+            setPreviewRelatedVisible(false);
             previewMetaEl.textContent = "";
             previewBodyEl.innerHTML =
               '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
@@ -1134,11 +2206,14 @@
 
         var params = new URLSearchParams();
         var tt = document.getElementById("dag-taskType").value;
-        if (tt) params.set("task_type", tt);
+        if (tt) params.set("task_types", tt);
         var tit = document.getElementById("dag-title").value.trim();
         if (tit) params.set("title", tit);
         var creator = document.getElementById("dag-creator").value.trim();
         if (creator) params.set("creator", creator);
+        var tapdFilterEl = document.getElementById("dag-tapdTaskId");
+        var tapdTaskId = applyTapdTaskIdFormatToEl(tapdFilterEl);
+        if (tapdTaskId) params.set("tapd_task_id", tapdTaskId);
         var pageSize = Number(pageSizeEl.value) || 20;
         params.set("page", String(dagPage));
         params.set("limit", String(pageSize));
@@ -1276,6 +2351,7 @@
         CodeReviewGateResult: true,
         DevOpsDeployResult: true,
         TestEnvDeployResult: true,
+        DevOpsBranchApplySid: true,
       };
 
       function formatParamJsonForRow(raw) {
@@ -1328,6 +2404,7 @@
 
       function openNewModal(copyFrom) {
         modalClearError();
+        clearTapdTaskIdFieldError();
         modalForm.reset();
         document.getElementById("dag-new-pid").value = "";
         clearParamRows();
@@ -1339,13 +2416,18 @@
           var initFields = initParamFields(taskParams);
           setGitRepos(initFields.repos);
           document.getElementById("dag-new-testEnv").value = initFields.testEnv;
-          dagNewTaskTypeCombo.setValue(
+          var copyTaskType =
             pt.task_type !== undefined && pt.task_type !== null && pt.task_type !== ""
               ? String(pt.task_type)
-              : "1",
-          );
+              : "1";
+          if (copyTaskType === "4") copyTaskType = "1";
+          dagNewTaskTypeCombo.setValue(copyTaskType);
           dagProviderCombo.setValue(initFields.provider || "claude");
           document.getElementById("dag-new-directDevAfterDesign").checked = !!initFields.directDevAfterDesign;
+          document.getElementById("dag-new-parallel").checked = !!initFields.parallel;
+          document.getElementById("dag-new-useTradeMock").checked = !!initFields.useTradeMock;
+          document.getElementById("dag-new-pullBranch").checked = !!initFields.pullBranch;
+          document.getElementById("dag-new-tapdTaskId").value = formatTapdTaskIdInput(initFields.tapdTaskId || "");
           document.getElementById("dag-new-description").value = pt.description || "";
           taskParams.forEach(function (p) {
             if (!p || skipCopyParamKeys[p.param_key]) return;
@@ -1362,6 +2444,10 @@
           dagNewTaskTypeCombo.setValue("1");
           dagProviderCombo.setValue("claude");
           document.getElementById("dag-new-directDevAfterDesign").checked = false;
+          document.getElementById("dag-new-parallel").checked = false;
+          document.getElementById("dag-new-useTradeMock").checked = false;
+          document.getElementById("dag-new-pullBranch").checked = false;
+          document.getElementById("dag-new-tapdTaskId").value = "";
           setGitRepos([]);
         }
         updateNewFormRequiredState();
@@ -1415,6 +2501,7 @@
         modalRoot.classList.add("hidden");
         document.body.style.overflow = "";
         modalClearError();
+        clearTapdTaskIdFieldError();
       }
 
       document.getElementById("dag-btn-add-param").onclick = function () {
@@ -1429,15 +2516,73 @@
         if (lastBranch) lastBranch.focus();
       };
 
+      document.getElementById("dag-new-tapdTaskId").addEventListener("blur", function () {
+        applyTapdTaskIdToInput(this.value);
+      });
+      document.getElementById("dag-new-tapdTaskId").addEventListener("input", function () {
+        if (this.getAttribute("aria-invalid") === "true") {
+          applyTapdTaskIdToInput(this.value);
+        }
+      });
+      document.getElementById("dag-tapdTaskId").addEventListener("blur", function () {
+        applyTapdTaskIdFormatToEl(this);
+      });
+
       document.getElementById("dag-btn-new").onclick = function () {
         openNewModal();
       };
       document.getElementById("dag-modal-cancel").onclick = closeNewModal;
       document.getElementById("dag-preview-close").onclick = closePreviewModal;
       document.getElementById("dag-preview-download").onclick = downloadPreviewDoc;
+      document.getElementById("dag-preview-related").onclick = openPreviewRelatedModal;
+      document.getElementById("dag-preview-related-close").onclick = closePreviewRelatedModal;
       document.getElementById("dag-preview-pick-close").onclick = closePreviewPicker;
+      document.getElementById("dag-desc-modal-close").onclick = closeDescModal;
+      document.getElementById("dag-tapd-menu-close").onclick = closeTapdMenu;
+      if (tapdMenuBackdrop) {
+        tapdMenuBackdrop.addEventListener("click", function (e) {
+          if (e.target === tapdMenuBackdrop) closeTapdMenu();
+        });
+      }
+      if (tapdMenuActionCompleteBtn) {
+        tapdMenuActionCompleteBtn.addEventListener("click", function () {
+          runTapdStoryCompleteWithTasks(tapdMenuActionCompleteBtn);
+        });
+      }
+      document.querySelectorAll(".dag-tapd-action-sync-doc").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var taskType = btn.getAttribute("data-task-type");
+          if (taskType == null || taskType === "") return;
+          runTapdSyncDoc(taskType, btn);
+        });
+      });
+      document.querySelectorAll(".dag-tapd-effort-input").forEach(function (el) {
+        el.addEventListener("input", updateTapdEffortTotal);
+        el.addEventListener("blur", function () {
+          snapTapdEffortInput(el);
+          updateTapdEffortTotal();
+        });
+      });
+      document.querySelectorAll(".dag-tapd-effort-step").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var targetId = btn.getAttribute("data-target");
+          var delta = Number(btn.getAttribute("data-delta"));
+          if (!targetId || !Number.isFinite(delta)) return;
+          var input = document.getElementById(targetId);
+          if (!input) return;
+          var next = snapTapdEffortInput(input) + delta;
+          input.value = formatTapdEffortValue(Math.max(TAPD_EFFORT_STEP, next));
+          updateTapdEffortTotal();
+        });
+      });
+      descModalBackdrop.addEventListener("click", function (e) {
+        if (e.target === descModalBackdrop) closeDescModal();
+      });
       previewBackdrop.addEventListener("click", function (e) {
         if (e.target === previewBackdrop) closePreviewModal();
+      });
+      previewRelatedBackdrop.addEventListener("click", function (e) {
+        if (e.target === previewRelatedBackdrop) closePreviewRelatedModal();
       });
       previewPickBackdrop.addEventListener("click", function (e) {
         if (e.target === previewPickBackdrop) closePreviewPicker();
@@ -1457,8 +2602,20 @@
 
       document.addEventListener("keydown", function (e) {
         if (e.key !== "Escape") return;
+        if (!previewRelatedRoot.classList.contains("hidden")) {
+          closePreviewRelatedModal();
+          return;
+        }
+        if (!descModalRoot.classList.contains("hidden")) {
+          closeDescModal();
+          return;
+        }
         if (!modalRoot.classList.contains("hidden")) {
           closeNewModal();
+          return;
+        }
+        if (tapdMenuRoot && !tapdMenuRoot.classList.contains("hidden")) {
+          closeTapdMenu();
           return;
         }
         if (!previewRoot.classList.contains("hidden")) {
@@ -1482,17 +2639,21 @@
         var gitRepos = collected.repos;
         applyGitReposToInputs(gitRepos);
         var testEnv = document.getElementById("dag-new-testEnv").value.trim();
+        if (taskType === 4) {
+          modalShowError("不支持在此页面新增业务 Agent（类型 4）父任务，请通过 Wiki Agent 创建。");
+          return;
+        }
         if (!description) {
           modalShowError("请填写说明。");
           return;
         }
         if (isDevAgentParentTaskType(taskType)) {
           if (!gitRepos.length) {
-            modalShowError("任务类型为 1/2/3/4 时，请至少填写一组仓库与分支。");
+            modalShowError("任务类型为 1/2/3 时，请至少填写一组仓库与分支。");
             return;
           }
-          if (!testEnv) {
-            modalShowError("任务类型为 1/2/3/4 时，请填写测试环境。");
+          if (isTestEnvRequired(taskType) && !testEnv) {
+            modalShowError("任务类型为 1/3 时，请填写测试环境。");
             return;
           }
         } else if (!gitRepos.length) {
@@ -1511,10 +2672,32 @@
           task_type: taskType,
           provider: providerVal,
           creator: creator,
+          creatorRealName: dagCurrentLoginRealName(),
         };
         if (gitRepos.length) body.gitRepos = gitRepos;
         if (document.getElementById("dag-new-directDevAfterDesign").checked) {
           body.directDevAfterDesign = true;
+        }
+        if (document.getElementById("dag-new-parallel").checked) {
+          body.parallel = true;
+        }
+        if (document.getElementById("dag-new-useTradeMock").checked) {
+          body.useTradeMock = true;
+        }
+        if (document.getElementById("dag-new-pullBranch").checked) {
+          body.pullBranch = true;
+        }
+        var tapdTaskId = applyTapdTaskIdToInput(document.getElementById("dag-new-tapdTaskId").value);
+        if (tapdTaskId) {
+          var tapdErr = validateTapdTaskId(tapdTaskId);
+          if (tapdErr) {
+            setTapdTaskIdFieldError(tapdErr);
+            document.getElementById("dag-new-tapdTaskId").focus();
+            document.getElementById("dag-new-tapdTaskId").scrollIntoView({ behavior: "smooth", block: "center" });
+            modalShowError(tapdErr);
+            return;
+          }
+          body.tapdTaskId = tapdTaskId;
         }
         if (pidInput) body.pid = pidInput;
         if (testEnv) body.testEnv = testEnv;
@@ -1576,6 +2759,19 @@
           if (copyPid) openCopyNewModal(copyPid, copyBtn);
           return;
         }
+        var descLink = ev.target.closest(".dag-desc-link");
+        if (descLink) {
+          var descPid = descLink.getAttribute("data-pid") || "";
+          var descText = decodeEntities(descLink.getAttribute("data-desc") || "");
+          openDescModal(descPid, descText);
+          return;
+        }
+        var storyBtn = ev.target.closest(".dag-story-list-btn");
+        if (storyBtn) {
+          var storyPid = storyBtn.getAttribute("data-pid");
+          if (storyPid) openStoryListInNewTab(storyPid);
+          return;
+        }
         var flowBtn = ev.target.closest(".dag-flow-tab-btn");
         if (flowBtn) {
           var flowPid = flowBtn.getAttribute("data-pid");
@@ -1586,6 +2782,14 @@
         if (previewBtn) {
           var previewPid = previewBtn.getAttribute("data-pid");
           if (previewPid) openPreviewDoc(previewPid, previewBtn);
+          return;
+        }
+        var tapdBtn = ev.target.closest(".dag-tapd-btn");
+        if (tapdBtn) {
+          var tapdTaskId = tapdBtn.getAttribute("data-tapd-task-id");
+          var localTitle = decodeEntities(tapdBtn.getAttribute("data-local-task-title") || "");
+          var tapdPid = tapdBtn.getAttribute("data-pid");
+          if (tapdTaskId) openTapdMenu(tapdTaskId, localTitle, tapdPid);
           return;
         }
         var confirmBtn = ev.target.closest(".dag-confirm-exec-btn");

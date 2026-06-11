@@ -15,6 +15,7 @@ export const devMergeRequestHandler: ParentTaskChangedFilesHandler = {
       creator: ctx.gitCtx.creator,
       taskRepoCwd: ctx.taskRepoCwd,
       parentTaskId: ctx.parentTaskId,
+      executingTaskId: ctx.executingTaskId,
       executingTaskType: ctx.taskType,
       relativePaths: ctx.relativePaths,
     });

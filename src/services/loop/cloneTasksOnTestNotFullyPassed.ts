@@ -10,38 +10,50 @@ import {
   type TaskType,
 } from "../../db/workflow.js";
 import { AppLog } from "../appLogger.js";
+import { pushFollowUpMessageToTaskMeta } from "../taskFollowUpPrompt.js";
 
 /** 同父任务下已存在的测试案例执行任务数 */
 export function countTestCaseExecuteTasksUnderParent(db: DatabaseSync, parentTaskId: string): number {
   return listTasksByPid(db, parentTaskId).filter((t) => t.task_type === TASK_TYPE.TestCaseExecute).length;
 }
 
-/** 判定为代码问题时写入开发任务 description 的文本 */
-export function buildTestReportDescription(passRate: number, summary?: string): string {
-  const lines = [`测试通过率：${passRate}%（判定为代码问题，需修复后重试）`];
-  if (summary?.trim()) {
-    lines.push("", "测试总结简述：", summary.trim());
-  }
-  return lines.join("\n");
+/** 判定为代码问题且有测试总结简述时追加到开发任务 followUpMessages 的文本 */
+export function buildTestReportFollowUpMessage(passRate: number, summary: string): string {
+  return [
+    `测试通过率：${passRate}%（判定为代码问题，需修复报告中的代码问题）`,
+    "",
+    "测试总结简述：",
+    summary.trim(),
+  ].join("\n");
 }
 
 /** 复制源任务为 Pending（保留 thread_id 以便续跑） */
 export function cloneTaskAsPending(
   db: DatabaseSync,
   source: TaskRow,
-  overrides: { description: string; created_at: number; task_type?: TaskType },
+  overrides: {
+    description: string;
+    created_at: number;
+    task_type?: TaskType;
+    /** 未传则沿用源任务 title */
+    title?: string;
+    /** 未传则沿用源任务 thread_id；显式传 `null` 可清空（新类型任务勿续源会话） */
+    thread_id?: string | null;
+    /** 未传则沿用源任务 meta_json */
+    meta_json?: string | null;
+  },
 ): TaskRow {
   return createTask(db, {
     id: randomUUID(),
-    title: source.title,
+    title: overrides.title ?? source.title,
     description: overrides.description,
     status: TASK_STATUS.Pending,
     task_type: overrides.task_type ?? source.task_type,
     creator: source.creator,
     pid: source.pid,
-    thread_id: source.thread_id, // 关联线程,能够拉起继续对话
+    thread_id: overrides.thread_id !== undefined ? overrides.thread_id : source.thread_id,
     input_json: source.input_json,
-    meta_json: source.meta_json,
+    meta_json: overrides.meta_json !== undefined ? overrides.meta_json : source.meta_json,
     created_at: overrides.created_at,
     updated_at: overrides.created_at,
   });
@@ -53,14 +65,14 @@ export type CloneTasksOnTestNotFullyPassedResult = {
 };
 
 /**
- * 测试案例执行判定为代码问题：复制新增同父任务下开发、测试环境发布、部署间隔等待与测试执行任务。
+ * 测试案例执行判定为代码问题且测试总结简述非空：复制新增同父任务下开发（followUpMessages 追加报告）、测试环境发布、部署间隔等待与测试执行任务。
  * 参考 {@link saveDescription4TasksUnderParent} 按 `pid` + `task_type` 定位源任务。
  */
 export function cloneTasksOnTestNotFullyPassed(
   db: DatabaseSync,
   parentTaskId: string,
   executingTaskId: string,
-  reportDescription: string,
+  followUpMessage: string,
 ): CloneTasksOnTestNotFullyPassedResult | null {
   const executing = getTask(db, executingTaskId);
   if (!executing || executing.pid !== parentTaskId) {
@@ -86,13 +98,16 @@ export function cloneTasksOnTestNotFullyPassed(
   if (!sourceDeploy) {
     AppLog.logger.warn(
         { parentTaskId },
-        "cloneTasksOnCodeReviewNotPassed: no test env deploy task under parent",
+        "cloneTasksOnTestNotFullyPassed: no test env deploy task under parent",
     );
     return null;
   }
 
+  // 保留原 description，测试报告追加到 followUpMessages（续跑时作为 Agent 提示词）
+  const devMetaJson = pushFollowUpMessageToTaskMeta(sourceDev.meta_json, followUpMessage);
   const devTask = cloneTaskAsPending(db, sourceDev, {
-    description: reportDescription,
+    description: sourceDev.description,
+    meta_json: devMetaJson,
     created_at: executing.created_at + 1, // 每个任务直接间隔了100,用创建时间控制编排顺序,确保这些任务紧跟在此任务之后
   });
   const deployTask = cloneTaskAsPending(db, sourceDeploy, {

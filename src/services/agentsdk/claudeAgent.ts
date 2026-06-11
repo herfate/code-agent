@@ -1,19 +1,21 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { AbortError, query } from "@anthropic-ai/claude-agent-sdk";
+import type { Query, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { mkdirSync } from "node:fs";
-import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { AGENT_PROVIDER } from "../../constants/agentProvider.js";
 import type { FastifyReply } from "fastify";
 import { appendAgentRunEvent, finishAgentRun } from "../../db/agentRun.js";
+import { resolveTaskRepoCwd } from "../file/aiOutTaskPath.js";
 import {
-  attachAbortOnClose,
   endSse,
   initSse,
   sendSseData,
   sendSseDone,
   sendSseError,
 } from "../../sse/helpers.js";
+
+/** 两条 SDK msg 之间最大空闲间隔（毫秒） */
+const MSG_IDLE_TIMEOUT_MS = 20 * 60 * 1000;
 
 function summarizeSdkMessage(msg: SDKMessage): Record<string, unknown> {
   if (msg.type === "assistant" || msg.type === "user") {
@@ -53,6 +55,16 @@ export type ClaudeSseOptions = {
   runRecorder?: { db: DatabaseSync; runId: string };
 };
 
+/** 运行中的 Claude Agent（按 runId 索引，供无 SSE 连接时强制中断） */
+const activeClaudeRuns = new Map<string, { abort: () => void }>();
+
+/** 强制中断指定 runId 的 Claude Agent 执行；返回是否找到并触发中断 */
+export function abortClaudeAgentRun(runId: string): boolean {
+  const handle = activeClaudeRuns.get(runId);
+  if (!handle) return false;
+  handle.abort();
+  return true;
+}
 
 function safeSse(reply: FastifyReply | null, fn: (r: FastifyReply) => void): void {
   if (!reply || reply.raw.writableEnded || reply.raw.destroyed) return;
@@ -76,6 +88,21 @@ function emitData(
   }
 }
 
+function finishClaudeRunCancelled(
+  reply: FastifyReply | null,
+  recorder: ClaudeSseOptions["runRecorder"],
+): void {
+  if (recorder) {
+    appendAgentRunEvent(recorder.db, recorder.runId, "error", { message: "cancelled" });
+    safeSse(reply, (r) => sendSseError(r, "cancelled"));
+    finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: "cancelled" });
+    const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
+    safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: doneSeq }));
+  } else {
+    safeSse(reply, (r) => sendSseError(r, "cancelled"));
+  }
+}
+
 /**
  * @param reply 浏览器 SSE 时传入；定时任务等仅落库续订场景传 `null`（须带 `runRecorder`）。
  */
@@ -85,15 +112,32 @@ export async function streamClaudeQueryToSse(
 ): Promise<{ sessionId: string | null; assistantText: string | null; sdkError: string | null }> {
   const controller = new AbortController();
   const recorder = opts.runRecorder;
+  let cancelled = false;
+  let activeQuery: Query | null = null;
+
+  const forceAbort = () => {
+    if (cancelled) return;
+    cancelled = true;
+    try {
+      activeQuery?.close();
+    } catch {
+      /* query 可能已结束 */
+    }
+    controller.abort();
+  };
+
   if (!recorder && !reply) {
     throw new Error("streamClaudeQueryToSse: reply is required when runRecorder is omitted");
   }
+  if (recorder) {
+    activeClaudeRuns.set(recorder.runId, { abort: forceAbort });
+  }
   if (!recorder && reply) {
-    attachAbortOnClose(reply, controller);
+    reply.raw.on("close", forceAbort);
   }
   if (opts.clientSignal) {
-    if (opts.clientSignal.aborted) controller.abort();
-    else opts.clientSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    if (opts.clientSignal.aborted) forceAbort();
+    else opts.clientSignal.addEventListener("abort", forceAbort, { once: true });
   }
 
   if (reply) initSse(reply);
@@ -114,7 +158,7 @@ export async function streamClaudeQueryToSse(
   let assistantText: string | null = null;
   let sdkError: string | null = null;
 
-  const taskRepoCwd = path.join(process.cwd(), "task-repo", opts.pId);
+  const taskRepoCwd = resolveTaskRepoCwd(opts.pId);
   mkdirSync(taskRepoCwd, { recursive: true });
   const runRound = async (prompt: string, resume?: string) => {
     let roundSessionId: string | null = null;
@@ -132,17 +176,50 @@ export async function streamClaudeQueryToSse(
         allowDangerouslySkipPermissions: true,
       },
     });
-    for await (const msg of q) {
-      if (msg.type === "system" && msg.subtype === "init") roundSessionId = msg.session_id;
-      if (msg.type === "result") {
-        if (msg.subtype === "success") roundText = msg.result;
-        else {
-          console.log("Claude error1:", msg.errors);
-          roundError = msg.errors?.join("; ") ?? msg.subtype;
-        }
+    activeQuery = q;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    let idleTimedOut = false;
+
+    const clearIdleTimer = () => {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+        idleTimer = null;
       }
-      emitData(reply, recorder, { channel: "claude", payload: summarizeSdkMessage(msg) });
+    };
+
+    const armIdleTimer = () => {
+      clearIdleTimer();
+      idleTimer = setTimeout(() => {
+        idleTimedOut = true;
+        try {
+          q.close();
+        } catch {
+          /* query 可能已结束 */
+        }
+      }, MSG_IDLE_TIMEOUT_MS);
+    };
+
+    try {
+      for await (const msg of q) {
+        if (cancelled) break;
+        clearIdleTimer();
+        if (msg.type === "system" && msg.subtype === "init") roundSessionId = msg.session_id;
+        if (msg.type === "result") {
+          if (msg.subtype === "success") roundText = msg.result;
+          else {
+            console.log("Claude error1:", msg.errors);
+            roundError = msg.errors?.join("; ") ?? msg.subtype;
+          }
+        }
+        emitData(reply, recorder, { channel: "claude", payload: summarizeSdkMessage(msg) });
+        armIdleTimer();
+      }
+    } finally {
+      clearIdleTimer();
+      if (activeQuery === q) activeQuery = null;
+      if (idleTimedOut && !cancelled) throw new Error("timeout");
     }
+    if (cancelled) roundError = "cancelled";
     return { sessionId: roundSessionId, assistantText: roundText, sdkError: roundError };
   };
 
@@ -151,34 +228,45 @@ export async function streamClaudeQueryToSse(
     sessionId = first.sessionId;
     assistantText = first.assistantText;
     sdkError = first.sdkError;
-    if (!sdkError && opts.followUpPrompt?.trim()) {
+    if (!sdkError && !cancelled && opts.followUpPrompt?.trim()) {
       const follow = await runRound(opts.followUpPrompt.trim(), sessionId ?? undefined);
       if (follow.sessionId) sessionId = follow.sessionId;
       if (follow.assistantText) assistantText = [assistantText, follow.assistantText].filter(Boolean).join("\n\n");
       sdkError = follow.sdkError;
     }
 
-    const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
-    safeSse(reply, (r) => sendSseDone(r, doneSeq != null ? { seq: doneSeq } : undefined));
-    if (recorder) {
-      finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
+    if (cancelled || sdkError === "cancelled") {
+      sdkError = "cancelled";
+      finishClaudeRunCancelled(reply, recorder);
+    } else {
+      const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
+      safeSse(reply, (r) => sendSseDone(r, doneSeq != null ? { seq: doneSeq } : undefined));
+      if (recorder) {
+        finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
+      }
     }
   } catch (err) {
-    console.log("Claude error2:", err)
-    const message = err instanceof Error ? err.message : String(err);
-    sdkError = sdkError ?? message;
-    if (recorder) {
-      appendAgentRunEvent(recorder.db, recorder.runId, "error", { message });
-      safeSse(reply, (r) => sendSseError(r, message));
-      finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: message });
-      const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
-      safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: doneSeq }));
+    if (cancelled || err instanceof AbortError) {
+      sdkError = "cancelled";
+      finishClaudeRunCancelled(reply, recorder);
     } else {
-      safeSse(reply, (r) => sendSseError(r, message));
+      console.log("Claude error2:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      sdkError = sdkError ?? message;
+      if (recorder) {
+        appendAgentRunEvent(recorder.db, recorder.runId, "error", { message });
+        safeSse(reply, (r) => sendSseError(r, message));
+        finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: message });
+        const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
+        safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: doneSeq }));
+      } else {
+        safeSse(reply, (r) => sendSseError(r, message));
+      }
     }
   } finally {
-    console.log("Claude stream end")
-    console.log("task completed:", opts.pId,  opts.prompt)
+    if (recorder) activeClaudeRuns.delete(recorder.runId);
+    console.log("Claude stream end");
+    console.log("task completed:", opts.pId, opts.prompt);
     try {
       if (reply && !reply.raw.writableEnded && !reply.raw.destroyed) {
         endSse(reply);

@@ -46,6 +46,21 @@ export function planGitRepoWorkspaceDirs(repos: GitRepoInitPair[]): GitRepoWorks
   });
 }
 
+/** 智能问答始终使用命名子目录，避免与根目录 Confluence 文档冲突 */
+export function planWikiQaCloneDirs(repos: GitRepoInitPair[]): GitRepoWorkspacePlan[] {
+  const used = new Set<string>();
+  return repos.map((r) => {
+    const base = repoDirNameFromGitRemoteUrl(r.gitRemoteUrl);
+    let name = base;
+    let n = 2;
+    while (used.has(name)) {
+      name = `${base}-${n++}`;
+    }
+    used.add(name);
+    return { ...r, relDir: name };
+  });
+}
+
 /** 将工作区根下的变更路径按仓库子目录分组（值为仓库内相对路径） */
 export function groupChangedPathsByRepoWorkspace(
   relativePaths: string[],

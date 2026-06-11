@@ -6,6 +6,7 @@ declare module "archiver" {
     constructor(options?: { zlib?: { level?: number } });
     pipe<T extends NodeJS.WritableStream>(destination: T): T;
     directory(dirpath: string, destpath: false | string): this;
+    file(filepath: string, options?: { name?: string }): this;
     finalize(): void;
     on(event: "error", listener: (err: Error) => void): this;
     on(event: "warning", listener: (err: Error) => void): this;

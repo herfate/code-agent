@@ -13,6 +13,7 @@ import {
   type TaskAgentProvider,
 } from "../constants/agentProvider.js";
 import { TASK_TYPE } from "../constants/taskType.js";
+import { normalizeTapdTaskIdForStorage } from "../services/claude/tapdTaskIdFormat.js";
 import {
   createParentTaskParam,
   getParentTaskParamByParentAndKey,
@@ -41,6 +42,20 @@ export type ParentTaskInitJson = {
   provider?: TaskAgentProvider;
   /** 设计完成直接执行：测试预分析完成后不暂停，调度器自动推进后续子任务 */
   directDevAfterDesign?: boolean;
+  /** 是否并行：允许与同创建人当日其他父任务并行调度 */
+  parallel?: boolean;
+  /** 业务 Agent 单故事模式：跳过拆分故事，仅创建头脑风暴子任务 */
+  skipStorySplit?: boolean;
+  /** 业务 Agent 拆分方式：delimiter=按分隔符、ai=按 AI 理解；省略则按分隔符 */
+  storySplitMode?: "delimiter" | "ai";
+  /** 使用 trade-mock 辅助测试 */
+  useTradeMock?: boolean;
+  /** 拉取分支（仅开发自测/自review），勾选后工作流首节点前置 BranchApply */
+  pullBranch?: boolean;
+  /** TAPD 任务 ID（开启任务关联） */
+  tapdTaskId?: string;
+  /** 创建人汉字姓名（TAPD 评论人 / 花费人展示名） */
+  creatorRealName?: string;
 };
 
 export type BuildParentTaskInitInput = {
@@ -48,6 +63,13 @@ export type BuildParentTaskInitInput = {
   testEnv?: string;
   provider?: TaskAgentProvider;
   directDevAfterDesign?: boolean;
+  parallel?: boolean;
+  skipStorySplit?: boolean;
+  storySplitMode?: "delimiter" | "ai";
+  useTradeMock?: boolean;
+  pullBranch?: boolean;
+  tapdTaskId?: string;
+  creatorRealName?: string;
 };
 
 export function buildParentTaskInitValueJson(input: BuildParentTaskInitInput): string {
@@ -64,6 +86,29 @@ export function buildParentTaskInitValueJson(input: BuildParentTaskInitInput): s
   }
   if (input.directDevAfterDesign === true) {
     payload.directDevAfterDesign = true;
+  }
+  if (input.parallel === true) {
+    payload.parallel = true;
+  }
+  if (input.skipStorySplit === true) {
+    payload.skipStorySplit = true;
+  }
+  if (input.storySplitMode === "ai" || input.storySplitMode === "delimiter") {
+    payload.storySplitMode = input.storySplitMode;
+  }
+  if (input.useTradeMock === true) {
+    payload.useTradeMock = true;
+  }
+  if (input.pullBranch === true) {
+    payload.pullBranch = true;
+  }
+  const tapdTaskId = normalizeTapdTaskIdForStorage(input.tapdTaskId);
+  if (tapdTaskId) {
+    payload.tapdTaskId = tapdTaskId;
+  }
+  const creatorRealName = input.creatorRealName?.trim();
+  if (creatorRealName) {
+    payload.creatorRealName = creatorRealName;
   }
   return JSON.stringify(payload);
 }
@@ -82,6 +127,16 @@ export function parseParentTaskInitJson(valueJson: string | null | undefined): P
       testEnv: typeof o.testEnv === "string" ? o.testEnv : "",
       provider,
       directDevAfterDesign: o.directDevAfterDesign === true,
+      parallel: o.parallel === true,
+      skipStorySplit: o.skipStorySplit === true,
+      storySplitMode:
+        o.storySplitMode === "ai" || o.storySplitMode === "delimiter"
+          ? o.storySplitMode
+          : undefined,
+      useTradeMock: o.useTradeMock === true,
+      pullBranch: o.pullBranch === true,
+      tapdTaskId: typeof o.tapdTaskId === "string" ? o.tapdTaskId.trim() : undefined,
+      creatorRealName: typeof o.creatorRealName === "string" ? o.creatorRealName.trim() : undefined,
     };
   } catch {
     return empty;
@@ -92,6 +147,12 @@ export function parseParentTaskInitJson(valueJson: string | null | undefined): P
 export function isDirectDevAfterDesign(db: DatabaseSync, parentTaskId: string): boolean {
   const row = getParentTaskParamByParentAndKey(db, parentTaskId, PARENT_PARAM_KEY_INIT);
   return parseParentTaskInitJson(row?.value_json).directDevAfterDesign === true;
+}
+
+/** 父任务 `init.parallel` 为 true 时，允许与同创建人当日其他父任务并行调度 */
+export function isParentTaskParallel(db: DatabaseSync, parentTaskId: string): boolean {
+  const row = getParentTaskParamByParentAndKey(db, parentTaskId, PARENT_PARAM_KEY_INIT);
+  return parseParentTaskInitJson(row?.value_json).parallel === true;
 }
 
 /** 按子任务 `task_type` 解析 Agent 线路（临时写死；后续可恢复读父任务 `init.provider`） */
@@ -149,6 +210,20 @@ export type CreateParentTaskWithParamsInput = CreateParentTaskInput & {
   provider?: TaskAgentProvider;
   /** 设计完成直接执行：测试预分析完成后不暂停 */
   directDevAfterDesign?: boolean;
+  /** 是否并行：允许与同创建人当日其他父任务并行调度 */
+  parallel?: boolean;
+  /** 业务 Agent 单故事：跳过拆分故事，仅创建头脑风暴子任务 */
+  skipStorySplit?: boolean;
+  /** 业务 Agent 拆分方式：delimiter=按分隔符、ai=按 AI 理解；省略则按分隔符 */
+  storySplitMode?: "delimiter" | "ai";
+  /** 使用 trade-mock 辅助测试 */
+  useTradeMock?: boolean;
+  /** 拉取分支（仅开发自测/自review），勾选后工作流首节点前置 BranchApply */
+  pullBranch?: boolean;
+  /** TAPD 任务 ID（开启任务关联） */
+  tapdTaskId?: string;
+  /** 创建人汉字姓名（TAPD 评论人 / 花费人展示名） */
+  creatorRealName?: string;
   extraParams?: CreateParentTaskExtraParamInput[];
 };
 
@@ -190,7 +265,7 @@ function insertInitParentTaskParam(
   parentTaskId: string,
   input: Pick<
     CreateParentTaskWithParamsInput,
-    "gitRepos" | "testEnv" | "provider" | "directDevAfterDesign"
+    "gitRepos" | "testEnv" | "provider" | "directDevAfterDesign" | "parallel" | "skipStorySplit" | "storySplitMode" | "useTradeMock" | "pullBranch" | "tapdTaskId" | "creatorRealName"
   >,
 ): ParentTaskParamRow {
   return createParentTaskParam(db, {
@@ -223,6 +298,13 @@ export function createParentTaskWithParamsCore(
       testEnv: input.testEnv,
       provider: input.provider,
       directDevAfterDesign: input.directDevAfterDesign,
+      parallel: input.parallel,
+      skipStorySplit: input.skipStorySplit,
+      storySplitMode: input.storySplitMode,
+      useTradeMock: input.useTradeMock,
+      pullBranch: input.pullBranch,
+      tapdTaskId: input.tapdTaskId,
+      creatorRealName: input.creatorRealName,
     }),
     ...extra.map((p) =>
       createParentTaskParam(db, {
@@ -289,9 +371,18 @@ export function getParentTask(db: DatabaseSync, pid: string): ParentTaskRow | un
 
 export type ParentTaskListFilters = {
   task_type?: ParentAgentType;
+  /** 多类型筛选（与 `task_type` 互斥，优先 `task_type`） */
+  task_types?: ParentAgentType[];
   titleContains?: string;
   creator?: string;
+  /** 模糊匹配 `parent_task_params.init.tapdTaskId` */
+  tapdTaskIdContains?: string;
 };
+
+/** LIKE 通配符转义（配合 ESCAPE '\\'） */
+function escapeLikePattern(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
 
 /** 列表/计数共用的 WHERE 子句与绑定参数 */
 function buildParentTaskListWhere(filters: ParentTaskListFilters = {}): {
@@ -304,12 +395,15 @@ function buildParentTaskListWhere(filters: ParentTaskListFilters = {}): {
   if (filters.task_type) {
     clauses.push("task_type = ?");
     params.push(filters.task_type);
+  } else if (filters.task_types && filters.task_types.length > 0) {
+    const placeholders = filters.task_types.map(() => "?").join(", ");
+    clauses.push(`task_type IN (${placeholders})`);
+    params.push(...filters.task_types);
   }
   const raw = filters.titleContains?.trim();
   if (raw) {
     clauses.push(`title LIKE ? ESCAPE '\\'`);
-    const esc = raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-    params.push("%" + esc + "%");
+    params.push("%" + escapeLikePattern(raw) + "%");
   }
   const creator = filters.creator?.trim();
   if (creator) {
@@ -317,6 +411,18 @@ function buildParentTaskListWhere(filters: ParentTaskListFilters = {}): {
       `EXISTS (SELECT 1 FROM tasks t WHERE t.pid = parent_task.pid AND t.creator = ?)`,
     );
     params.push(creator);
+  }
+  const tapdRaw = filters.tapdTaskIdContains?.trim();
+  if (tapdRaw) {
+    clauses.push(
+      `EXISTS (
+        SELECT 1 FROM parent_task_params p
+        WHERE p.parent_task_id = parent_task.pid
+          AND p.param_key = ?
+          AND json_extract(p.value_json, '$.tapdTaskId') LIKE ? ESCAPE '\\'
+      )`,
+    );
+    params.push(PARENT_PARAM_KEY_INIT, "%" + escapeLikePattern(tapdRaw) + "%");
   }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";

@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { TASK_TYPE, getTask, listTasksByPid, type TaskRow } from "../../db/workflow.js";
 import type { ParsedCodeReviewGate } from "../file/parseTaskOutCodeReviewResult.js";
 import { AppLog } from "../appLogger.js";
+import { pushFollowUpMessageToTaskMeta } from "../taskFollowUpPrompt.js";
 import { cloneTaskAsPending } from "./cloneTasksOnTestNotFullyPassed.js";
 
 /** 同父任务下已存在的 Code Review 任务数（含重试克隆） */
@@ -10,8 +11,8 @@ export function countCodeReviewTasksUnderParent(db: DatabaseSync, parentTaskId: 
     .length;
 }
 
-/** Code Review 未通过时写入开发任务 description */
-export function buildCodeReviewReportDescription(gate: ParsedCodeReviewGate): string {
+/** Code Review 未通过时追加到开发任务 followUpMessages 的文本 */
+export function buildCodeReviewReportFollowUpMessage(gate: ParsedCodeReviewGate): string {
   const lines = [
     `Code Review 未通过（允许合并：${gate.mergeAllowed ? "是" : "否"}）`,
     `审查结论：${gate.verdictLabel}（${gate.verdict}）`,
@@ -28,19 +29,19 @@ export function buildCodeReviewReportDescription(gate: ParsedCodeReviewGate): st
 
 export type CloneTasksOnCodeReviewNotPassedResult = {
   devTask: TaskRow;
-  testEnvDeployTask: TaskRow;
+  testEnvDeployTask: TaskRow | null;
   codeReviewTask: TaskRow;
 };
 
 /**
- * Code Review 未通过：复制新增同父任务下开发（description 为报告）、测试环境发布、Code Review。
- * 顺序与编排一致：开发 → 测试环境发布 → Code Review。
+ * Code Review 未通过：复制新增同父任务下开发（followUpMessages 追加报告）、测试环境发布（若有）、Code Review。
+ * 顺序与编排一致：开发 → [测试环境发布] → Code Review。
  */
 export function cloneTasksOnCodeReviewNotPassed(
   db: DatabaseSync,
   parentTaskId: string,
   executingTaskId: string,
-  reportDescription: string,
+  followUpMessage: string,
 ): CloneTasksOnCodeReviewNotPassedResult | null {
   const executing = getTask(db, executingTaskId);
   if (!executing || executing.pid !== parentTaskId) {
@@ -63,38 +64,41 @@ export function cloneTasksOnCodeReviewNotPassed(
     AppLog.logger.warn({ parentTaskId }, "cloneTasksOnCodeReviewNotPassed: no dev task under parent");
     return null;
   }
-  if (!sourceDeploy) {
-    AppLog.logger.warn(
-      { parentTaskId },
-      "cloneTasksOnCodeReviewNotPassed: no test env deploy task under parent",
-    );
-    return null;
-  }
 
+  // 保留原 description，审查报告追加到 followUpMessages（续跑时作为 Agent 提示词）
+  const devMetaJson = pushFollowUpMessageToTaskMeta(sourceDev.meta_json, followUpMessage);
   const devTask = cloneTaskAsPending(db, sourceDev, {
-    description: reportDescription,
-    created_at: executing.created_at + 1, // 每个任务直接间隔了100,用创建时间控制编排顺序,确保这些任务紧跟在此任务之后
+    description: sourceDev.description,
+    meta_json: devMetaJson,
+    created_at: executing.created_at + 1,
   });
-  const testEnvDeployTask = cloneTaskAsPending(db, sourceDeploy, {
-    description: sourceDeploy.description,
-    created_at: executing.created_at + 2,
-  });
+  let testEnvDeployTask: TaskRow | null = null;
+  let codeReviewOffset = 2;
+  if (sourceDeploy) {
+    testEnvDeployTask = cloneTaskAsPending(db, sourceDeploy, {
+      description: sourceDeploy.description,
+      created_at: executing.created_at + 2,
+    });
+    codeReviewOffset = 3;
+  }
   const codeReviewTask = cloneTaskAsPending(db, executing, {
     description: executing.description,
-    created_at: executing.created_at + 3,
+    created_at: executing.created_at + codeReviewOffset,
   });
 
   AppLog.logger.info(
     {
       parentTaskId,
       sourceDevTaskId: sourceDev.id,
-      sourceDeployTaskId: sourceDeploy.id,
+      sourceDeployTaskId: sourceDeploy?.id ?? null,
       sourceCodeReviewTaskId: executing.id,
       newDevTaskId: devTask.id,
-      newDeployTaskId: testEnvDeployTask.id,
+      newDeployTaskId: testEnvDeployTask?.id ?? null,
       newCodeReviewTaskId: codeReviewTask.id,
     },
-    "cloneTasksOnCodeReviewNotPassed: cloned dev, deploy and code review tasks",
+    sourceDeploy
+      ? "cloneTasksOnCodeReviewNotPassed: cloned dev, deploy and code review tasks"
+      : "cloneTasksOnCodeReviewNotPassed: cloned dev and code review tasks (no deploy node)",
   );
 
   return { devTask, testEnvDeployTask, codeReviewTask };

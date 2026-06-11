@@ -3,7 +3,9 @@ import type { DatabaseSync } from "node:sqlite";
 import { DEV_OPS_DEPLOY_PARAM_KEY } from "../../../constants/devOpsDeployParamKey.js";
 import type { ParentTaskRow } from "../../../db/parentTask.js";
 import {
+  addTaskCost,
   getParentTaskParamByParentAndKey,
+  getTask,
   releaseClaimedTaskToPending,
   TASK_STATUS,
   updateTask,
@@ -45,11 +47,22 @@ function resolvePollTimeoutMs(task: TaskRow): number {
   return TEST_ENV_DEPLOY_RESULT_POLL_MS;
 }
 
+/** 将累计 cost 对齐到相对首次 started_at 的总轮询时长 */
+function alignPollCostToElapsed(db: DatabaseSync, taskId: string, elapsed: number): void {
+  const row = getTask(db, taskId);
+  const already = row?.cost ?? 0;
+  addTaskCost(db, taskId, Math.max(0, elapsed - already));
+}
+
 function completeDeployResultTask(
   db: DatabaseSync,
   taskId: string,
   output: Record<string, unknown>,
+  elapsedMs: number | null,
 ): void {
+  if (elapsedMs != null) {
+    alignPollCostToElapsed(db, taskId, elapsedMs);
+  }
   updateTask(db, taskId, {
     status: TASK_STATUS.Completed,
     completed_at: Date.now(),
@@ -68,8 +81,11 @@ export async function handleTestEnvDeployResultToolTask(
   parentTask: ParentTaskRow,
 ): Promise<void> {
   const log = AppLog.logger;
+  const segmentStart = Date.now();
   const t = () => Date.now();
   const pollTimeoutMs = resolvePollTimeoutMs(task);
+
+  const chargeSegment = () => addTaskCost(db, task.id, Date.now() - segmentStart);
 
   const deployParam = getParentTaskParamByParentAndKey(
     db,
@@ -82,6 +98,7 @@ export async function handleTestEnvDeployResultToolTask(
       completed_at: t(),
       error_message: "缺少 parent_task_params.DevOpsDeployResult，请先完成测试环境发布（101）",
     });
+    chargeSegment();
     log.warn({ taskId: task.id, parentPid: parentTask.pid }, "test env deploy result: missing DevOpsDeployResult");
     return;
   }
@@ -93,6 +110,7 @@ export async function handleTestEnvDeployResultToolTask(
       completed_at: t(),
       error_message: "DevOpsDeployResult 中无 node_url，无法查询 Jenkins 节点",
     });
+    chargeSegment();
     log.warn({ taskId: task.id, parentPid: parentTask.pid }, "test env deploy result: no node_url");
     return;
   }
@@ -104,6 +122,7 @@ export async function handleTestEnvDeployResultToolTask(
       completed_at: t(),
       error_message: "测试环境发布结果任务缺少 started_at",
     });
+    chargeSegment();
     log.warn({ taskId: task.id }, "test env deploy result: missing started_at");
     return;
   }
@@ -125,6 +144,7 @@ export async function handleTestEnvDeployResultToolTask(
         error_message: `拉取 Jenkins 节点失败 HTTP ${fetched.status}: ${fetched.body.slice(0, 500)}`,
         output_json: JSON.stringify({ fetchResults }),
       });
+      chargeSegment();
       log.error({ taskId: task.id, nodeUrl, status: fetched.status }, "test env deploy result: fetch failed");
       return;
     }
@@ -142,6 +162,8 @@ export async function handleTestEnvDeployResultToolTask(
       stillRunning = true;
     }
   }
+
+  const elapsed = t() - startedAt;
 
   if (firstFailure) {
     upsertParentTaskParam(db, {
@@ -170,7 +192,7 @@ export async function handleTestEnvDeployResultToolTask(
       );
     }
 
-    completeDeployResultTask(db, task.id, { fetchResults, failureNode: firstFailure, reportDescription });
+    completeDeployResultTask(db, task.id, { fetchResults, failureNode: firstFailure, reportDescription }, elapsed);
     log.warn(
       { taskId: task.id, parentPid: parentTask.pid, nodeId: firstFailure.id, displayName: firstFailure.displayName },
       "test env deploy result: pipeline failure node found, cloned retry tasks",
@@ -179,9 +201,10 @@ export async function handleTestEnvDeployResultToolTask(
   }
 
   if (stillRunning) {
-    const elapsed = t() - startedAt;
     if (elapsed < pollTimeoutMs) {
       const released = releaseClaimedTaskToPending(db, task.id);
+      // 释放回 pending：累加本轮轮询耗时
+      chargeSegment();
       log.info(
         {
           taskId: task.id,
@@ -195,6 +218,7 @@ export async function handleTestEnvDeployResultToolTask(
       );
       return;
     }
+    alignPollCostToElapsed(db, task.id, elapsed);
     updateTask(db, task.id, {
       status: TASK_STATUS.Failed,
       completed_at: t(),
@@ -217,6 +241,6 @@ export async function handleTestEnvDeployResultToolTask(
     }),
     description: "测试环境 Jenkins 流水线无 FAILURE 节点",
   });
-  completeDeployResultTask(db, task.id, { fetchResults, failureNode: null });
+  completeDeployResultTask(db, task.id, { fetchResults, failureNode: null }, elapsed);
   log.info({ taskId: task.id, parentPid: parentTask.pid }, "test env deploy result: no failure node");
 }

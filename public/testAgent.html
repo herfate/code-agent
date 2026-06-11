@@ -1,0 +1,3042 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>测试案例编排 — 查询与新增</title>
+  <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
+</head>
+<body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
+  <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
+    <header class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <h1 class="text-sm font-semibold text-slate-800">测试案例编排（parent_task）查询与新增</h1>
+      <p class="mt-0.5 text-xs text-slate-500">对接 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET/POST /api/parent-tasks</code>；类型 5 通过仓库 ID 加载 git（20→22）；类型 6 手动填写 git 与分支（20→21）。运行参数写入 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">parent_task_params</code>。</p>
+    </header>
+    <section class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+        <div class="lg:col-span-3">
+          <label id="tag-taskType-label" for="tag-taskType-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
+          <div id="tag-taskType-root" class="ui-multiselect relative min-w-0">
+            <input type="hidden" id="tag-taskType" value="5,6" autocomplete="off" />
+            <div
+              id="tag-taskType-trigger"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="tag-taskType-listbox"
+              aria-labelledby="tag-taskType-label"
+              tabindex="0"
+              class="ui-multiselect-trigger"
+            >
+              <div class="ui-multiselect-tags" aria-live="polite"></div>
+              <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="tag-taskType-listbox" role="listbox" aria-multiselectable="true" class="ui-multiselect-list hidden">
+              <label class="ui-multiselect-opt" data-value="5">
+                <input type="checkbox" data-value="5" checked />
+                <span>5 — 测试案例编排Agent</span>
+              </label>
+              <label class="ui-multiselect-opt" data-value="6">
+                <input type="checkbox" data-value="6" checked />
+                <span>6 — 自动化测试Agent</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="lg:col-span-2">
+          <label for="tag-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题包含</label>
+          <input id="tag-title" type="text" placeholder="模糊匹配 title" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="lg:col-span-3">
+          <label for="tag-creator" class="mb-1.5 block text-xs font-medium text-slate-600">创建人</label>
+          <input id="tag-creator" type="text" placeholder="精确匹配 tasks.creator" maxlength="200" autocomplete="username" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-4">
+          <span class="mb-1.5 hidden text-xs lg:block lg:invisible" aria-hidden="true">操作</span>
+          <div class="flex flex-nowrap items-center gap-2">
+            <button type="button" id="tag-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增父任务</button>
+            <button type="button" id="tag-btn-query" class="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">查询结果</h2>
+        <span id="tag-count" class="text-xs font-medium text-slate-500"></span>
+      </div>
+      <div class="min-h-0 flex-1 overflow-auto">
+        <p id="tag-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700"></p>
+        <div class="overflow-x-auto">
+          <table class="w-max min-w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold tracking-wide text-slate-600 backdrop-blur-sm">
+              <tr>
+                <th class="whitespace-nowrap px-4 py-3">编号</th>
+                <th class="whitespace-nowrap px-4 py-3">标题</th>
+                <th class="whitespace-nowrap px-4 py-3">描述</th>
+                <th class="w-12 max-w-[3rem] whitespace-nowrap px-2 py-3 text-center">类型</th>
+                <th class="whitespace-nowrap px-4 py-3">执行状态</th>
+                <th class="whitespace-nowrap px-4 py-3">创建人</th>
+                <th class="whitespace-nowrap px-4 py-3">创建时间</th>
+                <th class="whitespace-nowrap px-4 py-3">用例采纳率</th>
+                <th class="whitespace-nowrap px-4 py-3">操作</th>
+              </tr>
+            </thead>
+            <tbody id="tag-tbody" class="divide-y divide-slate-100 text-slate-800"></tbody>
+          </table>
+        </div>
+        <p id="tag-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500">暂无数据，请调整条件后点击「查询」。</p>
+      </div>
+      <div id="tag-pagination" class="hidden shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <label id="tag-page-size-label" for="tag-page-size-trigger" class="whitespace-nowrap font-medium">每页</label>
+          <div id="tag-page-size-root" class="ui-combobox relative w-auto min-w-[4.5rem]">
+            <input type="hidden" id="tag-page-size" value="20" autocomplete="off" />
+            <div
+              id="tag-page-size-trigger"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="tag-page-size-listbox"
+              aria-labelledby="tag-page-size-label"
+              tabindex="0"
+              class="ui-combobox-trigger ui-combobox-trigger-sm"
+            >
+              <span class="ui-combobox-value min-w-0 truncate">20</span>
+              <svg class="h-3.5 w-3.5 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="tag-page-size-listbox" role="listbox" class="ui-combobox-list hidden min-w-full">
+              <div role="option" data-value="10" class="ui-combobox-opt">10</div>
+              <div role="option" data-value="20" class="ui-combobox-opt">20</div>
+              <div role="option" data-value="50" class="ui-combobox-opt">50</div>
+            </div>
+          </div>
+          <span id="tag-page-info" class="whitespace-nowrap text-slate-500"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            id="tag-btn-prev"
+            disabled
+            class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            上一页
+          </button>
+          <button
+            type="button"
+            id="tag-btn-next"
+            disabled
+            class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            下一页
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="tag-modal-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="tag-modal-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="tag-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tag-modal-title"
+        class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="shrink-0 border-b border-slate-100 px-5 py-4">
+          <h3 id="tag-modal-title" class="text-sm font-semibold text-slate-800">新增父任务</h3>
+          <p id="tag-modal-hint" class="mt-1 text-xs text-slate-500">类型 5：仓库 ID（wiki_base）、测试环境必填；类型 6：应用名称 / 脚本版本 / 接口路径、仓库与分支、测试环境必填。创建子任务分别为 20→22 与 20→21。创建后标题默认为 <code class="font-mono text-[11px]">thinking</code>，后台 AI 根据说明等自动汇总；上述字段与模型 <code class="font-mono text-[11px]">provider</code> 写入 <code class="font-mono text-[11px]">param_key=init</code>。</p>
+        </div>
+        <form id="tag-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <p id="tag-modal-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div class="sm:col-span-2 hidden">
+                <label for="tag-new-pid" class="mb-1.5 block text-xs font-medium text-slate-600">pid（可选，留空自动分配）</label>
+                <input
+                  id="tag-new-pid"
+                  type="text"
+                  maxlength="200"
+                  autocomplete="off"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  placeholder="留空则 max(pid)+1"
+                />
+              </div>
+              <div id="tag-wiki-git-section" class="sm:col-span-2">
+                <label id="tag-new-wikiCategory-label" for="tag-new-wikiCategory-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">仓库 ID（wiki_base） <span id="tag-req-git" class="text-red-500">*</span></label>
+                <div id="tag-new-wikiCategory-root" class="ui-combobox relative min-w-0">
+                  <input type="hidden" id="tag-new-wikiCategory" value="" autocomplete="off" />
+                  <div
+                    id="tag-new-wikiCategory-trigger"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-controls="tag-new-wikiCategory-listbox"
+                    aria-labelledby="tag-new-wikiCategory-label"
+                    tabindex="0"
+                    class="ui-combobox-trigger"
+                  >
+                    <span class="ui-combobox-value min-w-0 truncate">请选择</span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  <div id="tag-new-wikiCategory-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                    <div role="option" data-value="" class="ui-combobox-opt">请选择</div>
+                  </div>
+                </div>
+                <p id="tag-wiki-git-loading" class="mt-1.5 hidden text-[11px] text-slate-500">加载代码库配置…</p>
+                <p id="tag-wiki-git-error" class="mt-1.5 hidden text-[11px] text-red-600"></p>
+                <div id="tag-wiki-git-preview" class="mt-2 hidden rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+                  <p class="text-[11px] font-medium text-slate-600">将提交的代码库（分支 master）：</p>
+                  <ul id="tag-wiki-git-list" class="mt-1.5 space-y-1 text-xs text-slate-600"></ul>
+                </div>
+                <p id="tag-wiki-git-hint" class="mt-1.5 text-[11px] text-slate-500">选择仓库 ID 后，将自动加载该分类下文档源配置的全部代码地址，分支固定为 master。</p>
+              </div>
+              <div id="tag-qa-script-section" class="sm:col-span-2 hidden">
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label id="tag-new-qaApp-label" for="tag-new-qaApp-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">应用名称 <span id="tag-req-qaApp" class="text-red-500">*</span></label>
+                    <div id="tag-new-qaApp-root" class="ui-combobox relative min-w-0">
+                      <input type="hidden" id="tag-new-qaApp" value="" autocomplete="off" />
+                      <div
+                        id="tag-new-qaApp-trigger"
+                        role="combobox"
+                        aria-expanded="false"
+                        aria-controls="tag-new-qaApp-listbox"
+                        aria-labelledby="tag-new-qaApp-label"
+                        tabindex="0"
+                        class="ui-combobox-trigger"
+                      >
+                        <span class="ui-combobox-value min-w-0 truncate">请选择</span>
+                        <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      <div id="tag-new-qaApp-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden"></div>
+                    </div>
+                    <p class="mt-1 text-[11px] text-slate-500">来自 <code class="font-mono text-[10px]">/qa/findAllAppInfo</code></p>
+                  </div>
+                  <div>
+                    <label id="tag-new-qaVersion-label" for="tag-new-qaVersion-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">脚本版本 <span id="tag-req-qaVersion" class="text-red-500">*</span></label>
+                    <div id="tag-new-qaVersion-root" class="ui-combobox relative min-w-0">
+                      <input type="hidden" id="tag-new-qaVersion" value="" autocomplete="off" />
+                      <div
+                        id="tag-new-qaVersion-trigger"
+                        role="combobox"
+                        aria-expanded="false"
+                        aria-controls="tag-new-qaVersion-listbox"
+                        aria-labelledby="tag-new-qaVersion-label"
+                        tabindex="0"
+                        class="ui-combobox-trigger"
+                      >
+                        <span class="ui-combobox-value min-w-0 truncate">请选择</span>
+                        <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      <div id="tag-new-qaVersion-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden"></div>
+                    </div>
+                  </div>
+                  <div id="tag-manual-git-section" class="sm:col-span-2 hidden">
+                    <div class="mb-1.5">
+                      <span class="text-xs font-medium text-slate-600">仓库与分支 <span id="tag-req-manual-git" class="text-red-500">*</span></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="text"
+                        id="tag-git-branch"
+                        class="w-32 shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                        maxlength="500"
+                        autocomplete="off"
+                        placeholder="分支"
+                      />
+                      <input
+                        type="url"
+                        id="tag-git-url"
+                        class="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                        maxlength="2000"
+                        autocomplete="off"
+                        placeholder="HTTPS Git 仓库地址"
+                      />
+                    </div>
+                    <p id="tag-git-catalog-hint" class="mt-1.5 hidden text-[11px] text-blue-600"></p>
+                    <p class="mt-1.5 text-[11px] text-slate-500">填写一组仓库与分支（提交格式仍为 gitRepos 数组；git 保存时自动去掉末尾 .git）。</p>
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label id="tag-new-qaApiPath-label" for="tag-new-qaApiPath-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">接口路径 <span id="tag-req-qaApiPath" class="text-red-500">*</span></label>
+                    <div id="tag-new-qaApiPath-root" class="ui-combobox relative min-w-0">
+                      <input type="hidden" id="tag-new-qaApiPath" value="" autocomplete="off" />
+                      <div
+                        id="tag-new-qaApiPath-trigger"
+                        role="combobox"
+                        aria-expanded="false"
+                        aria-controls="tag-new-qaApiPath-listbox"
+                        aria-labelledby="tag-new-qaApiPath-label"
+                        tabindex="0"
+                        class="ui-combobox-trigger"
+                      >
+                        <span class="ui-combobox-value min-w-0 truncate">请选择</span>
+                        <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      <div id="tag-new-qaApiPath-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden"></div>
+                    </div>
+                    <p class="mt-1 text-[11px] text-slate-500">来自 <code class="font-mono text-[10px]">/qa/getScriptList</code>，选定应用与脚本版本后加载</p>
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label id="tag-new-labelIds-label" for="tag-new-labelIds-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">QA 标签 labelIds</label>
+                    <div id="tag-new-labelIds-root" class="ui-multiselect relative min-w-0">
+                      <input type="hidden" id="tag-new-labelIds" value="" autocomplete="off" />
+                      <div
+                        id="tag-new-labelIds-trigger"
+                        role="combobox"
+                        aria-expanded="false"
+                        aria-controls="tag-new-labelIds-listbox"
+                        aria-labelledby="tag-new-labelIds-label"
+                        tabindex="0"
+                        class="ui-multiselect-trigger"
+                      >
+                        <div class="ui-multiselect-tags" aria-live="polite"></div>
+                        <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      <div id="tag-new-labelIds-listbox" role="listbox" aria-multiselectable="true" class="ui-multiselect-list ui-multiselect-list-raised hidden">
+                        <div class="border-b border-slate-100 px-2 py-2">
+                          <input
+                            type="text"
+                            id="tag-labelIds-search"
+                            maxlength="500"
+                            autocomplete="off"
+                            placeholder="搜索标签 title"
+                            class="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                          />
+                        </div>
+                        <div id="tag-labelIds-options" class="max-h-48 overflow-y-auto"></div>
+                        <div class="ui-multiselect-footer border-t border-slate-100 px-2 py-1.5 text-right">
+                          <button type="button" data-action="clear" class="text-xs font-medium text-slate-600 hover:text-blue-700">清空</button>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="mt-1 text-[11px] text-slate-500">可选；多选 QA 标签（展示 title），提交 <code class="font-mono text-[10px]">body.labelIds</code> 为 <code class="font-mono text-[10px]">list[].id</code> 数字数组。来自 <code class="font-mono text-[10px]">/qa/label/findPage</code></p>
+                  </div>
+                </div>
+                <input type="hidden" id="tag-new-qaScriptId" value="" autocomplete="off" />
+              </div>
+              <div>
+                <label for="tag-new-testEnv" class="mb-1.5 block text-xs font-medium text-slate-600">测试环境 testEnv <span id="tag-req-testEnv" class="text-red-500">*</span></label>
+                <input
+                  id="tag-new-testEnv"
+                  type="text"
+                  maxlength="200"
+                  autocomplete="off"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  placeholder="例如 it01/it116"
+                />
+              </div>
+              <div>
+                <label id="tag-new-taskType-label" for="tag-new-taskType-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
+                <div id="tag-new-taskType-root" class="ui-combobox relative min-w-0">
+                  <input type="hidden" id="tag-new-taskType" name="task_type" value="6" autocomplete="off" />
+                  <div
+                    id="tag-new-taskType-trigger"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-controls="tag-new-taskType-listbox"
+                    aria-labelledby="tag-new-taskType-label"
+                    tabindex="0"
+                    class="ui-combobox-trigger"
+                  >
+                    <span class="ui-combobox-value min-w-0 truncate">6 — 自动化测试Agent</span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  <div id="tag-new-taskType-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                    <div role="option" data-value="5" class="ui-combobox-opt">5 — 测试案例编排Agent</div>
+                    <div role="option" data-value="6" class="ui-combobox-opt">6 — 自动化测试Agent</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label id="tag-new-provider-label" for="tag-new-provider-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">模型</label>
+                <div id="tag-new-provider-root" class="ui-combobox relative min-w-0">
+                  <input type="hidden" id="tag-new-provider" name="provider" value="claude" autocomplete="off" />
+                  <div
+                    id="tag-new-provider-trigger"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-controls="tag-new-provider-listbox"
+                    aria-labelledby="tag-new-provider-label"
+                    tabindex="0"
+                    class="ui-combobox-trigger"
+                  >
+                    <span class="ui-combobox-value min-w-0 truncate">claude</span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  <div id="tag-new-provider-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                    <div role="option" data-value="claude" class="ui-combobox-opt">claude</div>
+                    <div role="option" data-value="cursor" class="ui-combobox-opt">cursor</div>
+                  </div>
+                </div>
+              </div>
+              <div class="sm:col-span-2">
+                <label for="tag-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明 <span class="text-red-500">*</span></label>
+                <textarea
+                  id="tag-new-description"
+                  rows="3"
+                  required
+                  maxlength="50000"
+                  class="w-full resize-y rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+                  placeholder="测试目标、被测应用、业务场景要点等（必填）"
+                ></textarea>
+              </div>
+            </div>
+            <div>
+              <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">运行参数 params</span>
+                <button
+                  type="button"
+                  id="tag-btn-add-param"
+                  class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                >
+                  添加参数行
+                </button>
+              </div>
+              <div id="tag-params-list" class="space-y-3"></div>
+              <p class="mt-2 text-xs text-slate-500">
+                <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">value_json</code> 须为合法 JSON；可与子任务
+                <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">input_json</code> 对齐，例如
+                <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">app</code>、
+                <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">requirement</code> 等（勿使用保留键
+                <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">init</code>）。
+              </p>
+            </div>
+          </div>
+          <div class="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <button type="button" id="tag-modal-cancel" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300/80">取消</button>
+            <button type="submit" id="tag-modal-submit" class="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="tag-preview-pick-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="tag-preview-pick-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="tag-preview-pick-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tag-preview-pick-title"
+        class="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="tag-preview-pick-title" class="text-sm font-semibold text-slate-800">选择任务类型</h3>
+            <p id="tag-preview-pick-sub" class="mt-1 text-xs text-slate-500">请选择要预览的 taskType（ai_out 子目录）</p>
+          </div>
+          <button type="button" id="tag-preview-pick-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+        </div>
+        <div id="tag-preview-pick-body" class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <p id="tag-preview-pick-empty" class="hidden text-center text-sm text-slate-500">该父任务下暂无可预览文档（.md / .json / .txt）</p>
+          <div id="tag-preview-pick-list" class="grid gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tag-preview-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="tag-preview-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="tag-preview-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tag-preview-title"
+        class="flex h-[90vh] w-[80vw] max-h-[90vh] max-w-[80vw] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="tag-preview-title" class="text-sm font-semibold text-slate-800">文档预览</h3>
+            <p id="tag-preview-meta" class="mt-1 truncate font-mono text-[11px] text-slate-500"></p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button type="button" id="tag-preview-download" disabled class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">下载</button>
+            <button type="button" id="tag-preview-close" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+          </div>
+        </div>
+        <div id="tag-preview-body" class="min-h-0 flex-1 basis-0 overflow-x-auto overflow-y-auto px-5 py-4 text-sm text-slate-800"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tag-adoption-rate-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="tag-adoption-rate-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="tag-adoption-rate-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tag-adoption-rate-title"
+        class="w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="border-b border-slate-100 px-5 py-4">
+          <h3 id="tag-adoption-rate-title" class="text-sm font-semibold text-slate-800">设置用例采纳率</h3>
+          <p id="tag-adoption-rate-sub" class="mt-1 text-xs text-slate-500"></p>
+        </div>
+        <div class="px-5 py-4">
+          <p id="tag-adoption-rate-error" class="mb-3 hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+          <label for="tag-adoption-rate-value" class="mb-1.5 block text-xs font-medium text-slate-600">采纳率（0–100）</label>
+          <div class="flex items-center gap-2">
+            <input
+              id="tag-adoption-rate-value"
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              inputmode="decimal"
+              class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
+              placeholder="例如 85"
+            />
+            <span class="shrink-0 text-sm text-slate-500">%</span>
+          </div>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          <button type="button" id="tag-adoption-rate-cancel" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">取消</button>
+          <button type="button" id="tag-adoption-rate-save" class="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    #tag-preview-panel {
+      display: flex;
+      flex-direction: column;
+      height: 90vh;
+      max-height: 90vh;
+      min-height: 0;
+    }
+    #tag-preview-body {
+      flex: 1 1 0%;
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgb(148 163 184) rgb(241 245 249);
+    }
+    #tag-preview-body::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    #tag-preview-body::-webkit-scrollbar-track {
+      background: rgb(241 245 249);
+      border-radius: 9999px;
+    }
+    #tag-preview-body::-webkit-scrollbar-thumb {
+      background: rgb(148 163 184);
+      border-radius: 9999px;
+      border: 2px solid rgb(241 245 249);
+    }
+    #tag-preview-body::-webkit-scrollbar-thumb:hover {
+      background: rgb(100 116 139);
+    }
+    #tag-preview-body h1 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+    #tag-preview-body h2 { font-size: 1.125rem; font-weight: 600; margin: 0.875rem 0 0.5rem; }
+    #tag-preview-body h3 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+    #tag-preview-body p { margin: 0.5rem 0; line-height: 1.625; }
+    #tag-preview-body ul, #tag-preview-body ol { margin: 0.5rem 0; padding-left: 1.25rem; }
+    #tag-preview-body li { margin: 0.25rem 0; }
+    #tag-preview-body pre { margin: 0.75rem 0; overflow-x: auto; border-radius: 0.5rem; background: #f1f5f9; padding: 0.75rem; font-size: 0.75rem; line-height: 1.5; }
+    #tag-preview-body code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    #tag-preview-body :not(pre) > code { background: #f1f5f9; padding: 0.125rem 0.25rem; border-radius: 0.25rem; }
+    #tag-preview-body blockquote { margin: 0.75rem 0; border-left: 3px solid #cbd5e1; padding-left: 0.75rem; color: #475569; }
+    #tag-preview-body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8125rem; }
+    #tag-preview-body th, #tag-preview-body td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
+    #tag-preview-body th { background: #f8fafc; font-weight: 600; }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/js/ui-combobox.js"></script>
+  <script src="/js/ui-multiselect.js"></script>
+  <script>
+    (function () {
+      var tbody = document.getElementById("tag-tbody");
+      var emptyEl = document.getElementById("tag-empty");
+      var errEl = document.getElementById("tag-error");
+      var countEl = document.getElementById("tag-count");
+      var paginationEl = document.getElementById("tag-pagination");
+      var pageInfoEl = document.getElementById("tag-page-info");
+      var pageSizeEl = document.getElementById("tag-page-size");
+      var prevBtn = document.getElementById("tag-btn-prev");
+      var nextBtn = document.getElementById("tag-btn-next");
+      /** 与 wikiAgent 一致：wiki_base 分类（API 失败时作兜底） */
+      var WIKI_CATEGORIES = [
+        { id: "1", label: "大陆清算" },
+        { id: "2", label: "大陆资金" },
+        { id: "3", label: "大陆账户" },
+        { id: "4", label: "大陆支付" },
+        { id: "5", label: "海外清算" },
+        { id: "6", label: "海外资金" },
+        { id: "7", label: "海外账户" },
+        { id: "8", label: "海外支付" },
+        { id: "9", label: "海外中台" },
+        { id: "10", label: "电子签名" },
+      ];
+      var tagWikiCategoryLabels = { "": "请选择" };
+      var tagWikiGitRepos = [];
+      var tagWikiCategoryCombo = null;
+      var tagWikiGitLoadingEl = document.getElementById("tag-wiki-git-loading");
+      var tagWikiGitErrorEl = document.getElementById("tag-wiki-git-error");
+      var tagWikiGitPreviewEl = document.getElementById("tag-wiki-git-preview");
+      var tagWikiGitListEl = document.getElementById("tag-wiki-git-list");
+      var tagWikiGitHintEl = document.getElementById("tag-wiki-git-hint");
+      var tagGitBranchEl = document.getElementById("tag-git-branch");
+      var tagGitUrlEl = document.getElementById("tag-git-url");
+      var tagGitCatalogHintEl = document.getElementById("tag-git-catalog-hint");
+      var tagLabelIdsOptionsEl = document.getElementById("tag-labelIds-options");
+      var tagLabelIdsSearchEl = document.getElementById("tag-labelIds-search");
+      var tagLabelIdsSearchTimer = null;
+      /** findPage `list[].id` → title，供多选标签展示 */
+      var tagLabelTitleMap = {};
+      var tagWikiGitSectionEl = document.getElementById("tag-wiki-git-section");
+      var tagManualGitSectionEl = document.getElementById("tag-manual-git-section");
+      var tagQaScriptSectionEl = document.getElementById("tag-qa-script-section");
+      var tagQaAppListEl = document.getElementById("tag-new-qaApp-listbox");
+      var tagQaVersionListEl = document.getElementById("tag-new-qaVersion-listbox");
+      var tagQaApiPathListEl = document.getElementById("tag-new-qaApiPath-listbox");
+      var tagQaVersionLabels = { "": "请选择" };
+      var tagQaApiPathLabels = { "": "请选择" };
+      /** 接口路径 value → scriptId */
+      var tagQaApiPathScriptMap = {};
+      var tagQaAppCombo = null;
+      var tagQaVersionCombo = null;
+      var tagQaApiPathCombo = null;
+      var tagLabelIdsCombo = null;
+      var tagPage = 1;
+      var tagTotal = 0;
+      var tagTotalPages = 0;
+      var tagQueried = false;
+
+      /** 与 `src/constants/testCaseAdoptionRateParamKey.ts` 一致 */
+      var TEST_CASE_ADOPTION_RATE_PARAM_KEY = "TestCaseAdoptionRate";
+
+      /** 与 `src/constants/taskStatus.ts` 一致 */
+      var TASK_STATUS_COMPLETED = 3;
+      var TASK_STATUS_PAUSED = 5;
+
+      var tagQueryTaskTypeLabels = {
+        "5": "测试案例编排",
+        "6": "自动化测试",
+      };
+      /** 与 `src/constants/taskType.ts` 一致（ai_out 子目录名） */
+      var tagWorkflowTaskTypeLabels = {
+        0: "设计",
+        1: "开发",
+        2: "开发规范优化",
+        3: "测试预分析",
+        4: "测试案例设计",
+        5: "测试数据分析",
+        6: "测试案例执行",
+        7: "QA平台测试脚本生成",
+        8: "Code Review",
+        9: "拆分故事",
+        10: "头脑风暴",
+        11: "AI拆分故事",
+        12: "UI测试执行",
+        13: "沉淀记忆",
+        20: "功能测试用例生成",
+        21: "自动化用例生成",
+        22: "测试脑图分析",
+        101: "测试环境发布",
+        102: "部署间隔等待",
+        103: "测试环境发布结果",
+      };
+      window.UiMultiselect.attach(document.getElementById("tag-taskType-root"), {
+        labelMap: tagQueryTaskTypeLabels,
+        emptyLabel: "全部类型",
+      });
+      var tagNewTaskTypeCombo = window.UiCombobox.attach(document.getElementById("tag-new-taskType-root"), {
+        onChange: function () {
+          updateNewFormRequiredState();
+          if (usesQaScriptFields(document.getElementById("tag-new-taskType").value)) {
+            loadQaAppList();
+            loadQaLabelList(tagLabelIdsSearchEl ? tagLabelIdsSearchEl.value : "");
+          }
+        },
+      });
+      var tagProviderCombo = window.UiCombobox.attach(document.getElementById("tag-new-provider-root"));
+      tagQaAppCombo = window.UiCombobox.attach(document.getElementById("tag-new-qaApp-root"), {
+        filterable: true,
+        filterPlaceholder: "搜索应用",
+        onChange: function (appName) {
+          resetQaVersionAndApiPath();
+          if (appName) loadQaVersionList(appName);
+          /** 先选应用名称 → 匹配仓库地址并赋值 */
+          applyGitUrlFromQaApp(appName);
+        },
+      });
+      tagQaVersionCombo = window.UiCombobox.attach(document.getElementById("tag-new-qaVersion-root"), {
+        filterable: true,
+        filterPlaceholder: "搜索版本",
+        labelMap: tagQaVersionLabels,
+        onChange: function (version) {
+          resetQaApiPathOnly();
+          var appName = tagQaAppCombo ? tagQaAppCombo.getValue().trim() : "";
+          if (appName && version) loadQaApiPathList(appName, version, "");
+        },
+      });
+      tagQaApiPathCombo = window.UiCombobox.attach(document.getElementById("tag-new-qaApiPath-root"), {
+        filterable: true,
+        filterPlaceholder: "搜索接口路径",
+        labelMap: tagQaApiPathLabels,
+        onChange: function (apiPath) {
+          syncQaScriptIdFromApiPath(apiPath);
+        },
+      });
+      tagLabelIdsCombo = window.UiMultiselect.attach(document.getElementById("tag-new-labelIds-root"), {
+        emptyLabel: "请选择标签",
+        labelMap: tagLabelTitleMap,
+      });
+      if (tagLabelIdsSearchEl) {
+        tagLabelIdsSearchEl.addEventListener("input", function () {
+          clearTimeout(tagLabelIdsSearchTimer);
+          tagLabelIdsSearchTimer = setTimeout(function () {
+            loadQaLabelList(tagLabelIdsSearchEl.value);
+          }, 300);
+        });
+        tagLabelIdsSearchEl.addEventListener("click", function (e) {
+          e.stopPropagation();
+        });
+      }
+      tagWikiCategoryCombo = window.UiCombobox.attach(document.getElementById("tag-new-wikiCategory-root"), {
+        labelMap: tagWikiCategoryLabels,
+        filterable: true,
+        filterPlaceholder: "搜索仓库 ID",
+        onChange: function (categoryId) {
+          loadWikiCategoryGitRepos(categoryId);
+        },
+      });
+      var tagPageSizeCombo = window.UiCombobox.attach(document.getElementById("tag-page-size-root"), {
+        onChange: function () {
+          runTagQuery(true);
+        },
+      });
+
+      function tagBase() {
+        return window.location.origin;
+      }
+
+      /** 新标签打开父任务工作流页（GET /dev-agent/parent-flow） */
+      function openParentFlowInNewTab(pid) {
+        if (!pid) return;
+        var apiBase = tagBase();
+        var pageOrigin = window.location.origin;
+        var u =
+          pageOrigin +
+          "/dev-agent/parent-flow?pid=" +
+          encodeURIComponent(pid);
+        if (apiBase && apiBase !== pageOrigin) {
+          u += "&base=" + encodeURIComponent(apiBase);
+        }
+        window.open(u, "_blank", "noopener,noreferrer");
+      }
+
+      /** 与管理台 Keycloak 脚本写入的 `localStorage.userName` 一致，用作任务创建人（HTTPS 克隆用户名）。 */
+      function tagCurrentLoginUser() {
+        try {
+          var u = window.localStorage.getItem("userName");
+          return u && String(u).trim() ? String(u).trim() : "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function fmtTime(ms) {
+        try {
+          return new Date(ms).toLocaleString();
+        } catch (e) {
+          return String(ms);
+        }
+      }
+
+      function esc(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      /** 父任务 Agent 类型（与 tasks.task_type 子任务类型独立） */
+      function parentAgentTypeLabel(code) {
+        var n = Number(code);
+        if (n === 1) return "开发自测Agent";
+        if (n === 2) return "开发自Review Agent";
+        if (n === 3) return "功能测试Agent";
+        if (n === 4) return "业务Agent";
+        if (n === 5) return "测试案例编排Agent";
+        if (n === 6) return "自动化测试Agent";
+        return String(code ?? "");
+      }
+
+      /** 任务类型 1/2/3/5/6 时需填写 git、分支（4 业务 Agent 不强制） */
+      function isDevAgentParentTaskType(taskType) {
+        var n = Number(taskType);
+        return n === 1 || n === 2 || n === 3 || n === 5 || n === 6;
+      }
+
+      /** 测试环境必填：类型 1/3/5/6；类型 2（开发自Review）可选 */
+      function isTestEnvRequired(taskType) {
+        var n = Number(taskType);
+        return n === 1 || n === 3 || n === 5 || n === 6;
+      }
+
+      /** 仓库 ID（testScriptRepo）必填：仅类型 5 */
+      function isTestScriptRepoRequired(taskType) {
+        return Number(taskType) === 5;
+      }
+
+      /** 类型 5（及 1/2/3）：通过 wiki_base 仓库 ID 加载 git */
+      function usesWikiCategoryGit(taskType) {
+        var n = Number(taskType);
+        return n === 5 || n === 1 || n === 2 || n === 3;
+      }
+
+      /** 类型 6：手动填写 git 地址与分支，并选择 QA 脚本 */
+      function usesManualGitRepos(taskType) {
+        return Number(taskType) === 6;
+      }
+
+      /** 类型 6：QA 应用 / 版本 / 接口路径（对齐 common-ai-task-content taskType=8） */
+      function usesQaScriptFields(taskType) {
+        return Number(taskType) === 6;
+      }
+
+      /** 去掉 Git 远程地址末尾的 .git（仅去尾部一次，不改动路径中间） */
+      function normalizeGitRemoteUrl(url) {
+        var s = String(url || "").trim();
+        if (!s) return "";
+        return s.replace(/\.git\/?$/i, "");
+      }
+
+      /** 按任务类型切换 wiki / 手动 git 区块与必填星号 */
+      function updateNewFormRequiredState() {
+        var taskType = document.getElementById("tag-new-taskType").value;
+        var wikiMode = usesWikiCategoryGit(taskType);
+        var manualMode = usesManualGitRepos(taskType);
+        var qaMode = usesQaScriptFields(taskType);
+        var testEnvRequired = isTestEnvRequired(taskType);
+        var testEnvEl = document.getElementById("tag-new-testEnv");
+        if (testEnvRequired) testEnvEl.setAttribute("required", "required");
+        else testEnvEl.removeAttribute("required");
+        if (tagWikiGitSectionEl) tagWikiGitSectionEl.classList.toggle("hidden", !wikiMode);
+        if (tagManualGitSectionEl) tagManualGitSectionEl.classList.toggle("hidden", !manualMode);
+        if (tagQaScriptSectionEl) tagQaScriptSectionEl.classList.toggle("hidden", !qaMode);
+        var gitReqEl = document.getElementById("tag-req-git");
+        if (gitReqEl) gitReqEl.classList.toggle("hidden", !wikiMode);
+        var manualGitReqEl = document.getElementById("tag-req-manual-git");
+        if (manualGitReqEl) manualGitReqEl.classList.toggle("hidden", !manualMode);
+        var qaReqIds = ["tag-req-qaApp", "tag-req-qaVersion", "tag-req-qaApiPath"];
+        qaReqIds.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.classList.toggle("hidden", !qaMode);
+        });
+        var testEnvReqEl = document.getElementById("tag-req-testEnv");
+        if (testEnvReqEl) testEnvReqEl.classList.toggle("hidden", !testEnvRequired);
+      }
+
+      /** 设置单组仓库与分支（界面仅一组，提交仍为 gitRepos 数组） */
+      function setGitRepos(repos) {
+        var pair =
+          Array.isArray(repos) && repos.length
+            ? repos.find(function (p) {
+                return p && (String(p.gitRemoteUrl || "").trim() || String(p.branch_version || "").trim());
+              }) || repos[0]
+            : null;
+        if (tagGitBranchEl) tagGitBranchEl.value = pair ? String(pair.branch_version || "").trim() : "";
+        if (tagGitUrlEl) {
+          tagGitUrlEl.value = pair ? normalizeGitRemoteUrl(pair.gitRemoteUrl) : "";
+        }
+        setGitCatalogHint("");
+      }
+
+      function collectGitRepos() {
+        var branch = tagGitBranchEl ? tagGitBranchEl.value.trim() : "";
+        var url = tagGitUrlEl ? normalizeGitRemoteUrl(tagGitUrlEl.value) : "";
+        if (!branch && !url) return { repos: [] };
+        if (!branch || !url) {
+          return { error: "请同时填写 git 地址与分支。" };
+        }
+        return { repos: [{ gitRemoteUrl: url, branch_version: branch }] };
+      }
+
+      function applyGitReposToInputs(repos) {
+        setGitRepos(repos.length ? repos : []);
+      }
+
+      function setGitCatalogHint(text, isError) {
+        if (!tagGitCatalogHintEl) return;
+        if (!text) {
+          tagGitCatalogHintEl.classList.add("hidden");
+          tagGitCatalogHintEl.textContent = "";
+          return;
+        }
+        tagGitCatalogHintEl.textContent = text;
+        tagGitCatalogHintEl.classList.remove("hidden");
+        tagGitCatalogHintEl.classList.toggle("text-red-600", !!isError);
+        tagGitCatalogHintEl.classList.toggle("text-blue-600", !isError);
+      }
+
+      function qaAppOptionExists(value) {
+        if (!tagQaAppListEl || !value) return false;
+        var opts = tagQaAppListEl.querySelectorAll("[data-value]");
+        for (var i = 0; i < opts.length; i++) {
+          if (opts[i].getAttribute("data-value") === value) return true;
+        }
+        return false;
+      }
+
+      function ensureQaAppOption(value, label) {
+        if (!tagQaAppListEl || !value || qaAppOptionExists(value)) return;
+        var opt = document.createElement("div");
+        opt.setAttribute("role", "option");
+        opt.setAttribute("data-value", value);
+        opt.className = "ui-combobox-opt";
+        opt.textContent = label || value;
+        tagQaAppListEl.appendChild(opt);
+      }
+
+      /** 按 git 地址在 appCatalog 中反查并填充应用名称 */
+      function applyAppCatalogFromGitUrl() {
+        if (!usesQaScriptFields(document.getElementById("tag-new-taskType").value)) return;
+        var url = tagGitUrlEl ? normalizeGitRemoteUrl(tagGitUrlEl.value) : "";
+        if (!url) {
+          setGitCatalogHint("");
+          return;
+        }
+        fetch(tagBase() + "/api/app-catalog/lookup-by-git?gitRemoteUrl=" + encodeURIComponent(url))
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              setGitCatalogHint("应用目录查询失败 " + res.status, true);
+              return;
+            }
+            var matches = Array.isArray(res.body.matches) ? res.body.matches : [];
+            if (!matches.length) {
+              setGitCatalogHint("未在应用目录中匹配到该仓库地址", true);
+              return;
+            }
+            var currentApp = tagQaAppCombo ? tagQaAppCombo.getValue().trim() : "";
+            var pick = null;
+            if (matches.length === 1) {
+              pick = matches[0];
+            } else if (currentApp) {
+              for (var i = 0; i < matches.length; i++) {
+                var m = matches[i];
+                if (m.repoId === currentApp || m.appKey === currentApp) {
+                  pick = m;
+                  break;
+                }
+              }
+            }
+            if (!pick) pick = matches[0];
+            var hint =
+              matches.length > 1
+                ? "该地址对应多个应用（" +
+                  matches
+                    .map(function (item) {
+                      return item.repoId;
+                    })
+                    .join("、") +
+                  "），已选用 " +
+                  pick.repoId
+                : "已匹配应用目录：" + pick.repoId + "（" + pick.category + "）";
+            setGitCatalogHint(hint, false);
+            var shouldSetApp =
+              !currentApp ||
+              matches.length === 1 ||
+              !matches.some(function (item) {
+                return item.repoId === currentApp || item.appKey === currentApp;
+              });
+            if (!shouldSetApp) return;
+            return loadQaAppList().then(function () {
+              ensureQaAppOption(pick.repoId, pick.repoId);
+              if (tagQaAppCombo) {
+                tagQaAppCombo.setValue(pick.repoId, { notify: true });
+                tagQaAppCombo.sync();
+              }
+            });
+          })
+          .catch(function (err) {
+            setGitCatalogHint("应用目录查询失败: " + err.message, true);
+          });
+      }
+
+      /** 应用目录缓存（供「应用名称 → 仓库地址」正向匹配，带缓存） */
+      var tagAppCatalogCache = null;
+
+      function loadTagAppCatalog() {
+        if (tagAppCatalogCache) return Promise.resolve(tagAppCatalogCache);
+        return fetch(tagBase() + "/api/app-catalog/apps")
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            tagAppCatalogCache = j && Array.isArray(j.apps) ? j.apps : [];
+            return tagAppCatalogCache;
+          })
+          .catch(function () {
+            return [];
+          });
+      }
+
+      /** 在应用目录中按应用名（repoId / appKey，忽略大小写）匹配 */
+      function findAppInCatalog(apps, appName) {
+        if (!appName) return null;
+        var lower = String(appName).trim().toLowerCase();
+        for (var i = 0; i < (apps || []).length; i++) {
+          var item = apps[i];
+          if (!item) continue;
+          if (String(item.repoId || "").toLowerCase() === lower) return item;
+          if (String(item.appKey || "").toLowerCase() === lower) return item;
+        }
+        return null;
+      }
+
+      /** 新增父任务：先选应用名称 → 根据应用名匹配仓库地址 → 匹配中则赋值 */
+      function applyGitUrlFromQaApp(appName) {
+        if (!usesQaScriptFields(document.getElementById("tag-new-taskType").value)) return;
+        var app = appName != null ? String(appName).trim() : "";
+        if (!app) {
+          setGitCatalogHint("");
+          return;
+        }
+        loadTagAppCatalog().then(function (apps) {
+          var match = findAppInCatalog(apps, app);
+          if (!match || !match.gitlabUrl) {
+            /** QA 平台应用未必都在应用目录中，未匹配时不报错、仅清提示 */
+            setGitCatalogHint("");
+            return;
+          }
+          var gitUrl = normalizeGitRemoteUrl(match.gitlabUrl);
+          var current = tagGitUrlEl ? normalizeGitRemoteUrl(tagGitUrlEl.value) : "";
+          if (!current) {
+            /** 当前仓库地址为空时自动赋值 */
+            if (tagGitUrlEl) tagGitUrlEl.value = gitUrl;
+          } else if (current !== gitUrl) {
+            /** 已有不同地址：提示已匹配结果，不覆盖用户已填内容 */
+            setGitCatalogHint("该应用对应仓库：" + gitUrl + "（当前已填其他地址，未覆盖）", false);
+            return;
+          }
+          setGitCatalogHint("已根据应用「" + app + "」匹配仓库：" + gitUrl, false);
+        });
+      }
+
+      function normalizeQaAppItem(item) {
+        if (typeof item === "string") {
+          var s = item.trim();
+          return s || "";
+        }
+        if (item && typeof item === "object") {
+          var v =
+            item.appName != null
+              ? item.appName
+              : item.name != null
+                ? item.name
+                : item.value != null
+                  ? item.value
+                  : item.label;
+          if (v != null && String(v).trim()) return String(v).trim();
+        }
+        return "";
+      }
+
+      function fillQaComboboxList(listEl, items, emptyLabel) {
+        if (!listEl) return;
+        var html = '<div role="option" data-value="" class="ui-combobox-opt">' + esc(emptyLabel || "请选择") + "</div>";
+        (items || []).forEach(function (item) {
+          html +=
+            '<div role="option" data-value="' +
+            esc(item.value) +
+            '" class="ui-combobox-opt">' +
+            esc(item.label) +
+            "</div>";
+        });
+        listEl.innerHTML = html;
+      }
+
+      function resetQaApiPathOnly() {
+        tagQaApiPathLabels = { "": "请选择" };
+        tagQaApiPathScriptMap = {};
+        if (tagQaApiPathCombo) {
+          tagQaApiPathCombo.setValue("");
+          fillQaComboboxList(tagQaApiPathListEl, [], "请选择");
+          tagQaApiPathCombo.sync();
+        }
+        var scriptEl = document.getElementById("tag-new-qaScriptId");
+        if (scriptEl) scriptEl.value = "";
+      }
+
+      function resetQaVersionAndApiPath() {
+        tagQaVersionLabels = { "": "请选择" };
+        if (tagQaVersionCombo) {
+          tagQaVersionCombo.setValue("");
+          fillQaComboboxList(tagQaVersionListEl, [], "请选择");
+          tagQaVersionCombo.sync();
+        }
+        resetQaApiPathOnly();
+      }
+
+      function resetQaScriptFields() {
+        if (tagQaAppCombo) {
+          tagQaAppCombo.setValue("");
+          fillQaComboboxList(tagQaAppListEl, [], "请选择");
+          tagQaAppCombo.sync();
+        }
+        resetQaVersionAndApiPath();
+        resetLabelIdsFields();
+      }
+
+      function resetLabelIdsFields() {
+        if (tagLabelIdsSearchEl) tagLabelIdsSearchEl.value = "";
+        if (tagLabelIdsCombo) tagLabelIdsCombo.setValue("");
+        Object.keys(tagLabelTitleMap).forEach(function (k) {
+          delete tagLabelTitleMap[k];
+        });
+        fillLabelIdsOptions([], []);
+      }
+
+      function fillLabelIdsOptions(rows, selectedIds) {
+        if (!tagLabelIdsOptionsEl) return;
+        var selectedSet = {};
+        (selectedIds || []).forEach(function (id) {
+          var key = String(id);
+          if (key) selectedSet[key] = true;
+        });
+        var seen = {};
+        var merged = [];
+        (selectedIds || []).forEach(function (id) {
+          var key = String(id);
+          if (!key || seen[key]) return;
+          seen[key] = true;
+          merged.push({ id: key, title: tagLabelTitleMap[key] || key });
+        });
+        (rows || []).forEach(function (row) {
+          if (!row || row.id == null) return;
+          var key = String(row.id);
+          var title = row.title != null ? String(row.title).trim() : key;
+          if (!key || seen[key]) return;
+          seen[key] = true;
+          tagLabelTitleMap[key] = title;
+          merged.push({ id: key, title: title });
+        });
+        if (!merged.length) {
+          tagLabelIdsOptionsEl.innerHTML =
+            '<p class="px-3 py-2 text-xs text-slate-500">无匹配标签，请调整搜索关键字</p>';
+          return;
+        }
+        var html = "";
+        merged.forEach(function (row) {
+          var checked = selectedSet[row.id] ? " checked" : "";
+          html +=
+            '<label class="ui-multiselect-opt" data-value="' +
+            esc(row.id) +
+            '"><input type="checkbox" data-value="' +
+            esc(row.id) +
+            '"' +
+            checked +
+            " /><span>" +
+            esc(row.title) +
+            "</span></label>";
+        });
+        tagLabelIdsOptionsEl.innerHTML = html;
+      }
+
+      function loadQaLabelList(titleKeyword) {
+        if (!tagLabelIdsOptionsEl) return Promise.resolve();
+        var selected = tagLabelIdsCombo ? tagLabelIdsCombo.getValues() : [];
+        tagLabelIdsOptionsEl.innerHTML = '<p class="px-3 py-2 text-xs text-slate-500">加载中…</p>';
+        var body = { pageNum: 1, pageSize: 100, data: {} };
+        var kw = (titleKeyword || "").trim();
+        if (kw) body.data.title = kw;
+        return fetch(tagBase() + "/qa/label/findPage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok || res.body.code !== 200) {
+              fillLabelIdsOptions([], selected);
+              if (tagLabelIdsCombo) {
+                tagLabelIdsCombo.setValue(selected.join(","));
+                tagLabelIdsCombo.sync();
+              }
+              return;
+            }
+            var payload = res.body.data;
+            var list =
+              payload && Array.isArray(payload.list)
+                ? payload.list
+                : Array.isArray(payload)
+                  ? payload
+                  : [];
+            var rows = [];
+            list.forEach(function (row) {
+              if (!row || row.id == null) return;
+              rows.push({ id: row.id, title: row.title });
+            });
+            fillLabelIdsOptions(rows, selected);
+            if (tagLabelIdsCombo) {
+              tagLabelIdsCombo.setValue(selected.join(","));
+              tagLabelIdsCombo.sync();
+            }
+          })
+          .catch(function () {
+            fillLabelIdsOptions([], selected);
+            if (tagLabelIdsCombo) {
+              tagLabelIdsCombo.setValue(selected.join(","));
+              tagLabelIdsCombo.sync();
+            }
+          });
+      }
+
+      function setLabelIds(ids) {
+        var selected = Array.isArray(ids)
+          ? ids
+              .map(function (id) {
+                return String(id);
+              })
+              .filter(function (s) {
+                return s && Number.isFinite(Number(s)) && Number(s) > 0;
+              })
+          : [];
+        if (tagLabelIdsCombo) tagLabelIdsCombo.setValue(selected.join(","));
+        return loadQaLabelList(tagLabelIdsSearchEl ? tagLabelIdsSearchEl.value : "");
+      }
+
+      function collectLabelIds() {
+        if (!tagLabelIdsCombo) return [];
+        var seen = {};
+        var out = [];
+        tagLabelIdsCombo.getValues().forEach(function (v) {
+          var n = Number(v);
+          if (!Number.isFinite(n) || n <= 0 || seen[n]) return;
+          seen[n] = true;
+          out.push(n);
+        });
+        return out;
+      }
+
+      function syncQaScriptIdFromApiPath(apiPath) {
+        var scriptEl = document.getElementById("tag-new-qaScriptId");
+        if (!scriptEl) return;
+        var key = (apiPath || "").trim();
+        scriptEl.value = key && tagQaApiPathScriptMap[key] ? String(tagQaApiPathScriptMap[key]) : "";
+      }
+
+      function loadQaAppList() {
+        if (!tagQaAppListEl) return Promise.resolve(0);
+        fillQaComboboxList(tagQaAppListEl, [], "加载中…");
+        if (tagQaAppCombo) {
+          tagQaAppCombo.setValue("");
+          tagQaAppCombo.sync();
+        }
+        return fetch(tagBase() + "/qa/findAllAppInfo")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok || res.body.code !== 200) {
+              fillQaComboboxList(tagQaAppListEl, [], "请选择");
+              if (tagQaAppCombo) tagQaAppCombo.sync();
+              return 0;
+            }
+            var seen = {};
+            var items = [];
+            (Array.isArray(res.body.data) ? res.body.data : []).forEach(function (row) {
+              var val = normalizeQaAppItem(row);
+              if (!val || seen[val]) return;
+              seen[val] = true;
+              items.push({ value: val, label: val });
+            });
+            fillQaComboboxList(tagQaAppListEl, items, "请选择");
+            if (tagQaAppCombo) tagQaAppCombo.sync();
+            return items.length;
+          })
+          .catch(function () {
+            fillQaComboboxList(tagQaAppListEl, [], "请选择");
+            if (tagQaAppCombo) tagQaAppCombo.sync();
+            return 0;
+          });
+      }
+
+      function loadQaVersionList(appName) {
+        if (!appName || !tagQaVersionListEl) return Promise.resolve();
+        fillQaComboboxList(tagQaVersionListEl, [], "加载中…");
+        if (tagQaVersionCombo) tagQaVersionCombo.sync();
+        return fetch(
+          tagBase() + "/qa/getVersionAndArchiveStatusListByApp?appName=" + encodeURIComponent(appName),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            tagQaVersionLabels = { "": "请选择" };
+            var items = [];
+            if (res.ok && res.body.code === 200 && Array.isArray(res.body.data)) {
+              res.body.data.forEach(function (row) {
+                if (!row) return;
+                var val = row.value != null ? String(row.value).trim() : "";
+                var label = row.label != null ? String(row.label).trim() : val;
+                if (!val) return;
+                tagQaVersionLabels[val] = label || val;
+                items.push({ value: val, label: label || val });
+              });
+            }
+            fillQaComboboxList(tagQaVersionListEl, items, "请选择");
+            if (tagQaVersionCombo) tagQaVersionCombo.sync();
+          })
+          .catch(function () {
+            fillQaComboboxList(tagQaVersionListEl, [], "请选择");
+            if (tagQaVersionCombo) tagQaVersionCombo.sync();
+          });
+      }
+
+      function loadQaApiPathList(appName, qaVersion, apiPathKeyword) {
+        if (!appName || !qaVersion || !tagQaApiPathListEl) return Promise.resolve();
+        fillQaComboboxList(tagQaApiPathListEl, [], "加载中…");
+        if (tagQaApiPathCombo) tagQaApiPathCombo.sync();
+        var pageNum = 1;
+        var pageSize = 200;
+        return fetch(tagBase() + "/qa/getScriptList", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pageNum: pageNum,
+            pageSize: pageSize,
+            history: true,
+            data: {
+              appName: appName,
+              version: qaVersion,
+              apiPath: apiPathKeyword || "",
+              pageNum: pageNum,
+              pageSize: pageSize,
+            },
+          }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            tagQaApiPathLabels = { "": "请选择" };
+            tagQaApiPathScriptMap = {};
+            var items = [];
+            if (res.ok && res.body.code === 200) {
+              var rawPayload = res.body.data;
+              var qaResult = rawPayload;
+              if (typeof rawPayload === "string") {
+                try {
+                  qaResult = JSON.parse(rawPayload);
+                } catch (e) {
+                  qaResult = null;
+                }
+              }
+              var list = (qaResult && qaResult.data && qaResult.data.list) || [];
+              list.forEach(function (item) {
+                if (!item || !item.apiPath) return;
+                var val = String(item.apiPath).trim();
+                if (!val) return;
+                var title = item.title ? String(item.title) : "";
+                var protocol = item.apiProtocol ? String(item.apiProtocol) : "";
+                var label = val;
+                if (title) label += " (" + title + (protocol ? " | " + protocol : "") + ")";
+                var scriptId = item.scriptId != null ? item.scriptId : item.id;
+                if (scriptId != null && scriptId !== "") tagQaApiPathScriptMap[val] = String(scriptId);
+                tagQaApiPathLabels[val] = label;
+                items.push({ value: val, label: label });
+              });
+            }
+            fillQaComboboxList(tagQaApiPathListEl, items, "请选择");
+            if (tagQaApiPathCombo) tagQaApiPathCombo.sync();
+          })
+          .catch(function () {
+            fillQaComboboxList(tagQaApiPathListEl, [], "请选择");
+            if (tagQaApiPathCombo) tagQaApiPathCombo.sync();
+          });
+      }
+
+      /** 从父任务详情（含 tasks）解析 QA scriptId */
+      function getScriptId(parentTaskDetail) {
+        return parseFirstTaskInputFields(parentTaskDetail).scriptId || "";
+      }
+
+      /** 复制父任务时从首条子任务 input_json 解析 QA 字段 */
+      function parseFirstTaskInputFields(copyFrom) {
+        var empty = { app: "", qaVersion: "", qaApiPath: "", scriptId: "", labelIds: [] };
+        if (!copyFrom || !copyFrom.tasks || !copyFrom.tasks.length) return empty;
+        var raw = copyFrom.tasks[0].input_json;
+        if (!raw) return empty;
+        try {
+          var o = JSON.parse(raw);
+          if (typeof o !== "object" || o === null || Array.isArray(o)) return empty;
+          return {
+            app: typeof o.app === "string" ? o.app.trim() : "",
+            qaVersion: typeof o.qaVersion === "string" ? o.qaVersion.trim() : "",
+            qaApiPath: typeof o.qaApiPath === "string" ? o.qaApiPath.trim() : "",
+            scriptId: o.scriptId != null ? String(o.scriptId).trim() : "",
+            labelIds: Array.isArray(o.labelIds)
+              ? o.labelIds
+                  .map(function (item) {
+                    var n = typeof item === "number" ? item : Number(String(item).trim());
+                    return Number.isFinite(n) && n > 0 ? n : 0;
+                  })
+                  .filter(function (n) {
+                    return n > 0;
+                  })
+              : [],
+          };
+        } catch (e) {
+          return empty;
+        }
+      }
+
+      function restoreQaScriptFieldsFromCopy(qaFields) {
+        if (!qaFields || !qaFields.app) return Promise.resolve();
+        return loadQaAppList().then(function () {
+          if (tagQaAppCombo) tagQaAppCombo.setValue(qaFields.app);
+          return loadQaVersionList(qaFields.app).then(function () {
+            if (qaFields.qaVersion && tagQaVersionCombo) tagQaVersionCombo.setValue(qaFields.qaVersion);
+            return loadQaApiPathList(qaFields.app, qaFields.qaVersion, "").then(function () {
+              if (qaFields.qaApiPath && tagQaApiPathCombo) {
+                tagQaApiPathCombo.setValue(qaFields.qaApiPath);
+                syncQaScriptIdFromApiPath(qaFields.qaApiPath);
+              }
+              if (!document.getElementById("tag-new-qaScriptId").value && qaFields.scriptId) {
+                document.getElementById("tag-new-qaScriptId").value = qaFields.scriptId;
+              }
+              setLabelIds(qaFields.labelIds || []);
+            });
+          });
+        });
+      }
+
+      function wikiCategoryLabel(id) {
+        for (var i = 0; i < WIKI_CATEGORIES.length; i++) {
+          if (WIKI_CATEGORIES[i].id === id) return WIKI_CATEGORIES[i].id + " — " + WIKI_CATEGORIES[i].label;
+        }
+        return id ? String(id) : "请选择";
+      }
+
+      function populateWikiCategoryOptions(categories) {
+        var listbox = document.getElementById("tag-new-wikiCategory-listbox");
+        if (!listbox) return;
+        tagWikiCategoryLabels = { "": "请选择" };
+        var html = '<div role="option" data-value="" class="ui-combobox-opt">请选择</div>';
+        (categories || []).forEach(function (c) {
+          if (!c || !c.id) return;
+          var label = wikiCategoryLabel(c.id);
+          tagWikiCategoryLabels[c.id] = label;
+          html +=
+            '<div role="option" data-value="' +
+            esc(c.id) +
+            '" class="ui-combobox-opt">' +
+            esc(label) +
+            "</div>";
+        });
+        listbox.innerHTML = html;
+        if (tagWikiCategoryCombo) tagWikiCategoryCombo.sync();
+      }
+
+      function loadWikiCategories() {
+        fetch(tagBase() + "/api/wiki-base/categories")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            var cats =
+              res.ok && res.body && res.body.categories
+                ? res.body.categories
+                : WIKI_CATEGORIES.map(function (c) {
+                    return { id: c.id, label: c.label };
+                  });
+            populateWikiCategoryOptions(cats);
+          })
+          .catch(function () {
+            populateWikiCategoryOptions(WIKI_CATEGORIES);
+          });
+      }
+
+      /** 从文档源 API 响应中提取全部 gitRepos，分支固定 master */
+      function gitReposFromWikiSourceBody(body) {
+        var codeRepos =
+          body && Array.isArray(body.code_repos)
+            ? body.code_repos
+            : body && body.code_repo
+              ? [body.code_repo]
+              : [];
+        var gitRepos = [];
+        var seen = {};
+        for (var i = 0; i < codeRepos.length; i++) {
+          var row = codeRepos[i];
+          if (!row) continue;
+          var gitRemoteUrl = normalizeGitRemoteUrl(row.gitRemoteUrl);
+          if (!gitRemoteUrl) continue;
+          var key = gitRemoteUrl.toLowerCase();
+          if (seen[key]) continue;
+          seen[key] = true;
+          gitRepos.push({ gitRemoteUrl: gitRemoteUrl, branch_version: "master" });
+        }
+        return gitRepos;
+      }
+
+      function setWikiGitLoading(loading) {
+        if (tagWikiGitLoadingEl) tagWikiGitLoadingEl.classList.toggle("hidden", !loading);
+      }
+
+      function setWikiGitError(msg) {
+        if (!tagWikiGitErrorEl) return;
+        if (!msg) {
+          tagWikiGitErrorEl.textContent = "";
+          tagWikiGitErrorEl.classList.add("hidden");
+          return;
+        }
+        tagWikiGitErrorEl.textContent = msg;
+        tagWikiGitErrorEl.classList.remove("hidden");
+      }
+
+      function renderWikiGitPreview(repos) {
+        if (!tagWikiGitPreviewEl || !tagWikiGitListEl) return;
+        if (!repos || !repos.length) {
+          tagWikiGitPreviewEl.classList.add("hidden");
+          tagWikiGitListEl.innerHTML = "";
+          if (tagWikiGitHintEl) tagWikiGitHintEl.classList.remove("hidden");
+          return;
+        }
+        tagWikiGitListEl.innerHTML = repos
+          .map(function (r, idx) {
+            return (
+              '<li class="break-all font-mono"><span class="text-slate-500">代码库 ' +
+              (idx + 1) +
+              " · master · </span>" +
+              esc(r.gitRemoteUrl) +
+              "</li>"
+            );
+          })
+          .join("");
+        tagWikiGitPreviewEl.classList.remove("hidden");
+        if (tagWikiGitHintEl) tagWikiGitHintEl.classList.add("hidden");
+      }
+
+      function resetWikiCategoryGitState() {
+        if (tagWikiCategoryCombo) tagWikiCategoryCombo.setValue("");
+        tagWikiGitRepos = [];
+        renderWikiGitPreview([]);
+        setWikiGitError("");
+        setWikiGitLoading(false);
+      }
+
+      /** 按 wiki_base 分类 ID 加载文档源中的全部代码库地址 */
+      function loadWikiCategoryGitRepos(categoryId) {
+        tagWikiGitRepos = [];
+        renderWikiGitPreview([]);
+        if (!categoryId) {
+          setWikiGitError("");
+          return Promise.resolve([]);
+        }
+        setWikiGitLoading(true);
+        setWikiGitError("");
+        return fetch(tagBase() + "/api/wiki-base/" + encodeURIComponent(categoryId) + "/sources")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            setWikiGitLoading(false);
+            if (!res.ok) {
+              setWikiGitError(
+                "加载失败 " + res.status + ": " + (res.body && res.body.error ? String(res.body.error) : "未知错误"),
+              );
+              return [];
+            }
+            var repos = gitReposFromWikiSourceBody(res.body);
+            tagWikiGitRepos = repos;
+            renderWikiGitPreview(repos);
+            if (!repos.length) {
+              setWikiGitError("该仓库 ID 下未配置代码库地址，请先在 Wiki Agent 配置文档源。");
+            }
+            return repos;
+          })
+          .catch(function (err) {
+            setWikiGitLoading(false);
+            setWikiGitError("加载失败: " + err.message);
+            return [];
+          });
+      }
+
+      /** 从 `param_key=init` 的 value_json 解析 gitRepos / testEnv / provider */
+      function initParamFields(taskParams) {
+        var empty = { repos: [], testEnv: "", provider: "claude" };
+        var row = (taskParams || []).find(function (p) {
+          return p.param_key === "init";
+        });
+        if (!row || !row.value_json) {
+          return empty;
+        }
+        try {
+          var o = JSON.parse(row.value_json);
+          if (typeof o !== "object" || o === null || Array.isArray(o)) {
+            return empty;
+          }
+          var prov = o.provider === "cursor" ? "cursor" : "claude";
+          var repos = [];
+          if (Array.isArray(o.gitRepos)) {
+            o.gitRepos.forEach(function (item) {
+              if (!item || typeof item !== "object") return;
+              var url = typeof item.gitRemoteUrl === "string" ? normalizeGitRemoteUrl(item.gitRemoteUrl) : "";
+              var branch = typeof item.branch_version === "string" ? item.branch_version.trim() : "";
+              if (url) repos.push({ gitRemoteUrl: url, branch_version: branch });
+            });
+            // 界面仅支持单仓库，复制时只取首项
+            if (repos.length > 1) repos = [repos[0]];
+          }
+          return {
+            repos: repos,
+            testEnv: typeof o.testEnv === "string" ? o.testEnv : "",
+            provider: prov,
+          };
+        } catch (e) {
+          return empty;
+        }
+      }
+
+      /** 父任务列表「执行状态」列样式（与 API `exec_status` 一致） */
+      function execStatusCell(label) {
+        var text = label || "—";
+        var cls = "text-slate-500";
+        if (text === "完成") cls = "text-emerald-700";
+        else if (text === "待执行") cls = "text-slate-600";
+        else if (text === "失败") cls = "text-red-700";
+        else if (text === "执行中") cls = "text-blue-700";
+        return (
+          '<td class="whitespace-nowrap px-4 py-3 text-xs font-medium ' +
+          cls +
+          '">' +
+          esc(text) +
+          "</td>"
+        );
+      }
+
+      /** 将已暂停子任务按父任务 pid 分组 */
+      function buildPausedTasksByPid(tasks) {
+        var map = {};
+        (tasks || []).forEach(function (task) {
+          var pid = task && task.pid != null ? String(task.pid).trim() : "";
+          if (!pid) return;
+          if (!map[pid]) map[pid] = [];
+          map[pid].push(task.id);
+        });
+        return map;
+      }
+
+      function renderRow(t, pausedTaskIds) {
+        var hasPaused = pausedTaskIds && pausedTaskIds.length > 0;
+        var adoptionRate =
+          t.case_adoption_rate != null && t.case_adoption_rate !== "" && !Number.isNaN(Number(t.case_adoption_rate))
+            ? String(t.case_adoption_rate)
+            : "";
+        var tr = document.createElement("tr");
+        tr.className = "transition-colors hover:bg-slate-50";
+        tr.innerHTML =
+          '<td class="whitespace-nowrap px-4 py-3 font-mono text-xs">' +
+          esc(t.pid) +
+          "</td>" +
+          '<td class="max-w-xs truncate px-4 py-3 sm:max-w-md" title="' +
+          esc(t.title || "") +
+          '">' +
+          esc(t.title || "—") +
+          "</td>" +
+          '<td class="max-w-md truncate px-4 py-3 text-slate-600 sm:max-w-xl" title="' +
+          esc(t.description || "") +
+          '">' +
+          esc(t.description || "—") +
+          "</td>" +
+          '<td class="w-12 max-w-[3rem] whitespace-nowrap px-2 py-3 text-center text-xs text-slate-700" title="' +
+          esc(parentAgentTypeLabel(t.task_type || "")) +
+          '">' +
+          (function () {
+            var c = t.task_type;
+            if (c === undefined || c === null || c === "") return "—";
+            return esc(String(c));
+          })() +
+          "</td>" +
+          execStatusCell(t.exec_status) +
+          '<td class="max-w-[8rem] truncate whitespace-nowrap px-4 py-3 text-slate-700" title="' +
+          esc(t.creator || "") +
+          '">' +
+          esc(t.creator || "—") +
+          "</td>" +
+          '<td class="whitespace-nowrap px-4 py-3 text-slate-600">' +
+          esc(fmtTime(t.created_at)) +
+          "</td>" +
+          '<td class="whitespace-nowrap px-4 py-3">' +
+          '<div class="flex items-center gap-2">' +
+          '<span class="tag-adoption-rate-display min-w-[2.5rem] text-xs text-slate-700">' +
+          (adoptionRate ? esc(adoptionRate) + "%" : "—") +
+          '</span>' +
+          '<button type="button" class="tag-adoption-rate-btn shrink-0 cursor-pointer rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50" data-pid="' +
+          esc(t.pid) +
+          '" data-rate="' +
+          esc(adoptionRate) +
+          '" data-title="' +
+          esc(t.title || "") +
+          '">设置</button>' +
+          "</div></td>" +
+          '<td class="whitespace-nowrap px-4 py-3">' +
+          '<div class="flex flex-nowrap items-center gap-1">' +
+          '<button type="button" class="tag-copy-new-btn shrink-0 cursor-pointer rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100" data-pid="' +
+          esc(t.pid) +
+          '">复制新增</button>' +
+          '<button type="button" class="tag-flow-tab-btn shrink-0 cursor-pointer rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100" data-pid="' +
+          esc(t.pid) +
+          '">多Agent‌视图</button>' +
+          '<button type="button" class="tag-export-func-test-btn shrink-0 cursor-pointer rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100" data-pid="' +
+          esc(t.pid) +
+          '">导出功能测试案例</button>' +
+          (Number(t.task_type) === 6
+            ? '<button type="button" class="tag-script-edit-btn shrink-0 cursor-pointer rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-800 hover:bg-sky-100" data-pid="' +
+              esc(t.pid) +
+              '">跳转脚本编辑</button>'
+            : "") +
+          (Number(t.task_type) === 5
+            ? '<button type="button" class="tag-preview-mindmap-btn shrink-0 cursor-pointer rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-800 hover:bg-indigo-100" data-pid="' +
+              esc(t.pid) +
+              '">预览脑图建议</button>'
+            : "") +
+          (hasPaused
+            ? '<button type="button" class="tag-confirm-exec-btn shrink-0 cursor-pointer rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100" data-task-ids="' +
+              esc(pausedTaskIds.join(",")) +
+              '">确认执行</button>'
+            : "") +
+          '<button type="button" class="tag-preview-doc-btn shrink-0 cursor-pointer rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100" data-pid="' +
+          esc(t.pid) +
+          '">预览文档</button>' +
+          "</div></td>";
+        tbody.appendChild(tr);
+      }
+
+      /** 将已暂停任务标记为执行完成，以便调度器继续后续子任务 */
+      function confirmPausedTasks(taskIds, triggerBtn) {
+        var ids = (taskIds || []).filter(Boolean);
+        if (ids.length === 0) return;
+        if (
+          !window.confirm(
+            "确定将该父任务下已暂停的任务标记为「执行完成」？确认后调度器将继续执行后续任务。"
+          )
+        ) {
+          return;
+        }
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "处理中…";
+        }
+        var idx = 0;
+        function patchNext() {
+          if (idx >= ids.length) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "确认执行";
+            }
+            runTagQuery(false);
+            return;
+          }
+          var taskId = ids[idx];
+          idx += 1;
+          fetch(tagBase() + "/api/tasks/" + encodeURIComponent(taskId), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: TASK_STATUS_COMPLETED }),
+          })
+            .then(function (r) {
+              return r.json().then(function (j) {
+                return { ok: r.ok, status: r.status, body: j };
+              });
+            })
+            .then(function (res) {
+              if (!res.ok) {
+                if (triggerBtn) {
+                  triggerBtn.disabled = false;
+                  triggerBtn.textContent = "确认执行";
+                }
+                errEl.textContent =
+                  "确认执行失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+                errEl.classList.remove("hidden");
+                return;
+              }
+              patchNext();
+            })
+            .catch(function (e) {
+              if (triggerBtn) {
+                triggerBtn.disabled = false;
+                triggerBtn.textContent = "确认执行";
+              }
+              errEl.textContent = "确认执行失败: " + e.message;
+              errEl.classList.remove("hidden");
+            });
+        }
+        patchNext();
+      }
+
+      var previewRoot = document.getElementById("tag-preview-root");
+      var previewBackdrop = document.getElementById("tag-preview-backdrop");
+      var previewTitleEl = document.getElementById("tag-preview-title");
+      var previewMetaEl = document.getElementById("tag-preview-meta");
+      var previewBodyEl = document.getElementById("tag-preview-body");
+      var previewPickRoot = document.getElementById("tag-preview-pick-root");
+      var previewPickBackdrop = document.getElementById("tag-preview-pick-backdrop");
+      var previewPickTitleEl = document.getElementById("tag-preview-pick-title");
+      var previewPickSubEl = document.getElementById("tag-preview-pick-sub");
+      var previewPickListEl = document.getElementById("tag-preview-pick-list");
+      var previewPickEmptyEl = document.getElementById("tag-preview-pick-empty");
+      var previewDownloadBtn = document.getElementById("tag-preview-download");
+      var previewPickPid = "";
+      var previewCurrentDoc = null;
+
+      var adoptionRateModalRoot = document.getElementById("tag-adoption-rate-root");
+      var adoptionRateModalBackdrop = document.getElementById("tag-adoption-rate-backdrop");
+      var adoptionRateModalSub = document.getElementById("tag-adoption-rate-sub");
+      var adoptionRateModalError = document.getElementById("tag-adoption-rate-error");
+      var adoptionRateValueInput = document.getElementById("tag-adoption-rate-value");
+      var adoptionRateCancelBtn = document.getElementById("tag-adoption-rate-cancel");
+      var adoptionRateSaveBtn = document.getElementById("tag-adoption-rate-save");
+      var adoptionRateModalState = { pid: "", title: "", currentRate: "" };
+
+      function adoptionRateClearError() {
+        adoptionRateModalError.classList.add("hidden");
+        adoptionRateModalError.textContent = "";
+      }
+
+      function adoptionRateShowError(msg) {
+        adoptionRateModalError.textContent = msg;
+        adoptionRateModalError.classList.remove("hidden");
+      }
+
+      function closeAdoptionRateModal() {
+        adoptionRateModalRoot.classList.add("hidden");
+        adoptionRateClearError();
+        adoptionRateModalState = { pid: "", title: "", currentRate: "" };
+      }
+
+      function openAdoptionRateModal(pid, currentRate, title) {
+        adoptionRateModalState = {
+          pid: pid,
+          title: title || "",
+          currentRate: currentRate || "",
+        };
+        adoptionRateClearError();
+        adoptionRateValueInput.value = currentRate || "";
+        adoptionRateModalSub.textContent = "父任务编号 " + pid + "，请输入 0–100 的百分比数值。";
+        adoptionRateModalRoot.classList.remove("hidden");
+        adoptionRateSaveBtn.disabled = false;
+        adoptionRateSaveBtn.textContent = "保存";
+        adoptionRateValueInput.focus();
+      }
+
+      function parseAdoptionRateInput(raw) {
+        var t = (raw || "").trim();
+        if (!t) return { error: "请填写用例采纳率。" };
+        var n = Number(t);
+        if (!Number.isFinite(n) || n < 0 || n > 100) {
+          return { error: "用例采纳率须为 0–100 之间的数字。" };
+        }
+        return { value: n };
+      }
+
+      function updateAdoptionRateDisplay(pid, rate) {
+        var btn = tbody.querySelector('.tag-adoption-rate-btn[data-pid="' + CSS.escape(pid) + '"]');
+        if (!btn) return;
+        var display = btn.parentElement && btn.parentElement.querySelector(".tag-adoption-rate-display");
+        var rateStr = rate != null && rate !== "" ? String(rate) : "";
+        if (display) display.textContent = rateStr ? rateStr + "%" : "—";
+        btn.setAttribute("data-rate", rateStr);
+      }
+
+      function saveCaseAdoptionRate(pid, rate, triggerBtn) {
+        if (!pid) return;
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "保存中…";
+        }
+        fetch(
+          tagBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/params/" +
+            encodeURIComponent(TEST_CASE_ADOPTION_RATE_PARAM_KEY),
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ value_json: rate }),
+          },
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              var errMsg =
+                res.body && res.body.error
+                  ? typeof res.body.error === "string"
+                    ? res.body.error
+                    : JSON.stringify(res.body.error)
+                  : "保存失败 " + res.status;
+              throw new Error(errMsg);
+            }
+            var saved =
+              res.body && res.body.case_adoption_rate != null
+                ? res.body.case_adoption_rate
+                : rate;
+            updateAdoptionRateDisplay(pid, saved);
+            closeAdoptionRateModal();
+          })
+          .catch(function (e) {
+            adoptionRateShowError("保存失败：" + (e && e.message ? e.message : String(e)));
+          })
+          .finally(function () {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "保存";
+            }
+          });
+      }
+
+      function submitAdoptionRateFromModal() {
+        adoptionRateClearError();
+        var parsed = parseAdoptionRateInput(adoptionRateValueInput.value);
+        if (parsed.error) {
+          adoptionRateShowError(parsed.error);
+          return;
+        }
+        saveCaseAdoptionRate(adoptionRateModalState.pid, parsed.value, adoptionRateSaveBtn);
+      }
+
+      adoptionRateCancelBtn.addEventListener("click", closeAdoptionRateModal);
+      adoptionRateSaveBtn.addEventListener("click", submitAdoptionRateFromModal);
+      adoptionRateModalBackdrop.addEventListener("click", function (e) {
+        if (e.target === adoptionRateModalBackdrop) closeAdoptionRateModal();
+      });
+      adoptionRateValueInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submitAdoptionRateFromModal();
+        }
+      });
+
+      function setPreviewDownloadEnabled(enabled) {
+        previewDownloadBtn.disabled = !enabled;
+      }
+
+      /** 从 Content-Disposition 解析下载文件名 */
+      function parseContentDispositionFilename(header) {
+        if (!header) return null;
+        var star = /filename\*=UTF-8''([^;]+)/i.exec(header);
+        if (star) {
+          try {
+            return decodeURIComponent(star[1].trim());
+          } catch (e) {
+            return star[1].trim();
+          }
+        }
+        var plain = /filename="([^"]+)"/i.exec(header);
+        return plain ? plain[1] : null;
+      }
+
+      function downloadExcelFromApi(url, triggerBtn, defaultFilename, failPrefix) {
+        var prevText = triggerBtn ? triggerBtn.textContent : "";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "导出中…";
+        }
+        fetch(url)
+          .then(function (r) {
+            if (!r.ok) {
+              return r
+                .json()
+                .catch(function () {
+                  return {};
+                })
+                .then(function (j) {
+                  var errMsg =
+                    j && j.error
+                      ? typeof j.error === "string"
+                        ? j.error
+                        : JSON.stringify(j.error)
+                      : "导出失败 " + r.status;
+                  throw new Error(errMsg);
+                });
+            }
+            var filename =
+              parseContentDispositionFilename(r.headers.get("Content-Disposition")) ||
+              defaultFilename;
+            return r.blob().then(function (blob) {
+              return { blob: blob, filename: filename };
+            });
+          })
+          .then(function (result) {
+            var blobUrl = URL.createObjectURL(result.blob);
+            var link = document.createElement("a");
+            link.href = blobUrl;
+            link.download = result.filename;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(blobUrl);
+          })
+          .catch(function (e) {
+            alert(failPrefix + "：" + (e && e.message ? e.message : String(e)));
+          })
+          .finally(function () {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = prevText;
+            }
+          });
+      }
+
+      function exportFuncTestCaseExcel(pid, triggerBtn) {
+        if (!pid) return;
+        downloadExcelFromApi(
+          tagBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/export-func-test-case-excel",
+          triggerBtn,
+          "test_case_design.xlsx",
+          "导出功能测试案例失败",
+        );
+      }
+
+      function exportAutotestCaseExcel(pid, triggerBtn) {
+        if (!pid) return;
+        downloadExcelFromApi(
+          tagBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/export-autotest-case-excel",
+          triggerBtn,
+          "autotest_cases.xlsx",
+          "导出自动化用例失败",
+        );
+      }
+
+      /** 打开 QA 平台脚本编辑页（需子任务 input_json 含 scriptId） */
+      function openScriptEditInNewTab(pid, triggerBtn) {
+        if (!pid) return;
+        var prevText = triggerBtn ? triggerBtn.textContent : "";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "加载中…";
+        }
+        fetch(tagBase() + "/api/parent-tasks?pid=" + encodeURIComponent(pid))
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              window.alert(
+                "加载父任务失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            var scriptId = getScriptId(res.body);
+            if (!scriptId) {
+              window.alert("未找到脚本 ID（scriptId），请确认创建时已选择 QA 接口路径");
+              return;
+            }
+            window.open(
+              "http://qa.howbuy.pa/scriptEdit/" + encodeURIComponent(scriptId) + "/1",
+              "_blank",
+              "noopener,noreferrer",
+            );
+          })
+          .catch(function (e) {
+            window.alert("网络错误: " + e.message);
+          })
+          .finally(function () {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = prevText || "跳转脚本编辑";
+            }
+          });
+      }
+
+      function previewDownloadFilename(doc) {
+        var rel = doc && doc.relative_path ? String(doc.relative_path) : "";
+        var base = rel.split("/").filter(Boolean).pop();
+        if (base) return base;
+        if (doc && doc.content_kind === "json") return "document.json";
+        if (doc && doc.content_kind === "markdown") return "document.md";
+        return "document.txt";
+      }
+
+      function previewDownloadMime(doc, filename) {
+        var lower = String(filename || "").toLowerCase();
+        if (lower.endsWith(".json") || (doc && doc.content_kind === "json")) {
+          return "application/json;charset=utf-8";
+        }
+        if (
+          lower.endsWith(".md") ||
+          lower.endsWith(".markdown") ||
+          (doc && doc.content_kind === "markdown")
+        ) {
+          return "text/markdown;charset=utf-8";
+        }
+        return "text/plain;charset=utf-8";
+      }
+
+      function downloadPreviewDoc() {
+        if (!previewCurrentDoc || previewCurrentDoc.content == null) return;
+        var doc = previewCurrentDoc;
+        var filename = previewDownloadFilename(doc);
+        var blob = new Blob([doc.content], {
+          type: previewDownloadMime(doc, filename),
+        });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+
+      function closePreviewPicker() {
+        previewPickRoot.classList.add("hidden");
+        previewPickPid = "";
+        previewPickListEl.innerHTML = "";
+        previewPickEmptyEl.classList.add("hidden");
+        if (previewRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function closePreviewModal() {
+        previewRoot.classList.add("hidden");
+        previewBodyEl.innerHTML = "";
+        previewMetaEl.textContent = "";
+        previewCurrentDoc = null;
+        setPreviewDownloadEnabled(false);
+        if (previewPickRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function workflowTaskTypeLabel(code) {
+        return tagWorkflowTaskTypeLabels[code] || String(code);
+      }
+
+      function renderPreviewPickOptions(taskTypes) {
+        previewPickListEl.innerHTML = "";
+        if (!taskTypes || taskTypes.length === 0) {
+          previewPickEmptyEl.classList.remove("hidden");
+          return;
+        }
+        previewPickEmptyEl.classList.add("hidden");
+        taskTypes.forEach(function (tt) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "tag-preview-pick-opt w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm transition hover:border-violet-300 hover:bg-violet-50";
+          btn.setAttribute("data-task-type", String(tt));
+          btn.innerHTML =
+            '<span class="font-mono text-xs text-slate-500">' +
+            esc(String(tt)) +
+            '</span><span class="ml-2 font-medium text-slate-800">' +
+            esc(workflowTaskTypeLabel(tt)) +
+            "</span>";
+          previewPickListEl.appendChild(btn);
+        });
+      }
+
+      function openPreviewPicker(pid, triggerBtn) {
+        if (!pid) return;
+        previewPickPid = pid;
+        previewPickTitleEl.textContent = "选择任务类型 · pid " + pid;
+        previewPickSubEl.textContent = "请选择要预览的 taskType（ai_out/" + pid + "/<taskType>/）";
+        previewPickListEl.innerHTML =
+          '<p class="text-center text-xs text-slate-400">加载中…</p>';
+        previewPickEmptyEl.classList.add("hidden");
+        previewPickRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "加载中…";
+        }
+        fetch(
+          tagBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/ai-out/task-types",
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "预览文档";
+            }
+            if (!res.ok) {
+              closePreviewPicker();
+              errEl.textContent =
+                "加载 taskType 失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error
+                  ? JSON.stringify(res.body.error)
+                  : JSON.stringify(res.body));
+              errEl.classList.remove("hidden");
+              return;
+            }
+            renderPreviewPickOptions(res.body.task_types || []);
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "预览文档";
+            }
+            closePreviewPicker();
+            errEl.textContent = "加载 taskType 失败: " + e.message;
+            errEl.classList.remove("hidden");
+          });
+      }
+
+      function renderMarkdownHtml(md) {
+        if (window.marked && typeof window.marked.parse === "function") {
+          return window.marked.parse(String(md || ""));
+        }
+        return "<pre class=\"whitespace-pre-wrap font-mono text-xs\">" + esc(md || "") + "</pre>";
+      }
+
+      function renderPlainTextHtml(text) {
+        return "<pre class=\"whitespace-pre-wrap font-mono text-xs\">" + esc(text || "") + "</pre>";
+      }
+
+      function renderJsonHtml(raw) {
+        var text = String(raw || "");
+        try {
+          return renderPlainTextHtml(JSON.stringify(JSON.parse(text), null, 2));
+        } catch (e) {
+          return renderPlainTextHtml(text);
+        }
+      }
+
+      function detectPreviewKindFromContent(content) {
+        var t = String(content || "").trim();
+        if (!t) return "text";
+        if (t.charAt(0) === "{" || t.charAt(0) === "[") {
+          try {
+            JSON.parse(t);
+            return "json";
+          } catch (e) {
+            /* 非合法 JSON，继续判断 */
+          }
+        }
+        var signals = 0;
+        var lines = t.split(/\r?\n/).slice(0, 80);
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          var s = line.trim();
+          if (!s) continue;
+          if (/^#{1,6}\s+\S/.test(s)) signals += 2;
+          if (/^```/.test(s)) signals += 2;
+          if (/^>\s+/.test(s)) signals += 1;
+          if (/^\s*[-*+]\s+\S/.test(line)) signals += 1;
+          if (/^\s*\d+\.\s+\S/.test(line)) signals += 1;
+          if (/\[[^\]]+\]\([^)]+\)/.test(s)) signals += 1;
+          if (/(\*\*|__).+?(\*\*|__)/.test(s)) signals += 1;
+          if (/^(-{3,}|_{3,}|\*{3,})$/.test(s)) signals += 1;
+        }
+        if (signals >= 2) return "markdown";
+        return "text";
+      }
+
+      function renderPreviewContent(doc) {
+        var kind = doc && doc.content_kind ? doc.content_kind : "markdown";
+        var content = doc && doc.content != null ? doc.content : "";
+        if (kind === "text") kind = detectPreviewKindFromContent(content);
+        if (kind === "json") return renderJsonHtml(content);
+        if (kind === "text") return renderPlainTextHtml(content);
+        return renderMarkdownHtml(content);
+      }
+
+      /** 测试脑图分析（task_type=22）ai_out 最新文档预览 */
+      var TAG_PREVIEW_MINDMAP_TASK_TYPE = 22;
+
+      function loadPreviewDoc(pid, taskType) {
+        if (!pid || taskType === undefined || taskType === null || taskType === "") {
+          return Promise.resolve();
+        }
+        closePreviewPicker();
+        previewCurrentDoc = null;
+        setPreviewDownloadEnabled(false);
+        previewTitleEl.textContent = "文档预览 · pid " + pid;
+        previewMetaEl.textContent = "加载中…";
+        previewBodyEl.innerHTML =
+          '<p class="text-center text-xs text-slate-400">加载文档…</p>';
+        previewRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        return fetch(
+          tagBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/ai-out/latest?task_type=" +
+            encodeURIComponent(String(taskType)),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              var msg =
+                res.status === 404
+                  ? "该 taskType 下未找到可预览文档（.md / .json / .txt）"
+                  : res.body && res.body.error
+                    ? JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body);
+              previewMetaEl.textContent = "";
+              previewBodyEl.innerHTML =
+                '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+                esc("预览失败 " + res.status + ": " + msg) +
+                "</p>";
+              return;
+            }
+            var doc = res.body;
+            var typeLabel = workflowTaskTypeLabel(doc.task_type);
+            previewTitleEl.textContent = "文档预览 · pid " + doc.pid;
+            previewMetaEl.textContent =
+              "ai_out/" +
+              doc.pid +
+              "/" +
+              doc.task_type +
+              " · " +
+              typeLabel +
+              " · " +
+              (doc.relative_path || "") +
+              " · " +
+              fmtTime(doc.updated_at);
+            previewCurrentDoc = doc;
+            setPreviewDownloadEnabled(true);
+            previewBodyEl.innerHTML = renderPreviewContent(doc);
+          })
+          .catch(function (e) {
+            previewCurrentDoc = null;
+            setPreviewDownloadEnabled(false);
+            previewMetaEl.textContent = "";
+            previewBodyEl.innerHTML =
+              '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+              esc("预览失败: " + e.message) +
+              "</p>";
+          });
+      }
+
+      function openPreviewDoc(pid, triggerBtn) {
+        openPreviewPicker(pid, triggerBtn);
+      }
+
+      function openPreviewMindmap(pid, triggerBtn) {
+        if (!pid) return;
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "加载中…";
+        }
+        loadPreviewDoc(pid, TAG_PREVIEW_MINDMAP_TASK_TYPE).finally(function () {
+          if (triggerBtn) {
+            triggerBtn.disabled = false;
+            triggerBtn.textContent = "预览脑图建议";
+          }
+        });
+      }
+
+      function updatePaginationBar() {
+        if (!tagQueried) {
+          paginationEl.classList.add("hidden");
+          return;
+        }
+        paginationEl.classList.remove("hidden");
+        var pageSize = Number(pageSizeEl.value) || 20;
+        if (tagTotal > 0) {
+          pageInfoEl.textContent =
+            "第 " + tagPage + " / " + tagTotalPages + " 页";
+        } else {
+          pageInfoEl.textContent = "第 0 页";
+        }
+        prevBtn.disabled = tagPage <= 1;
+        nextBtn.disabled = tagTotalPages === 0 || tagPage >= tagTotalPages;
+      }
+
+      function runTagQuery(resetPage) {
+        if (resetPage) tagPage = 1;
+        errEl.classList.add("hidden");
+        errEl.textContent = "";
+        tbody.innerHTML = "";
+        emptyEl.classList.add("hidden");
+        paginationEl.classList.add("hidden");
+
+        var params = new URLSearchParams();
+        var tt = document.getElementById("tag-taskType").value;
+        if (tt) params.set("task_types", tt);
+        var tit = document.getElementById("tag-title").value.trim();
+        if (tit) params.set("title", tit);
+        var creator = document.getElementById("tag-creator").value.trim();
+        if (creator) params.set("creator", creator);
+        var pageSize = Number(pageSizeEl.value) || 20;
+        params.set("page", String(tagPage));
+        params.set("limit", String(pageSize));
+
+        var url = tagBase() + "/api/parent-tasks?" + params.toString();
+        var pausedUrl =
+          tagBase() +
+          "/api/tasks?status=" +
+          TASK_STATUS_PAUSED +
+          "&limit=500";
+
+        Promise.all([
+          fetch(url).then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          }),
+          fetch(pausedUrl).then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          }),
+        ])
+          .then(function (results) {
+            var res = results[0];
+            var pausedRes = results[1];
+            tagQueried = true;
+            if (!res.ok) {
+              countEl.textContent = "";
+              errEl.textContent =
+                "请求失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+              errEl.classList.remove("hidden");
+              emptyEl.classList.remove("hidden");
+              updatePaginationBar();
+              return;
+            }
+            var list = res.body.parent_tasks || [];
+            tagTotal = Number(res.body.total) || 0;
+            tagTotalPages = Number(res.body.total_pages) || 0;
+            tagPage = Number(res.body.page) || tagPage;
+            countEl.textContent = "共 " + tagTotal + " 条";
+            var pausedByPid = pausedRes.ok
+              ? buildPausedTasksByPid(pausedRes.body.tasks || [])
+              : {};
+            if (list.length === 0) {
+              emptyEl.classList.remove("hidden");
+              updatePaginationBar();
+              return;
+            }
+            list.forEach(function (t) {
+              renderRow(t, pausedByPid[String(t.pid)] || []);
+            });
+            updatePaginationBar();
+          })
+          .catch(function (e) {
+            tagQueried = true;
+            countEl.textContent = "";
+            errEl.textContent = "网络错误: " + e.message;
+            errEl.classList.remove("hidden");
+            emptyEl.classList.remove("hidden");
+            updatePaginationBar();
+          });
+      }
+
+      var modalRoot = document.getElementById("tag-modal-root");
+      var modalBackdrop = document.getElementById("tag-modal-backdrop");
+      var modalForm = document.getElementById("tag-modal-form");
+      var modalErr = document.getElementById("tag-modal-error");
+      var paramsList = document.getElementById("tag-params-list");
+      var submitBtn = document.getElementById("tag-modal-submit");
+
+      function modalClearError() {
+        modalErr.classList.add("hidden");
+        modalErr.textContent = "";
+      }
+
+      function modalShowError(msg) {
+        modalErr.textContent = msg;
+        modalErr.classList.remove("hidden");
+      }
+
+      function createParamRow(preset) {
+        var wrap = document.createElement("div");
+        wrap.className = "tag-param-row rounded-lg border border-slate-200 bg-slate-50/80 p-3";
+        var keyVal = preset && preset.param_key ? preset.param_key : "";
+        var jsonVal = preset && preset.value_json != null ? preset.value_json : "";
+        var descVal = preset && preset.description ? preset.description : "";
+        wrap.innerHTML =
+          '<div class="mb-2 flex items-center justify-between gap-2">' +
+          '<span class="text-xs font-medium text-slate-600">参数行</span>' +
+          '<button type="button" class="tag-param-remove rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-100">删除</button>' +
+          "</div>" +
+          '<div class="grid gap-2 sm:grid-cols-2">' +
+          '<div><label class="mb-1 block text-[11px] text-slate-500">param_key</label>' +
+          '<input type="text" class="tag-p-key w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-xs" maxlength="200" value="' +
+          esc(keyVal) +
+          '" /></div>' +
+          '<div><label class="mb-1 block text-[11px] text-slate-500">description</label>' +
+          '<input type="text" class="tag-p-desc w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs" maxlength="2000" value="' +
+          esc(descVal) +
+          '" /></div>' +
+          "</div>" +
+          '<div class="mt-2"><label class="mb-1 block text-[11px] text-slate-500">value_json</label>' +
+          '<textarea rows="3" class="tag-p-json w-full resize-y rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono text-xs" placeholder=\'例如 {"app":"foo"}\'>' +
+          esc(jsonVal) +
+          "</textarea></div>";
+        wrap.querySelector(".tag-param-remove").addEventListener("click", function () {
+          wrap.remove();
+        });
+        return wrap;
+      }
+
+      function clearParamRows() {
+        paramsList.innerHTML = "";
+      }
+
+      var reservedParamKeys = { init: true };
+
+      /** 复制新增时不带入的运行时/落库参数键（与服务端 RESERVED_PARENT_PARAM_KEYS 对齐） */
+      var skipCopyParamKeys = {
+        init: true,
+        DesignOut: true,
+        TestDataAnalysisOut: true,
+        TestPreAnalysisOut: true,
+        TestCaseDesignOut: true,
+        TestCaseExecuteOut: true,
+        CodeReviewOut: true,
+        FuncTestCaseGenOut: true,
+        AutoTestCaseGenOut: true,
+        TestMindMapAnalysisOut: true,
+        TestCaseExecutePassRate: true,
+        TestCaseExecutePassResult: true,
+        TestCaseExecuteIsCodeProblem: true,
+        TestCaseAdoptionRate: true,
+        CodeReviewMergeAllowed: true,
+        CodeReviewGateResult: true,
+        DevOpsDeployResult: true,
+        TestEnvDeployResult: true,
+      };
+
+      function formatParamJsonForRow(raw) {
+        if (raw == null || raw === "") return "";
+        if (typeof raw === "string") {
+          var t = raw.trim();
+          if (!t) return "";
+          try {
+            return JSON.stringify(JSON.parse(t), null, 2);
+          } catch (e) {
+            return raw;
+          }
+        }
+        try {
+          return JSON.stringify(raw, null, 2);
+        } catch (e) {
+          return String(raw);
+        }
+      }
+
+      function collectParams() {
+        var rows = paramsList.querySelectorAll(".tag-param-row");
+        var out = [];
+        var seen = {};
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          var key = row.querySelector(".tag-p-key").value.trim();
+          var jsonRaw = row.querySelector(".tag-p-json").value.trim();
+          var desc = row.querySelector(".tag-p-desc").value.trim();
+          if (!key && !jsonRaw) continue;
+          if (!key) throw new Error("参数行 " + (i + 1) + "：请填写 param_key");
+          if (reservedParamKeys[key]) {
+            throw new Error('参数键 "init" 由系统根据分支版本、gitRemoteUrl(s)、testEnv 自动生成，请勿手动添加');
+          }
+          if (!jsonRaw) throw new Error("参数 " + key + "：请填写 value_json");
+          if (seen[key]) throw new Error("重复的 param_key：" + key);
+          seen[key] = true;
+          var parsed;
+          try {
+            parsed = JSON.parse(jsonRaw);
+          } catch (e) {
+            throw new Error("参数 " + key + "：value_json 不是合法 JSON");
+          }
+          var item = { param_key: key, value_json: parsed };
+          if (desc) item.description = desc;
+          out.push(item);
+        }
+        return out;
+      }
+
+      function openNewModal(copyFrom) {
+        modalClearError();
+        modalForm.reset();
+        document.getElementById("tag-new-pid").value = "";
+        clearParamRows();
+        var titleEl = document.getElementById("tag-modal-title");
+        if (copyFrom && copyFrom.parent_task) {
+          var pt = copyFrom.parent_task;
+          var taskParams = copyFrom.parent_task_params || [];
+          titleEl.textContent = "复制新增父任务（源自 " + pt.pid + "）";
+          var initFields = initParamFields(taskParams);
+          var copyTaskType =
+            pt.task_type !== undefined && pt.task_type !== null && pt.task_type !== ""
+              ? String(pt.task_type)
+              : "6";
+          if (copyTaskType === "4") copyTaskType = "6";
+          if (!["1", "2", "3", "5", "6"].includes(copyTaskType)) copyTaskType = "6";
+          resetWikiCategoryGitState();
+          resetQaScriptFields();
+          if (usesManualGitRepos(copyTaskType)) {
+            setGitRepos(initFields.repos);
+          } else {
+            setGitRepos([]);
+          }
+          document.getElementById("tag-new-testEnv").value = initFields.testEnv;
+          tagNewTaskTypeCombo.setValue(copyTaskType);
+          tagProviderCombo.setValue(initFields.provider || "claude");
+          document.getElementById("tag-new-description").value = pt.description || "";
+          taskParams.forEach(function (p) {
+            if (!p || skipCopyParamKeys[p.param_key]) return;
+            paramsList.appendChild(
+              createParamRow({
+                param_key: p.param_key,
+                value_json: formatParamJsonForRow(p.value_json),
+                description: p.description || "",
+              }),
+            );
+          });
+          updateNewFormRequiredState();
+          modalRoot.classList.remove("hidden");
+          document.body.style.overflow = "hidden";
+          if (usesQaScriptFields(copyTaskType)) {
+            restoreQaScriptFieldsFromCopy(parseFirstTaskInputFields(copyFrom)).then(function () {
+              focusNewModalField(copyTaskType);
+            });
+          } else {
+            setTimeout(function () {
+              focusNewModalField(copyTaskType);
+            }, 0);
+          }
+          return;
+        } else {
+          titleEl.textContent = "新增父任务";
+          tagNewTaskTypeCombo.setValue("6");
+          tagProviderCombo.setValue("claude");
+          resetWikiCategoryGitState();
+          resetQaScriptFields();
+          setGitRepos([]);
+        }
+        updateNewFormRequiredState();
+        modalRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        var newTaskType = document.getElementById("tag-new-taskType").value;
+        if (usesQaScriptFields(newTaskType)) {
+          loadQaAppList().then(function () {
+            loadQaLabelList("").then(function () {
+              focusNewModalField(newTaskType);
+            });
+          });
+        } else {
+          setTimeout(function () {
+            focusNewModalField(newTaskType);
+          }, 0);
+        }
+      }
+
+      function focusNewModalField(taskType) {
+        if (usesQaScriptFields(taskType)) {
+          var qaTrigger = document.getElementById("tag-new-qaApp-trigger");
+          if (qaTrigger) qaTrigger.focus();
+          return;
+        }
+        if (usesManualGitRepos(taskType)) {
+          if (tagGitBranchEl) tagGitBranchEl.focus();
+          return;
+        }
+        var wikiTrigger = document.getElementById("tag-new-wikiCategory-trigger");
+        if (wikiTrigger && usesWikiCategoryGit(taskType)) wikiTrigger.focus();
+      }
+
+      function openCopyNewModal(pid, triggerBtn) {
+        if (!pid) return;
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "加载中…";
+        }
+        fetch(tagBase() + "/api/parent-tasks?pid=" + encodeURIComponent(pid))
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "复制新增";
+            }
+            if (!res.ok) {
+              errEl.textContent =
+                "加载父任务失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+              errEl.classList.remove("hidden");
+              return;
+            }
+            openNewModal(res.body);
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "复制新增";
+            }
+            errEl.textContent = "加载父任务失败: " + e.message;
+            errEl.classList.remove("hidden");
+          });
+      }
+
+      function closeNewModal() {
+        modalRoot.classList.add("hidden");
+        document.body.style.overflow = "";
+        modalClearError();
+      }
+
+      document.getElementById("tag-btn-add-param").onclick = function () {
+        paramsList.appendChild(createParamRow());
+      };
+
+      if (tagGitUrlEl) {
+        tagGitUrlEl.addEventListener("blur", function () {
+          var normalized = normalizeGitRemoteUrl(tagGitUrlEl.value);
+          if (normalized !== tagGitUrlEl.value.trim()) tagGitUrlEl.value = normalized;
+          applyAppCatalogFromGitUrl();
+        });
+      }
+
+      document.getElementById("tag-btn-new").onclick = function () {
+        openNewModal();
+      };
+      document.getElementById("tag-modal-cancel").onclick = closeNewModal;
+      document.getElementById("tag-preview-close").onclick = closePreviewModal;
+      document.getElementById("tag-preview-download").onclick = downloadPreviewDoc;
+      document.getElementById("tag-preview-pick-close").onclick = closePreviewPicker;
+      previewBackdrop.addEventListener("click", function (e) {
+        if (e.target === previewBackdrop) closePreviewModal();
+      });
+      previewPickBackdrop.addEventListener("click", function (e) {
+        if (e.target === previewPickBackdrop) closePreviewPicker();
+      });
+      previewPickListEl.addEventListener("click", function (ev) {
+        var optBtn = ev.target.closest(".tag-preview-pick-opt");
+        if (!optBtn || !previewPickPid) return;
+        var taskType = optBtn.getAttribute("data-task-type");
+        if (taskType != null && taskType !== "") {
+          loadPreviewDoc(previewPickPid, taskType);
+        }
+      });
+
+      modalBackdrop.addEventListener("click", function (e) {
+        if (e.target === modalBackdrop) closeNewModal();
+      });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (!adoptionRateModalRoot.classList.contains("hidden")) {
+          closeAdoptionRateModal();
+          return;
+        }
+        if (!modalRoot.classList.contains("hidden")) {
+          closeNewModal();
+          return;
+        }
+        if (!previewRoot.classList.contains("hidden")) {
+          closePreviewModal();
+          return;
+        }
+        if (!previewPickRoot.classList.contains("hidden")) closePreviewPicker();
+      });
+
+      modalForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        modalClearError();
+        var pidInput = document.getElementById("tag-new-pid").value.trim();
+        var taskType = Number(document.getElementById("tag-new-taskType").value) || 6;
+        var description = document.getElementById("tag-new-description").value.trim();
+        var categoryId = tagWikiCategoryCombo ? tagWikiCategoryCombo.getValue().trim() : "";
+        var testEnv = document.getElementById("tag-new-testEnv").value.trim();
+        if (taskType === 4) {
+          modalShowError("不支持在此页面新增业务 Agent（类型 4）父任务，请通过 Wiki Agent 创建。");
+          return;
+        }
+        if (!description) {
+          modalShowError("请填写说明。");
+          return;
+        }
+        if (usesWikiCategoryGit(taskType) && !categoryId) {
+          modalShowError("请选择仓库 ID（wiki_base）。");
+          return;
+        }
+        if ((taskType === 5 || taskType === 6) && !testEnv) {
+          modalShowError("任务类型为 5/6 时，请填写测试环境。");
+          return;
+        }
+        if (usesQaScriptFields(taskType)) {
+          var qaApp = tagQaAppCombo ? tagQaAppCombo.getValue().trim() : "";
+          var qaVersion = tagQaVersionCombo ? tagQaVersionCombo.getValue().trim() : "";
+          var qaApiPath = tagQaApiPathCombo ? tagQaApiPathCombo.getValue().trim() : "";
+          if (!qaApp) {
+            modalShowError("请选择应用名称。");
+            return;
+          }
+          if (!qaVersion) {
+            modalShowError("请选择脚本版本。");
+            return;
+          }
+          if (!qaApiPath) {
+            modalShowError("请选择接口路径。");
+            return;
+          }
+          syncQaScriptIdFromApiPath(qaApiPath);
+        }
+        if (usesWikiCategoryGit(taskType) && taskType !== 5 && isTestEnvRequired(taskType) && !testEnv) {
+          modalShowError("任务类型为 1/3 时，请填写测试环境。");
+          return;
+        }
+        var creator = tagCurrentLoginUser();
+        if (!creator) {
+          modalShowError("获取当前登录用户失败");
+          return;
+        }
+
+        function submitParentTask(gitRepos) {
+          var providerVal = document.getElementById("tag-new-provider").value.trim().toLowerCase();
+          if (providerVal !== "cursor") providerVal = "claude";
+          var body = {
+            description: description,
+            task_type: taskType,
+            provider: providerVal,
+            creator: creator,
+          };
+          if (gitRepos.length) body.gitRepos = gitRepos;
+          if (pidInput) body.pid = pidInput;
+          if (testEnv) body.testEnv = testEnv;
+          if (isTestScriptRepoRequired(taskType) && categoryId) body.testScriptRepo = categoryId;
+          if (usesQaScriptFields(taskType)) {
+            body.app = tagQaAppCombo.getValue().trim();
+            body.qaVersion = tagQaVersionCombo.getValue().trim();
+            body.qaApiPath = tagQaApiPathCombo.getValue().trim();
+            var scriptIdVal = document.getElementById("tag-new-qaScriptId").value.trim();
+            if (scriptIdVal) body.scriptId = scriptIdVal;
+            var labelIds = collectLabelIds();
+            if (labelIds.length) body.labelIds = labelIds;
+          }
+          try {
+            var params = collectParams();
+            if (params.length) body.params = params;
+          } catch (err) {
+            modalShowError(err.message || String(err));
+            return;
+          }
+          submitBtn.disabled = true;
+          fetch(tagBase() + "/api/parent-tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+            .then(function (r) {
+              return r.json().then(function (j) {
+                return { ok: r.ok, status: r.status, body: j };
+              });
+            })
+            .then(function (res) {
+              submitBtn.disabled = false;
+              if (!res.ok) {
+                modalShowError(
+                  "请求失败 " +
+                    res.status +
+                    ": " +
+                    (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body)),
+                );
+                return;
+              }
+              closeNewModal();
+              runTagQuery(true);
+            })
+            .catch(function (err) {
+              submitBtn.disabled = false;
+              modalShowError("网络错误: " + err.message);
+            });
+        }
+
+        if (usesManualGitRepos(taskType)) {
+          var collected = collectGitRepos();
+          if (collected.error) {
+            modalShowError(collected.error);
+            return;
+          }
+          var manualRepos = collected.repos;
+          applyGitReposToInputs(manualRepos);
+          if (!manualRepos.length) {
+            modalShowError("任务类型为 6 时，请填写仓库与分支。");
+            return;
+          }
+          submitParentTask(manualRepos);
+          return;
+        }
+
+        if (!usesWikiCategoryGit(taskType)) {
+          submitParentTask([]);
+          return;
+        }
+
+        submitBtn.disabled = true;
+        loadWikiCategoryGitRepos(categoryId)
+          .then(function (gitRepos) {
+            submitBtn.disabled = false;
+            if (!gitRepos.length) {
+              modalShowError("该仓库 ID 下未配置代码库地址，请先在 Wiki Agent 配置文档源。");
+              return;
+            }
+            submitParentTask(gitRepos);
+          })
+          .catch(function (err) {
+            submitBtn.disabled = false;
+            modalShowError("加载代码库配置失败: " + err.message);
+          });
+      });
+
+      document.getElementById("tag-btn-query").onclick = function () {
+        runTagQuery(true);
+      };
+      prevBtn.addEventListener("click", function () {
+        if (tagPage <= 1) return;
+        tagPage -= 1;
+        runTagQuery(false);
+      });
+      nextBtn.addEventListener("click", function () {
+        if (tagTotalPages === 0 || tagPage >= tagTotalPages) return;
+        tagPage += 1;
+        runTagQuery(false);
+      });
+      tbody.addEventListener("click", function (ev) {
+        var rateBtn = ev.target.closest(".tag-adoption-rate-btn");
+        if (rateBtn) {
+          var ratePid = rateBtn.getAttribute("data-pid");
+          if (ratePid) {
+            openAdoptionRateModal(
+              ratePid,
+              rateBtn.getAttribute("data-rate") || "",
+              rateBtn.getAttribute("data-title") || "",
+            );
+          }
+          return;
+        }
+        var copyBtn = ev.target.closest(".tag-copy-new-btn");
+        if (copyBtn) {
+          var copyPid = copyBtn.getAttribute("data-pid");
+          if (copyPid) openCopyNewModal(copyPid, copyBtn);
+          return;
+        }
+        var flowBtn = ev.target.closest(".tag-flow-tab-btn");
+        if (flowBtn) {
+          var flowPid = flowBtn.getAttribute("data-pid");
+          if (flowPid) openParentFlowInNewTab(flowPid);
+          return;
+        }
+        var previewBtn = ev.target.closest(".tag-preview-doc-btn");
+        if (previewBtn) {
+          var previewPid = previewBtn.getAttribute("data-pid");
+          if (previewPid) openPreviewDoc(previewPid, previewBtn);
+          return;
+        }
+        var exportFuncBtn = ev.target.closest(".tag-export-func-test-btn");
+        if (exportFuncBtn) {
+          var exportPid = exportFuncBtn.getAttribute("data-pid");
+          if (exportPid) exportFuncTestCaseExcel(exportPid, exportFuncBtn);
+          return;
+        }
+        var scriptEditBtn = ev.target.closest(".tag-script-edit-btn");
+        if (scriptEditBtn) {
+          var scriptEditPid = scriptEditBtn.getAttribute("data-pid");
+          if (scriptEditPid) openScriptEditInNewTab(scriptEditPid, scriptEditBtn);
+          return;
+        }
+        var previewMindmapBtn = ev.target.closest(".tag-preview-mindmap-btn");
+        if (previewMindmapBtn) {
+          var mindmapPid = previewMindmapBtn.getAttribute("data-pid");
+          if (mindmapPid) openPreviewMindmap(mindmapPid, previewMindmapBtn);
+          return;
+        }
+        var confirmBtn = ev.target.closest(".tag-confirm-exec-btn");
+        if (!confirmBtn) return;
+        var rawIds = confirmBtn.getAttribute("data-task-ids") || "";
+        var taskIds = rawIds.split(",").map(function (s) {
+          return s.trim();
+        }).filter(Boolean);
+        if (taskIds.length) confirmPausedTasks(taskIds, confirmBtn);
+      });
+      var tagCreatorDefault = tagCurrentLoginUser();
+      if (tagCreatorDefault) {
+        document.getElementById("tag-creator").value = tagCreatorDefault;
+      }
+      /** 进入页面默认查询类型 5、6 父任务 */
+      loadWikiCategories();
+      runTagQuery(true);
+    })();
+  </script>
+</body>
+</html>

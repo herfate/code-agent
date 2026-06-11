@@ -6,7 +6,7 @@ import {
 
 export type { PendingTaskForScanRow };
 
-/** 任务扫描：按父任务分组，每组取最早一条待执行任务（含父任务信息） */
+/** 任务扫描：按父任务取最早 Pending；同 creator 默认同日不并行（`init.parallel` 可放宽） */
 export function selectPendingTasksForScan(
   db: DatabaseSync,
   batchSize: number,

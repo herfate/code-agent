@@ -7,6 +7,8 @@ export type { TaskAgentProvider } from "../constants/agentProvider.js";
 export const TASK_META_CLAUDE_AGENT_RUN_ID = "claudeAgentRunId" as const;
 /** Cursor 任务 SSE 续订字段 */
 export const TASK_META_CURSOR_AGENT_RUN_ID = "cursorAgentRunId" as const;
+/** 认领任务工作区 uuid（目录为 task-repo/<pid>_<id>/） */
+export const TASK_META_TASK_REPO_WORKSPACE_ID = "taskRepoWorkspaceId" as const;
 
 const META_KEY_BY_PROVIDER: Record<TaskAgentProvider, string> = {
   [TASK_RUN_AGENT_PROVIDER.Claude]: TASK_META_CLAUDE_AGENT_RUN_ID,
@@ -54,9 +56,36 @@ export function stripAgentRunIdsFromTaskMeta(meta_json: string | null): string |
   return JSON.stringify(meta);
 }
 
-/** 仅重新执行（无新追加对话）时清空追加队列，下一轮发送完整 description */
+/** 重跑时移除工作区 id，下次认领生成新目录 */
+export function stripTaskRepoWorkspaceIdFromTaskMeta(meta_json: string | null): string | null {
+  const meta = parseMetaObject(meta_json);
+  if (!(TASK_META_TASK_REPO_WORKSPACE_ID in meta)) return meta_json;
+  delete meta[TASK_META_TASK_REPO_WORKSPACE_ID];
+  const keys = Object.keys(meta);
+  if (keys.length === 0) return null;
+  return JSON.stringify(meta);
+}
+
+export function getTaskRepoWorkspaceIdFromTaskMeta(meta_json: string | null): string | null {
+  const meta = parseMetaObject(meta_json);
+  const v = meta[TASK_META_TASK_REPO_WORKSPACE_ID];
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
+export function mergeTaskMetaWithTaskRepoWorkspaceId(
+  meta_json: string | null,
+  workspaceId: string,
+): string {
+  const meta = parseMetaObject(meta_json);
+  meta[TASK_META_TASK_REPO_WORKSPACE_ID] = workspaceId;
+  return JSON.stringify(meta);
+}
+
+/** 仅重新执行（无新追加对话）时清空追加队列与工作区 id，下一轮发送完整 description 并使用新目录 */
 export function stripAgentRunIdsForRequeue(meta_json: string | null): string | null {
-  return clearFollowUpMessagesFromTaskMeta(stripAgentRunIdsFromTaskMeta(meta_json));
+  return clearFollowUpMessagesFromTaskMeta(
+    stripTaskRepoWorkspaceIdFromTaskMeta(stripAgentRunIdsFromTaskMeta(meta_json)),
+  );
 }
 
 /** @deprecated 使用 mergeTaskMetaWithAgentRunId */

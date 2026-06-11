@@ -12,7 +12,13 @@ export const saveDescription4TasksUnderParentHandler: ParentTaskChangedFilesHand
   },
 
   handle(ctx: ParentTaskChangedFilesContext): Promise<void> {
-    saveDescription4TasksUnderParent(ctx.db, ctx.parentTaskId, ctx.taskType, ctx.relativePaths);
+    saveDescription4TasksUnderParent(
+      ctx.db,
+      ctx.parentTaskId,
+      ctx.taskType,
+      ctx.executingTaskId,
+      ctx.relativePaths,
+    );
     return Promise.resolve();
   },
 };

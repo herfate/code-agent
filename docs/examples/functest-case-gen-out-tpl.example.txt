@@ -1,0 +1,191 @@
+【输出要求】在任务仓库根目录（cwd）生成 `test_case_design.json`（纯 JSON，可被 JSON.parse 解析），结构必须与本文档一致。
+
+【路径约定】
+- 主输出文件：`test_case_design.json`（相对 cwd）
+- 可选人类可读摘要：`test_case_design.md`（结构与下文「Markdown 摘要（可选）」一致；若生成则须与 JSON 数据一致）
+
+---
+
+# 功能测试用例设计 — test_case_design.json
+
+## JSON 顶层结构
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `version` | string | 是 | 固定 `"1.0"` |
+| `meta` | object | 是 | 设计元信息与统计 |
+| `columns` | array | 是 | Excel 列定义（顺序即导出列序） |
+| `cases` | array | 是 | 测试用例行，每项对应 Excel 一行 |
+| `open_questions` | object | 是 | 待澄清问题 |
+
+---
+
+## meta 字段
+
+```json
+{
+  "requirement_source": "{{requirement_source}}",
+  "design_time": "{{design_time}}",
+  "material_type": "requirement_with_code",
+  "summary_zh": "",
+  "total_count": 0,
+  "positive_count": 0,
+  "negative_count": 0,
+  "boundary_count": 0,
+  "ready_for_review": false,
+  "blocking_questions_count": 0,
+  "non_blocking_questions_count": 0
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `material_type` | `requirement_doc`（纯需求）或 `requirement_with_code`（有需求且附代码参考）；仅记录资料形态，不影响用例设计策略 |
+| `ready_for_review` | 无阻塞级问题时为 `true`；`blocking_questions_count > 0` 时必须为 `false` |
+| `*_count` | 必须与 `cases` 数组实际统计一致 |
+
+---
+
+## columns 定义（Excel 表头，顺序固定）
+
+```json
+[
+  { "key": "module", "header": "功能模块", "width": 15 },
+  { "key": "sub_module", "header": "子模块", "width": 15 },
+  { "key": "feature", "header": "功能点", "width": 20 },
+  { "key": "test_scenario", "header": "测试场景", "width": 40 },
+  { "key": "case_type_label", "header": "正反例", "width": 10 },
+  { "key": "steps_text", "header": "操作步骤", "width": 50 },
+  { "key": "expected_results_text", "header": "预期结果", "width": 50 },
+  { "key": "data_sql_text", "header": "数据表", "width": 40 },
+  { "key": "review_status", "header": "评审加用例", "width": 12 }
+]
+```
+
+> 导出 Excel 时：`columns[].key` 对应 `cases[]` 同名字段；`*_text` 字段为已格式化的单元格文本。
+
+---
+
+## cases 每项字段
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `case_id` | string | 是 | 用例编号，如 `TC-001` |
+| `module` | string | 是 | 功能模块 |
+| `sub_module` | string | 是 | 子模块 |
+| `feature` | string | 是 | 功能点 |
+| `test_scenario` | string | 是 | 测试场景（叶子节点，可直接执行） |
+| `case_type` | string | 是 | `positive` / `negative` / `boundary` |
+| `case_type_label` | string | 是 | 中文：`正例` / `反例` / `边界` |
+| `steps` | string[] | 是 | 操作步骤列表（有序） |
+| `steps_text` | string | 是 | 步骤合并文本：`1-xxx\n2-yyy` |
+| `expected_results` | string[] | 是 | 预期结果列表（有序） |
+| `expected_results_text` | string | 是 | 预期结果合并文本：`1-xxx\n2-yyy` |
+| `data_sql` | string[] | 是 | SQL 校验语句列表；无则 `[]`，对应 `data_sql_text` 为 `""` |
+| `data_sql_text` | string | 是 | SQL 合并文本，多条用 `\n` 分隔 |
+| `review_status` | string | 是 | 默认 `未评审` |
+| `linked_req` | string | 否 | 关联需求条目 ID |
+
+---
+
+## 完整示例（cases 片段）
+
+```json
+{
+  "version": "1.0",
+  "meta": {
+    "requirement_source": "task_prompt.md",
+    "design_time": "2026-06-25T10:00:00+08:00",
+    "material_type": "requirement_doc",
+    "summary_zh": "覆盖 HSBC 快捷鉴权授权申请成功主流程",
+    "total_count": 1,
+    "positive_count": 1,
+    "negative_count": 0,
+    "boundary_count": 0,
+    "ready_for_review": true,
+    "blocking_questions_count": 0,
+    "non_blocking_questions_count": 0
+  },
+  "columns": [
+    { "key": "module", "header": "功能模块", "width": 15 },
+    { "key": "sub_module", "header": "子模块", "width": 15 },
+    { "key": "feature", "header": "功能点", "width": 20 },
+    { "key": "test_scenario", "header": "测试场景", "width": 40 },
+    { "key": "case_type_label", "header": "正反例", "width": 10 },
+    { "key": "steps_text", "header": "操作步骤", "width": 50 },
+    { "key": "expected_results_text", "header": "预期结果", "width": 50 },
+    { "key": "data_sql_text", "header": "数据表", "width": 40 },
+    { "key": "review_status", "header": "评审加用例", "width": 12 }
+  ],
+  "cases": [
+    {
+      "case_id": "TC-001",
+      "module": "hk-fin",
+      "sub_module": "资金勾稽",
+      "feature": "申请数据处理",
+      "test_scenario": "HSBC渠道-汇丰账户快捷鉴权-授权申请成功",
+      "case_type": "positive",
+      "case_type_label": "正例",
+      "steps": [
+        "银行代码传【汇丰银行-004】",
+        "是否汇丰银行账户传【是】",
+        "鉴权方式传【快捷鉴权】",
+        "支付渠道号传【汇丰银行(RTDD)】",
+        "所有必传项、非必传项字段都传"
+      ],
+      "steps_text": "1-银行代码传【汇丰银行-004】\n2-是否汇丰银行账户传【是】\n3-鉴权方式传【快捷鉴权】\n4-支付渠道号传【汇丰银行(RTDD)】\n5-所有必传项、非必传项字段都传",
+      "expected_results": [
+        "调用HSBC渠道接口成功，返回授权状态为授权处理中，返回tradeNo、payNo、支付渠道号、OTP确认标识",
+        "系统落单成功，生成支付授权订单和流水"
+      ],
+      "expected_results_text": "1-调用HSBC渠道接口成功，返回授权状态为授权处理中，返回tradeNo、payNo、支付渠道号、OTP确认标识\n2-系统落单成功，生成支付授权订单和流水",
+      "data_sql": [
+        "SELECT * FROM 支付授权订单表 WHERE 申请订单流水号='xxx' AND 交易类型='提额授权'",
+        "SELECT * FROM 支付授权流水表 WHERE 支付订单号='xxx' AND 流水类型='授权申请'"
+      ],
+      "data_sql_text": "SELECT * FROM 支付授权订单表 WHERE 申请订单流水号='xxx' AND 交易类型='提额授权'\nSELECT * FROM 支付授权流水表 WHERE 支付订单号='xxx' AND 流水类型='授权申请'",
+      "review_status": "未评审",
+      "linked_req": "REQ-001"
+    }
+  ],
+  "open_questions": {
+    "blocking": [],
+    "non_blocking": []
+  }
+}
+```
+
+---
+
+## open_questions 结构
+
+```json
+{
+  "blocking": [
+    {
+      "id": "Q-001",
+      "question": "问题描述",
+      "impact": "影响范围",
+      "suggested_owner": "建议确认方"
+    }
+  ],
+  "non_blocking": []
+}
+```
+
+---
+
+## Markdown 摘要（可选）
+
+若额外生成 `test_case_design.md`，须包含二级标题「## 设计摘要」，其下第一个 fenced 块为 ```json，内容与 `test_case_design.json` 的 `meta` 字段一致（可附加 `case_ids` 数组）。
+
+---
+
+【强制 — 机读门禁】
+1. cwd 根目录必须存在 `test_case_design.json`，且可被 `JSON.parse` 解析。
+2. 必填顶层字段：`version`、`meta`、`columns`、`cases`、`open_questions`。
+3. `meta.total_count === cases.length`；`positive_count` / `negative_count` / `boundary_count` 与 `cases[].case_type` 统计一致。
+4. `blocking_questions_count > 0` 时 `meta.ready_for_review` 必须为 `false`。
+5. 每个 `cases[]` 项必须同时包含数组字段（`steps` / `expected_results` / `data_sql`）与对应 `*_text` 合并字段，且 `*_text` 由数组按 `1-` / `2-` 序号或换行规则生成。
+6. `columns` 顺序与上表一致，共 9 列；`cases` 每项须包含 `columns[].key` 对应的全部字段。
+7. 禁止输出 Markdown 表格替代 JSON；禁止在 JSON 文件外包裹 ```json 代码块。

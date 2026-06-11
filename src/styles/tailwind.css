@@ -56,6 +56,43 @@
     background-color: rgb(148 163 184);
   }
 
+  /* 多选下拉（UiMultiselect）：触发器与 combobox 一致，列表为 checkbox */
+  .ui-multiselect-trigger {
+    @apply flex w-full min-h-[2.875rem] cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-900 shadow-sm transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25;
+  }
+  .ui-multiselect-tags {
+    @apply flex min-w-0 flex-1 flex-wrap items-center gap-1;
+  }
+  .ui-multiselect-placeholder {
+    @apply truncate text-slate-400;
+  }
+  .ui-multiselect-tag {
+    @apply inline-flex max-w-full items-center truncate rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800 ring-1 ring-inset ring-blue-200/80;
+  }
+  .ui-multiselect-list {
+    @apply absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg ring-1 ring-black/5;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 225) transparent;
+  }
+  .ui-multiselect-list-raised {
+    @apply z-[60];
+  }
+  .ui-multiselect-opt {
+    @apply flex cursor-pointer items-center gap-2.5 px-3 py-2 text-slate-900 transition-colors hover:bg-slate-50;
+  }
+  .ui-multiselect-opt input[type="checkbox"] {
+    @apply h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30;
+  }
+  .ui-multiselect-footer {
+    @apply sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/95 px-3 py-2 backdrop-blur-sm;
+  }
+  .ui-multiselect-footer button {
+    @apply rounded-md px-2 py-1 text-xs font-medium text-blue-700 transition hover:bg-blue-50 hover:text-blue-900;
+  }
+  .ui-multiselect-footer button[data-action="clear"] {
+    @apply text-slate-500 hover:bg-slate-100 hover:text-slate-700;
+  }
+
   /* 任务 SSE 全屏页：对话式消息流 */
   .chat-log {
     @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-slate-100/80 p-3 sm:gap-4 sm:p-4;

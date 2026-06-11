@@ -205,7 +205,7 @@
         stopBtn.disabled = !on;
       }
 
-      function abortStream() {
+      function abortClientStream() {
         if (streamAbort) {
           try {
             streamAbort.abort();
@@ -213,6 +213,36 @@
           streamAbort = null;
         }
         setStopEnabled(false);
+      }
+
+      function requestAgentAbort() {
+        if (!currentTaskId) return;
+        setStopEnabled(false);
+        appendSystem("正在停止 Agent…", "default");
+        fetch(apiBase() + "/api/tasks/" + encodeURIComponent(currentTaskId) + "/agent-abort", {
+          method: "POST",
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (res.ok && res.body && res.body.ok) {
+              appendSystem("已发送停止请求，等待 Agent 结束…", "default");
+              return;
+            }
+            var msg =
+              res.body && res.body.error
+                ? typeof res.body.error === "string"
+                  ? res.body.error
+                  : JSON.stringify(res.body.error)
+                : "停止失败 HTTP " + res.status;
+            appendSystem(msg, "error");
+          })
+          .catch(function (e) {
+            appendSystem("停止请求失败: " + e.message, "error");
+          });
       }
 
       async function parseSseStream(response, onEvent) {
@@ -338,7 +368,7 @@
 
       function startStream(taskId) {
         currentTaskId = taskId;
-        abortStream();
+        abortClientStream();
         if (render) render.clearLog(logEl);
         else logEl.innerHTML = "";
         subEl.textContent = "task " + taskId + " · 加载线路…";
@@ -371,13 +401,13 @@
           });
       }
 
-      stopBtn.addEventListener("click", abortStream);
+      stopBtn.addEventListener("click", requestAgentAbort);
       if (followupSubmit) followupSubmit.addEventListener("click", submitFollowUp);
       document.getElementById("ats-close").addEventListener("click", function () {
-        abortStream();
+        abortClientStream();
         window.close();
       });
-      window.addEventListener("beforeunload", abortStream);
+      window.addEventListener("beforeunload", abortClientStream);
 
       var taskId = (queryParams().get("taskId") || "").trim();
       if (!taskId) {

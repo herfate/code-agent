@@ -1,7 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { ANTHROPIC_CONFIG_KEY_API_KEY, GITLAB_CONFIG_KEY_TOKEN } from "../constants/systemConfigKeys.js";
+import {
+  ANTHROPIC_CONFIG_KEY_API_KEY,
+  GITLAB_CONFIG_KEY_TOKEN,
+  TAPD_CONFIG_KEY_TOKEN,
+} from "../constants/systemConfigKeys.js";
 import {
   deleteSystemConfig,
   getUserConfigByKey,
@@ -32,6 +36,12 @@ const anthropicApiKeyBody = z.object({
   username: zTaskCreator,
   /** 留空则清除该用户的 Claude Auth Token 配置 */
   anthropic_api_key: z.string().max(500).optional().default(""),
+});
+
+const tapdTokenBody = z.object({
+  username: zTaskCreator,
+  /** 留空则清除该用户的 TAPD Token 配置 */
+  tapd_token: z.string().max(500).optional().default(""),
 });
 
 /** 脱敏展示 token，完整值勿下发给浏览器 */
@@ -134,7 +144,30 @@ export function registerSystemConfigRoutes(app: FastifyInstance, deps: { db: Dat
       username,
       ANTHROPIC_CONFIG_KEY_API_KEY,
       tokenRaw,
-      "Claude Auth Token（用户级，写入 ~/.claude.json env.ANTHROPIC_AUTH_TOKEN）",
+      "Claude Auth Token（用户级，写入 task-repo/<工作区>/.claude/settings.json env.ANTHROPIC_AUTH_TOKEN）",
+    );
+  });
+
+  app.get("/api/user-config/tapd-token", async (request, reply) => {
+    const parsed = gitlabTokenQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    return readUserSecretConfigStatus(db, parsed.data.username, TAPD_CONFIG_KEY_TOKEN);
+  });
+
+  app.put("/api/user-config/tapd-token", async (request, reply) => {
+    const parsed = tapdTokenBody.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const { username, tapd_token: tokenRaw } = parsed.data;
+    return saveUserSecretConfig(
+      db,
+      username,
+      TAPD_CONFIG_KEY_TOKEN,
+      tokenRaw,
+      "TAPD API Token（用户级，MCP TAPD 接口认证）",
     );
   });
 

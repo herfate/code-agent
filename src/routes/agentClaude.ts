@@ -10,12 +10,16 @@ import {
   updateThreadExternalId,
 } from "../db/repository.js";
 import { streamClaudeQueryToSse } from "../services/agentsdk/claudeAgent.js";
+import { readAccessUserName } from "../services/accessLog.js";
+import { switchClaudeAuthAccountFromDbAsync } from "../services/claude/updateClaudeJsonAuthToken.js";
+import { resolveTaskRepoCwd, resolveTaskRepoPId } from "../services/file/aiOutTaskPath.js";
 import { pipeAgentRunReplayToSse } from "../sse/replayAgentRun.js";
 
 const bodySchema = z.object({
   threadId: z.string().uuid().optional(),
   prompt: z.string().min(1),
   model: z.string().optional(),
+  pId: z.string().max(200).optional(),
 });
 
 export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: DatabaseSync }): void {
@@ -42,7 +46,7 @@ export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: Data
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
 
-    const { threadId: existingId, prompt, model } = parsed.data;
+    const { threadId: existingId, prompt, model, pId: bodyPId } = parsed.data;
 
     let threadId = existingId;
     if (!threadId) {
@@ -73,9 +77,18 @@ export function registerAgentClaudeRoutes(app: FastifyInstance, deps: { db: Data
 
     reply.hijack();
 
+    const headerUser = readAccessUserName(request.headers);
+    const pId = resolveTaskRepoPId(bodyPId, headerUser);
+    const taskRepoCwd = resolveTaskRepoCwd(pId);
+    const authUsername =
+      bodyPId?.trim() || (headerUser !== "-" ? headerUser.trim() : "") || undefined;
+
+    // 智能问答 / 对话 SSE：按登录用户切换 Claude Auth Token（与认领任务一致）
+    await switchClaudeAuthAccountFromDbAsync(db, taskRepoCwd, authUsername, request.log);
+
     const { sessionId, assistantText, sdkError } = await streamClaudeQueryToSse(reply, {
       threadId,
-      pId: "demo",
+      pId,
       prompt,
       model,
       resume: resumeSessionId,

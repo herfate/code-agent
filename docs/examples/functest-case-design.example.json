@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "meta": {
+    "requirement_source": "task_prompt.md",
+    "design_time": "2026-06-25T10:00:00+08:00",
+    "material_type": "requirement_doc",
+    "summary_zh": "覆盖 HSBC 快捷鉴权授权申请成功主流程",
+    "total_count": 1,
+    "positive_count": 1,
+    "negative_count": 0,
+    "boundary_count": 0,
+    "ready_for_review": true,
+    "blocking_questions_count": 0,
+    "non_blocking_questions_count": 0
+  },
+  "columns": [
+    { "key": "module", "header": "功能模块", "width": 15 },
+    { "key": "sub_module", "header": "子模块", "width": 15 },
+    { "key": "feature", "header": "功能点", "width": 20 },
+    { "key": "test_scenario", "header": "测试场景", "width": 40 },
+    { "key": "case_type_label", "header": "正反例", "width": 10 },
+    { "key": "steps_text", "header": "操作步骤", "width": 50 },
+    { "key": "expected_results_text", "header": "预期结果", "width": 50 },
+    { "key": "data_sql_text", "header": "数据表", "width": 40 },
+    { "key": "review_status", "header": "评审加用例", "width": 12 }
+  ],
+  "cases": [
+    {
+      "case_id": "TC-001",
+      "module": "hk-fin",
+      "sub_module": "资金勾稽",
+      "feature": "申请数据处理",
+      "test_scenario": "HSBC渠道-汇丰账户快捷鉴权-授权申请成功",
+      "case_type": "positive",
+      "case_type_label": "正例",
+      "steps": [
+        "银行代码传【汇丰银行-004】",
+        "是否汇丰银行账户传【是】",
+        "鉴权方式传【快捷鉴权】",
+        "支付渠道号传【汇丰银行(RTDD)】",
+        "所有必传项、非必传项字段都传"
+      ],
+      "steps_text": "1-银行代码传【汇丰银行-004】\n2-是否汇丰银行账户传【是】\n3-鉴权方式传【快捷鉴权】\n4-支付渠道号传【汇丰银行(RTDD)】\n5-所有必传项、非必传项字段都传",
+      "expected_results": [
+        "调用HSBC渠道接口成功，返回授权状态为授权处理中，返回tradeNo、payNo、支付渠道号、OTP确认标识",
+        "系统落单成功，生成支付授权订单和流水"
+      ],
+      "expected_results_text": "1-调用HSBC渠道接口成功，返回授权状态为授权处理中，返回tradeNo、payNo、支付渠道号、OTP确认标识\n2-系统落单成功，生成支付授权订单和流水",
+      "data_sql": [
+        "SELECT * FROM 支付授权订单表 WHERE 申请订单流水号='xxx' AND 交易类型='提额授权'",
+        "SELECT * FROM 支付授权流水表 WHERE 支付订单号='xxx' AND 流水类型='授权申请'"
+      ],
+      "data_sql_text": "SELECT * FROM 支付授权订单表 WHERE 申请订单流水号='xxx' AND 交易类型='提额授权'\nSELECT * FROM 支付授权流水表 WHERE 支付订单号='xxx' AND 流水类型='授权申请'",
+      "review_status": "未评审",
+      "linked_req": "REQ-001"
+    }
+  ],
+  "open_questions": {
+    "blocking": [],
+    "non_blocking": []
+  }
+}

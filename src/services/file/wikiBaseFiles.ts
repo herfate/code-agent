@@ -36,6 +36,8 @@ export type WikiBaseCategorySummary = {
   id: string;
   label: string;
   file_count: number;
+  /** 分类下最新文档修改时间（毫秒）；无文档时为 `null` */
+  updated_at: number | null;
 };
 
 export type WikiBaseFileContent = {
@@ -47,6 +49,13 @@ export type WikiBaseFileContent = {
 };
 
 const PREVIEWABLE_SUFFIXES = [".md", ".markdown", ".json", ".txt"] as const;
+
+const WIKI_ASSET_SUFFIXES = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"] as const;
+
+function isWikiAssetFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  return WIKI_ASSET_SUFFIXES.some((ext) => lower.endsWith(ext));
+}
 
 function isPreviewableFile(name: string): boolean {
   const lower = name.toLowerCase();
@@ -72,7 +81,7 @@ function assertUnderWikiBaseRoot(absPath: string): void {
   }
 }
 
-/** 分类 id 仅允许已定义的字面量（1–4） */
+/** 分类 id 仅允许已定义的字面量 */
 export function assertSafeWikiCategoryId(categoryId: string): void {
   if (!isWikiCategoryId(categoryId)) {
     throw new Error("invalid wiki category id");
@@ -131,13 +140,17 @@ function collectFiles(dir: string, categoryRoot: string, out: WikiBaseFileItem[]
   }
 }
 
-/** 列出全部分类及各自文件数量 */
+/** 列出全部分类及各自文件数量、最近更新时间 */
 export function listWikiBaseCategories(): WikiBaseCategorySummary[] {
-  return WIKI_CATEGORIES.map((c) => ({
-    id: c.id,
-    label: c.label,
-    file_count: listWikiBaseFiles(c.id).length,
-  }));
+  return WIKI_CATEGORIES.map((c) => {
+    const files = listWikiBaseFiles(c.id);
+    return {
+      id: c.id,
+      label: c.label,
+      file_count: files.length,
+      updated_at: files.length > 0 ? files[0].updated_at : null,
+    };
+  });
 }
 
 /** 列出 `wiki_base/<categoryId>/` 下全部可预览文件（递归，用于分类卡片计数） */
@@ -225,5 +238,40 @@ export function readWikiBaseFile(categoryId: string, relativePath: string): Wiki
     content,
     content_kind: contentKindForFile(relativePath, content),
     updated_at: st.mtimeMs,
+  };
+}
+
+function mimeForWikiAsset(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".bmp")) return "image/bmp";
+  if (lower.endsWith(".ico")) return "image/x-icon";
+  return "application/octet-stream";
+}
+
+/** 读取 `wiki_base/<categoryId>/` 下图片资源（如 `_assets/` 目录） */
+export function readWikiBaseAsset(
+  categoryId: string,
+  relativePath: string,
+): { buffer: Buffer; mime: string } | null {
+  assertSafeWikiCategoryId(categoryId);
+  assertSafeWikiRelativePath(relativePath);
+  if (!isWikiAssetFile(relativePath)) return null;
+  const categoryRoot = join(wikiBaseRoot(), categoryId);
+  const absPath = resolve(categoryRoot, relativePath);
+  assertUnderWikiBaseRoot(absPath);
+  if (!absPath.startsWith(categoryRoot + sep) && absPath !== categoryRoot) {
+    throw new Error("invalid relative path");
+  }
+  if (!existsSync(absPath)) return null;
+  const st = statSync(absPath);
+  if (!st.isFile()) return null;
+  return {
+    buffer: readFileSync(absPath),
+    mime: mimeForWikiAsset(relativePath),
   };
 }

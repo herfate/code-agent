@@ -5,10 +5,20 @@ import type { TaskRow } from "../../../db/workflow.js";
 export type CreateParentTaskWorkflowInput = CreateParentTaskWithParamsInput & {
   /** 写入 `tasks.creator`（HTTPS 克隆用户名） */
   creator: string;
-  /** 写入 `tasks.input_json.app` */
+  /** 写入 `tasks.input_json.app`（QA 应用名称） */
   app?: string;
+  /** 写入 `tasks.input_json.qaVersion` */
+  qaVersion?: string;
+  /** 写入 `tasks.input_json.qaApiPath` */
+  qaApiPath?: string;
+  /** 写入 `tasks.input_json.scriptId` */
+  scriptId?: string;
+  /** 写入 `tasks.input_json.labelIds` */
+  labelIds?: number[];
   /** 工作流任务需求；默认取父任务 `description` */
   requirement?: string;
+  /** wiki_base 分类 ID；写入 `task_type=22` 子任务的 `input_json.testScriptRepo` */
+  testScriptRepo?: string;
 };
 
 export type CreateParentTaskWorkflowResult = CreateParentTaskWithParamsResult & {

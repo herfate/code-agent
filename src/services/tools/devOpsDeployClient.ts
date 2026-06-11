@@ -10,13 +10,13 @@ export type DevOpsDeployParams = {
   env: string;
 };
 
-/** Jenkins Blue Ocean pipeline 详情页模板（`${job_name}`、`${build_number}` 占位替换） */
-export const JENKINS_PIPELINE_RESULT_URL_TEMPLATE =
-  "http://jkp-s1.howbuy.pa/jenkins/blue/organizations/jenkins/${job_name}/detail/${job_name}/${build_number}/pipeline/";
+/** Jenkins Blue Ocean pipeline 详情页路径模板（`${job_name}`、`${build_number}` 占位替换；主域取自 `job_url`） */
+const JENKINS_PIPELINE_RESULT_PATH_TEMPLATE =
+  "/jenkins/blue/organizations/jenkins/${job_name}/detail/${job_name}/${build_number}/pipeline/";
 
-/** Jenkins Blue Ocean pipeline 节点列表 REST 模板（`${job_name}`、`${build_number}` 占位替换） */
-export const JENKINS_PIPELINE_NODE_URL_TEMPLATE =
-  "http://jkp-s1.howbuy.pa/jenkins/blue/rest/organizations/jenkins/pipelines/${job_name}/runs/${build_number}/nodes/?limit=10000";
+/** Jenkins Blue Ocean pipeline 节点列表 REST 路径模板（主域取自 `job_url`） */
+const JENKINS_PIPELINE_NODE_PATH_TEMPLATE =
+  "/jenkins/blue/rest/organizations/jenkins/pipelines/${job_name}/runs/${build_number}/nodes/?limit=10000";
 
 /** DevOps pipeline 触发响应中单条 job 记录（API 原始字段） */
 export type DevOpsDeployPipelineItemRaw = {
@@ -52,20 +52,41 @@ function jenkinsRunNumber(buildNumber: number): string {
   return String(buildNumber + 1);
 }
 
-/** 按模板拼接 Jenkins pipeline 详情地址 */
-export function buildJenkinsPipelineResultUrl(jobName: string, buildNumber: number): string {
-  return JENKINS_PIPELINE_RESULT_URL_TEMPLATE.replace(/\$\{job_name\}/g, jobName).replace(
-    /\$\{build_number\}/g,
-    jenkinsRunNumber(buildNumber),
-  );
+/** 从平台返回的 `job_url` 解析协议+主机（如 `http://jkp-s1.howbuy.pa`） */
+export function extractJenkinsOriginFromJobUrl(jobUrl: string): string | null {
+  const trimmed = jobUrl.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return null;
+  }
 }
 
-/** 按模板拼接 Jenkins pipeline 节点列表 REST 地址 */
-export function buildJenkinsPipelineNodeUrl(jobName: string, buildNumber: number): string {
-  return JENKINS_PIPELINE_NODE_URL_TEMPLATE.replace(/\$\{job_name\}/g, jobName).replace(
-    /\$\{build_number\}/g,
-    jenkinsRunNumber(buildNumber),
-  );
+function fillJenkinsPathTemplate(pathTemplate: string, jobName: string, buildNumber: number): string {
+  return pathTemplate
+    .replace(/\$\{job_name\}/g, jobName)
+    .replace(/\$\{build_number\}/g, jenkinsRunNumber(buildNumber));
+}
+
+/** 按模板拼接 Jenkins pipeline 详情地址（主域取自 `job_url`） */
+export function buildJenkinsPipelineResultUrl(
+  jobName: string,
+  buildNumber: number,
+  jobUrl?: string,
+): string {
+  const origin = extractJenkinsOriginFromJobUrl(jobUrl ?? "") ?? "";
+  return `${origin}${fillJenkinsPathTemplate(JENKINS_PIPELINE_RESULT_PATH_TEMPLATE, jobName, buildNumber)}`;
+}
+
+/** 按模板拼接 Jenkins pipeline 节点列表 REST 地址（主域取自 `job_url`） */
+export function buildJenkinsPipelineNodeUrl(
+  jobName: string,
+  buildNumber: number,
+  jobUrl?: string,
+): string {
+  const origin = extractJenkinsOriginFromJobUrl(jobUrl ?? "") ?? "";
+  return `${origin}${fillJenkinsPathTemplate(JENKINS_PIPELINE_NODE_PATH_TEMPLATE, jobName, buildNumber)}`;
 }
 
 /** 解析 pipeline POST 响应，并为每条 data 附加 `result_url`、`node_url` */
@@ -82,14 +103,15 @@ export function parseDevOpsDeployPipelineResponse(body: string): DevOpsDeployPip
       const row = item as Partial<DevOpsDeployPipelineItemRaw>;
       const jobName = String(row.job_name ?? "");
       const buildNumber = Number(row.build_number ?? 0);
+      const jobUrl = String(row.job_url ?? "");
       return {
         job_name: jobName,
         result: String(row.result ?? ""),
         msg: String(row.msg ?? ""),
         build_number: buildNumber,
-        job_url: String(row.job_url ?? ""),
-        result_url: buildJenkinsPipelineResultUrl(jobName, buildNumber),
-        node_url: buildJenkinsPipelineNodeUrl(jobName, buildNumber),
+        job_url: jobUrl,
+        result_url: buildJenkinsPipelineResultUrl(jobName, buildNumber, jobUrl),
+        node_url: buildJenkinsPipelineNodeUrl(jobName, buildNumber, jobUrl),
       };
     });
 
@@ -115,7 +137,7 @@ type DevOpsReposResponse = {
   };
 };
 
-/** PUT pipeline 环境套绑定响应 */
+/** pipeline 环境绑定响应（env_bind POST / PUT 共用） */
 type DevOpsPipelineBindResponse = {
   status?: string;
   msg?: string;
@@ -197,22 +219,27 @@ function fail(status: number, body: string): DevOpsDeployResult {
   return { ok: false, status, body };
 }
 
-/** 部署接口基址：环境变量优先，其次全局 `system_config.dev_ops_deploy_url`（如 `http://appdeploy.intelnal.howbuy.com`） */
-export function resolveDevOpsDeployUrl(db: DatabaseSync): string | undefined {
+/** 部署接口基址：环境变量优先，其次全局 `system_config.dev_ops_deploy_url`，均未配置时回退默认地址 */
+const DEV_OPS_DEPLOY_DEFAULT_URL = "http://devops.howbuy.pa";
+
+export function resolveDevOpsDeployUrl(db: DatabaseSync): string {
   const fromEnv = process.env.DEV_OPS_DEPLOY_URL?.trim();
   if (fromEnv) return fromEnv;
 
   const row = getGlobalConfigByKey(db, DEV_OPS_DEPLOY_URL_CONFIG_KEY);
-  if (!row) return undefined;
-  const url = parseConfigStringValue(row.value_json).trim();
-  return url || undefined;
+  if (row) {
+    const url = parseConfigStringValue(row.value_json).trim();
+    if (url) return url;
+  }
+  return DEV_OPS_DEPLOY_DEFAULT_URL;
 }
 
 /**
  * 测试环境部署（对齐 Java `dev_ops_deploy` / MCP `dev_ops_deploy`）：
  * 1. 按 app_name 查 product_repos_api 校验 serverName 并解析 tag
- * 2. PUT 绑定应用与测试环境（`pipeline_id` / `app_name` / `env`）
- * 3. 向 iter_mgt/pipeline 提交表单触发流水线
+ * 2. POST env_bind 绑定 job 与测试环境（`job_name` / `app_name` / `env`）
+ * 3. PUT 绑定应用与测试环境（`pipeline_id` / `app_name` / `env`）
+ * 4. 向 iter_mgt/pipeline 提交表单触发流水线
  */
 export async function devOpsDeployTestEnv(
   baseUrl: string,
@@ -265,6 +292,33 @@ export async function devOpsDeployTestEnv(
   const tag = first.iteration_id.replace(first.br_name, "");
   const pipelineId = `${tag}${gitBranch}`;
   const jobName = `${pipelineId}_${serverName}`;
+
+  const envBindBody = JSON.stringify({
+    job_name: jobName,
+    app_name: serverName,
+    env,
+  });
+  console.log("[devOpsDeployTestEnv] env_bind:", envBindBody);
+  const envBindRes = await fetch(`${base}/spider/pipeline/env_bind`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: envBindBody,
+    signal,
+  });
+  const envBindText = await envBindRes.text();
+  if (!envBindRes.ok) {
+    return fail(envBindRes.status, `环境绑定失败 HTTP ${envBindRes.status}: ${envBindText.slice(0, 500)}`);
+  }
+  let envBindJson: DevOpsPipelineBindResponse;
+  try {
+    envBindJson = JSON.parse(envBindText) as DevOpsPipelineBindResponse;
+  } catch {
+    return fail(envBindRes.status, `解析环境绑定响应失败: ${envBindText.slice(0, 500)}`);
+  }
+  if (envBindJson.status !== "success") {
+    const msg = envBindJson.msg?.trim() || envBindText.slice(0, 500);
+    return fail(envBindRes.status, `环境绑定失败: ${msg}`);
+  }
 
   const bindBody = JSON.stringify({
     pipeline_id: pipelineId,

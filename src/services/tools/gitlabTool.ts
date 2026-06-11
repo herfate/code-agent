@@ -2,6 +2,8 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { WIKI_DOC_PARAM_KEY } from "../../constants/commonKey.js";
+import { getParentTaskParamByParentAndKey } from "../../db/workflow.js";
 import { promisify } from "node:util";
 import {
   GITLAB_CONFIG_KEY_HOST,
@@ -10,12 +12,15 @@ import {
 import { parseTaskInputJson, listTaskInputGitRepos, type TaskInputJson } from "../../db/taskInputJson.js";
 import { getGlobalConfigByKey, getUserConfigByKey } from "../../db/systemConfig.js";
 import { TASK_TYPE, type TaskType } from "../../constants/taskType.js";
-import { copyWikiCategoryToDir, resolveWikiCategoryIdFromParent } from "../file/prepareWikiQaDemoWorkspace.js";
+import { copyWikiCategorySourceTypesToDir, copyWikiCategoryToDir, parseWikiDocParamJson, resolveGitReposFromWikiDocSlots, resolveWikiCategoryIdFromParent } from "../file/prepareWikiQaDemoWorkspace.js";
+import { isWikiCategoryId, type WikiCategoryId } from "../../constants/wikiCategory.js";
+import { WIKI_SOURCE_TYPE } from "../../constants/wikiSourceType.js";
 import { AppLog } from "../appLogger.js";
 import {
   planGitRepoWorkspaceDirs,
   resolveGitRepoWorkspacePath,
 } from "./gitRepoWorkspace.js";
+import { gitCliArgs } from "./gitExec.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -82,7 +87,7 @@ async function runGit(
   opts: { cwd?: string; signal?: AbortSignal },
 ): Promise<{ stdout: string; stderr: string }> {
   try {
-    const r = await execFileAsync("git", args, {
+    const r = await execFileAsync("git", gitCliArgs(args), {
       cwd: opts.cwd,
       signal: opts.signal,
       maxBuffer: 50 * 1024 * 1024,
@@ -233,10 +238,93 @@ export async function cloneRepo(input: CloneRepoInput): Promise<void> {
   args.push(remoteForGit, target);
 
   await runGit(args, { cwd: parent, signal: input.signal });
+  // 供 Agent 在仓库内直接执行 git 时同样支持长路径
+  if (process.platform === "win32") {
+    await runGit(["config", "core.longpaths", "true"], { cwd: target, signal: input.signal });
+  }
+}
+
+export type SyncOrCloneRepoInput = CloneRepoInput;
+
+export type SyncOrCloneRepoResult = "cloned" | "updated";
+
+/**
+ * 同步或克隆仓库到 `targetPath`：目录内已有 `.git` 则 fetch + reset，否则浅克隆。
+ * 若目录存在但非 git 仓库，会先删除再克隆。
+ */
+export async function syncOrCloneRepo(input: SyncOrCloneRepoInput): Promise<SyncOrCloneRepoResult> {
+  const target = path.resolve(input.targetPath);
+  const parent = path.dirname(target);
+  if (!input.remoteUrl.trim()) {
+    throw new Error("syncOrCloneRepo: remoteUrl 不能为空");
+  }
+  mkdirSync(parent, { recursive: true });
+
+  const branch = input.branch?.trim() || "master";
+  const remoteForGit = applyHttpsTokenToRemoteUrl(
+    input.remoteUrl.trim(),
+    input.token ?? "",
+    input.httpsTokenUsername?.trim() || undefined,
+  );
+
+  const gitDir = path.join(target, ".git");
+  if (existsSync(gitDir)) {
+    await runGit(["remote", "set-url", "origin", remoteForGit], { cwd: target, signal: input.signal });
+    await runGit(["fetch", "--depth", "1", "origin", branch], { cwd: target, signal: input.signal });
+    await runGit(["reset", "--hard", `origin/${branch}`], { cwd: target, signal: input.signal });
+    return "updated";
+  }
+
+  if (existsSync(target)) {
+    rmSync(target, { recursive: true, force: true });
+  }
+
+  await cloneRepo({
+    ...input,
+    targetPath: target,
+    depth: input.depth ?? 1,
+    branch,
+    token: input.token,
+    httpsTokenUsername: input.httpsTokenUsername,
+    signal: input.signal,
+  });
+  return "cloned";
+}
+
+/** 依次用多个 token 同步/克隆，前一个失败则清理目录后换下一个 */
+export async function syncOrCloneRepoWithTokenFallback(
+  input: Omit<SyncOrCloneRepoInput, "token">,
+  tokens: readonly string[],
+): Promise<SyncOrCloneRepoResult> {
+  if (tokens.length === 0) {
+    throw new Error("syncOrCloneRepo: 未配置克隆 token");
+  }
+  const target = path.resolve(input.targetPath);
+  let lastError: unknown;
+  for (let i = 0; i < tokens.length; i++) {
+    try {
+      return await syncOrCloneRepo({ ...input, token: tokens[i] });
+    } catch (e) {
+      lastError = e;
+      if (i < tokens.length - 1 && existsSync(target)) {
+        rmSync(target, { recursive: true, force: true });
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+/** 读取全局 GitLab token，供代码库定时/手动同步使用 */
+export function getGitlabGlobalToken(db: DatabaseSync): string | undefined {
+  return getGitlabGlobalSettings(db)?.token;
 }
 
 function isWikiBizTaskType(taskType: TaskType | undefined): boolean {
-  return taskType === TASK_TYPE.StorySplit || taskType === TASK_TYPE.Brainstorm;
+  return (
+    taskType === TASK_TYPE.StorySplit ||
+    taskType === TASK_TYPE.AiStorySplit ||
+    taskType === TASK_TYPE.Brainstorm
+  );
 }
 
 /** 认领任务：根据 `input_json.gitlab` 克隆或建空目录；含从 DB 拼 HTTPS；失败时 `onClonePrepFailed` 并返回 `false` */
@@ -250,6 +338,8 @@ export type PrepareClaimedTaskRepoWorkspaceInput = {
   taskId: string;
   /** 拆分故事 / 头脑风暴时复制 wiki 文档（见 `parent_task_params.wiki_doc`） */
   taskType?: TaskType;
+  /** 续跑：目录已存在则跳过 wipe/clone */
+  reuseExisting?: boolean;
   /** 拼不出地址或 `git clone` 抛错 */
   onClonePrepFailed: (errorMessage: string) => void;
 };
@@ -257,10 +347,33 @@ export type PrepareClaimedTaskRepoWorkspaceInput = {
 export async function prepareClaimedTaskRepoWorkspace(
   input: PrepareClaimedTaskRepoWorkspaceInput,
 ): Promise<boolean> {
-  const { db, taskInputJson, creator, taskRepoCwd, taskId, taskType, onClonePrepFailed } = input;
-  const repos = listTaskInputGitRepos(taskInputJson);
+  const { db, taskInputJson, creator, taskRepoCwd, taskId, taskType, reuseExisting, onClonePrepFailed } =
+    input;
+
+  if (reuseExisting && existsSync(taskRepoCwd)) {
+    AppLog.logger.info({ taskId, taskRepoCwd }, "claimed task: reuse existing workspace, skip clone");
+    return true;
+  }
+
   const wikiBizTask = isWikiBizTaskType(taskType);
+  const wikiDocParam = wikiBizTask
+    ? parseWikiDocParamJson(
+        getParentTaskParamByParentAndKey(db, taskId, WIKI_DOC_PARAM_KEY)?.value_json,
+      )
+    : null;
   const wikiCategoryId = wikiBizTask ? resolveWikiCategoryIdFromParent(db, taskId) : null;
+
+  // AI 拆分故事：不克隆代码库（仍可复制 Wiki 文档）；头脑风暴等其它 Wiki 任务仍按 slots / input_json 拉仓
+  const skipCodeRepos = taskType === TASK_TYPE.AiStorySplit;
+  const repos = skipCodeRepos
+    ? []
+    : wikiBizTask && wikiCategoryId
+      ? resolveGitReposFromWikiDocSlots(
+          db,
+          wikiCategoryId as WikiCategoryId,
+          wikiDocParam?.include_code_repo_slots ?? [],
+        )
+      : listTaskInputGitRepos(taskInputJson);
 
   if (repos.length === 0) {
     mkdirSync(taskRepoCwd, { recursive: true });
@@ -292,9 +405,10 @@ export async function prepareClaimedTaskRepoWorkspace(
 
   if (wikiCategoryId) {
     try {
-      const copied = copyWikiCategoryToDir(wikiCategoryId, taskRepoCwd);
+      const docTypes = wikiDocParam?.include_doc_types ?? [];
+      const copied = copyWikiCategorySourceTypesToDir(wikiCategoryId, taskRepoCwd, docTypes);
       AppLog.logger.info(
-        { taskId, taskRepoCwd, wikiCategoryId, copied },
+        { taskId, taskRepoCwd, wikiCategoryId, copied, docTypes },
         "claimed task: wiki files copied",
       );
     } catch (e) {
@@ -304,6 +418,40 @@ export async function prepareClaimedTaskRepoWorkspace(
     }
   } else if (wikiBizTask) {
     AppLog.logger.warn({ taskId, taskType }, "claimed task: wiki_doc category_id missing, skip wiki copy");
+  }
+
+  const testScriptRepo = taskInputJson.testScriptRepo?.trim();
+  if (testScriptRepo) {
+    if (!isWikiCategoryId(testScriptRepo)) {
+      AppLog.logger.warn({ taskId, testScriptRepo }, "claimed task: invalid testScriptRepo, skip wiki copy");
+    } else {
+      try {
+        const copied =
+          taskType === TASK_TYPE.TestMindMapAnalysis
+            ? copyWikiCategorySourceTypesToDir(testScriptRepo, taskRepoCwd, [
+                WIKI_SOURCE_TYPE.TestMindMap,
+              ])
+            : taskType === TASK_TYPE.AutoTestCaseGen
+              ? copyWikiCategorySourceTypesToDir(testScriptRepo, taskRepoCwd, [
+                  WIKI_SOURCE_TYPE.AutomatedTestCase,
+                ])
+              : copyWikiCategoryToDir(testScriptRepo, taskRepoCwd);
+        AppLog.logger.info(
+          { taskId, taskRepoCwd, testScriptRepo, taskType, copied },
+          "claimed task: testScriptRepo wiki files copied",
+        );
+        if (copied === 0) {
+          AppLog.logger.warn(
+            { taskId, testScriptRepo },
+            "claimed task: testScriptRepo wiki_base has no synced files",
+          );
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        onClonePrepFailed(msg);
+        return false;
+      }
+    }
   }
 
   return true;
