@@ -20,6 +20,15 @@ const envSchema = z.object({
   WIKI_SYNC_DAILY_HOUR: z.coerce.number().int().min(-1).max(23).default(1),
   /** 每日 Wiki 同步分钟（0–59） */
   WIKI_SYNC_DAILY_MINUTE: z.coerce.number().int().min(0).max(59).default(0),
+  /**
+   * Confluence 同步成功后是否定时自动创建沉淀记忆父任务（类型 7）；
+   * 默认关闭；设为 `true` / `1` 开启
+   */
+  WIKI_SYNC_CREATE_PERSIST_MEMORY: z.preprocess((v) => {
+    if (v === undefined || v === null || v === "") return false;
+    const s = String(v).trim().toLowerCase();
+    return s === "true" || s === "1";
+  }, z.boolean()),
   /** Wiki 智能问答是否允许选择 Cursor 线路；`false` 时前端禁用 Cursor 并提示 */
   WIKI_QA_CURSOR_ENABLED: z.preprocess((v) => {
     if (v === undefined || v === null || v === "") return true;

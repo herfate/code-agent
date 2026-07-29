@@ -15,6 +15,7 @@ const wikiAgentHtmlPath = join(__dirname, "..", "..", "public", "wikiAgent.html"
 const userConfigHtmlPath = join(__dirname, "..", "..", "public", "userConfig.html");
 const skillPromptConfigHtmlPath = join(__dirname, "..", "..", "public", "skillPromptConfig.html");
 const testAgentHtmlPath = join(__dirname, "..", "..", "public", "testAgent.html");
+const ruleAgentHtmlPath = join(__dirname, "..", "..", "public", "ruleAgent.html");
 const kanbanHtmlPath = join(__dirname, "..", "..", "public", "kanban.html");
 
 async function sendIndexHtml(reply: FastifyReply): Promise<void> {
@@ -72,6 +73,11 @@ async function sendTestAgentHtml(reply: FastifyReply): Promise<void> {
   await reply.type("text/html; charset=utf-8").send(html);
 }
 
+async function sendRuleAgentHtml(reply: FastifyReply): Promise<void> {
+  const html = await readFile(ruleAgentHtmlPath, "utf8");
+  await reply.type("text/html; charset=utf-8").send(html);
+}
+
 async function sendKanbanHtml(reply: FastifyReply): Promise<void> {
   const html = await readFile(kanbanHtmlPath, "utf8");
   await reply.type("text/html; charset=utf-8").send(html);
@@ -115,6 +121,9 @@ export function registerDemoPageRoute(app: FastifyInstance): void {
   });
   app.get("/test-agent", async (_req, reply) => {
     return sendTestAgentHtml(reply);
+  });
+  app.get("/rule-agent", async (_req, reply) => {
+    return sendRuleAgentHtml(reply);
   });
   app.get("/kanban", async (_req, reply) => {
     return sendKanbanHtml(reply);

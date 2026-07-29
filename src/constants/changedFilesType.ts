@@ -17,8 +17,12 @@ export const CHANGED_FILES_TYPE = {
   AiStorySplitOut: "AiStorySplitOut",
   /** UI 测试执行（task_type=12）输出 */
   UiTestExecuteOut: "UiTestExecuteOut",
-  /** 沉淀记忆（task_type=13）输出 */
+  /** 生成业务知识（task_type=13）输出 */
   PersistMemoryOut: "PersistMemoryOut",
+  /** 生成代码规范（task_type=14）输出 */
+  GenCodeSpecOut: "GenCodeSpecOut",
+  /** 生成测试规范（task_type=15）输出 */
+  GenTestSpecOut: "GenTestSpecOut",
   /** 功能测试用例生成（task_type=20）输出 */
   FuncTestCaseGenOut: "FuncTestCaseGenOut",
   /** 自动化用例生成（task_type=21）输出 */
@@ -67,7 +71,11 @@ export function changedFilesTypeLabel(code: ChangedFilesType | string): string {
     case CHANGED_FILES_TYPE.UiTestExecuteOut:
       return "UI测试执行输出";
     case CHANGED_FILES_TYPE.PersistMemoryOut:
-      return "沉淀记忆输出";
+      return "生成业务知识输出";
+    case CHANGED_FILES_TYPE.GenCodeSpecOut:
+      return "生成代码规范输出";
+    case CHANGED_FILES_TYPE.GenTestSpecOut:
+      return "生成测试规范输出";
     case CHANGED_FILES_TYPE.FuncTestCaseGenOut:
       return "功能测试用例生成输出";
     case CHANGED_FILES_TYPE.AutoTestCaseGenOut:
@@ -104,6 +112,10 @@ export function changedFilesParamKeyForTaskType(taskType: TaskType): ChangedFile
       return CHANGED_FILES_TYPE.UiTestExecuteOut;
     case TASK_TYPE.PersistMemory:
       return CHANGED_FILES_TYPE.PersistMemoryOut;
+    case TASK_TYPE.GenCodeSpec:
+      return CHANGED_FILES_TYPE.GenCodeSpecOut;
+    case TASK_TYPE.GenTestSpec:
+      return CHANGED_FILES_TYPE.GenTestSpecOut;
     case TASK_TYPE.FuncTestCaseGen:
       return CHANGED_FILES_TYPE.FuncTestCaseGenOut;
     case TASK_TYPE.AutoTestCaseGen:

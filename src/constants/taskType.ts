@@ -2,8 +2,9 @@
  * 表 `tasks.task_type` 持久化数值（与页面中文一一对应）。父任务类型见 {@link parentAgentType.ts}。
  * 0 设计、1 开发、2 开发规范优化、3 测试预分析、4 测试案例设计、5 测试数据分析、
  * 6 测试案例执行、7 QA 平台测试脚本生成、8 Code Review、9 拆分故事、10 头脑风暴、
- * 11 AI拆分故事、12 UI测试执行、13 沉淀记忆、20 功能测试用例生成、21 自动化用例生成、
- * 22 测试脑图分析、101 测试环境发布（工具任务，非 Agent）、102 部署间隔等待（工具任务，非 Agent）、
+ * 11 AI拆分故事、12 UI测试执行、13 生成业务知识、14 生成代码规范、15 生成测试规范、
+ * 20 功能测试用例生成、21 自动化用例生成、22 测试脑图分析、
+ * 101 测试环境发布（工具任务，非 Agent）、102 部署间隔等待（工具任务，非 Agent）、
  * 103 测试环境发布结果（工具任务，非 Agent）、104 申请拉取分支（工具任务，非 Agent）。
  */
 export const TASK_TYPE = {
@@ -24,8 +25,12 @@ export const TASK_TYPE = {
   AiStorySplit: 11,
   /** UI 测试执行 */
   UiTestExecute: 12,
-  /** 沉淀记忆 */
+  /** 生成业务知识（原「沉淀记忆」） */
   PersistMemory: 13,
+  /** 生成代码规范 */
+  GenCodeSpec: 14,
+  /** 生成测试规范 */
+  GenTestSpec: 15,
   /** 功能测试用例生成（测试案例编排流水线专用） */
   FuncTestCaseGen: 20,
   /** 自动化用例生成（测试案例编排流水线专用） */
@@ -118,7 +123,11 @@ export function taskTypeLabel(code: TaskType | number | string): string {
     case TASK_TYPE.UiTestExecute:
       return "UI测试执行";
     case TASK_TYPE.PersistMemory:
-      return "沉淀记忆";
+      return "生成业务知识";
+    case TASK_TYPE.GenCodeSpec:
+      return "生成代码规范";
+    case TASK_TYPE.GenTestSpec:
+      return "生成测试规范";
     case TASK_TYPE.FuncTestCaseGen:
       return "功能测试用例生成";
     case TASK_TYPE.AutoTestCaseGen:

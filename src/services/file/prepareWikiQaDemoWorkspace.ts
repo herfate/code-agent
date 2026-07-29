@@ -1,7 +1,7 @@
-import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { WIKI_BASE_DIR, WIKI_DOC_PARAM_KEY } from "../../constants/commonKey.js";
+import { AI_OUT_DIR, WIKI_BASE_DIR, WIKI_DOC_PARAM_KEY } from "../../constants/commonKey.js";
 import { isWikiCategoryId, type WikiCategoryId } from "../../constants/wikiCategory.js";
 import type { GitRepoInitPair } from "../../db/gitRepoPair.js";
 import { getParentTaskParamByParentAndKey } from "../../db/workflow.js";
@@ -66,7 +66,24 @@ export type WikiDocParamJson = {
   include_doc_types: WikiStorySplitDocSourceType[];
   /** 认领任务时克隆的代码库槽位（1..10） */
   include_code_repo_slots: WikiQaCodeRepoSlot[];
+  /** 认领时复制其 `ai_out/<pid>/` 到工作区（知识沉淀关联的开发/测试/业务父任务） */
+  include_parent_task_pids: string[];
 };
+
+function normalizeParentTaskPids(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const pid = typeof item === "string" ? item.trim() : typeof item === "number" ? String(item) : "";
+    if (!pid || seen.has(pid)) continue;
+    // 防止路径穿越
+    if (pid.includes("/") || pid.includes("\\") || pid.includes("..")) continue;
+    seen.add(pid);
+    out.push(pid);
+  }
+  return out;
+}
 
 export function parseWikiDocParamJson(valueJson: string | null | undefined): WikiDocParamJson | null {
   if (!valueJson?.trim()) return null;
@@ -83,6 +100,7 @@ export function parseWikiDocParamJson(valueJson: string | null | undefined): Wik
       include_code_repo_slots: Array.isArray(o.include_code_repo_slots)
         ? [...new Set(o.include_code_repo_slots.filter(isWikiQaCodeRepoSlot))].sort((a, b) => a - b)
         : [],
+      include_parent_task_pids: normalizeParentTaskPids(o.include_parent_task_pids),
     };
   } catch {
     return null;
@@ -161,6 +179,31 @@ export function copyWikiCategorySourceTypesToDir(
     copied++;
   }
 
+  return copied;
+}
+
+/**
+ * 将关联父任务的 `ai_out/<pid>/` 复制到工作区 `parent_ai_out/<pid>/`。
+ * 返回成功复制的父任务数（目录不存在则跳过）。
+ */
+export function copyParentTaskAiOutToDir(
+  parentTaskPids: readonly string[],
+  targetDir: string,
+): number {
+  const pids = normalizeParentTaskPids([...parentTaskPids]);
+  if (pids.length === 0) return 0;
+  const destRoot = resolve(targetDir, "parent_ai_out");
+  mkdirSync(destRoot, { recursive: true });
+  const aiOutRoot = resolve(process.cwd(), AI_OUT_DIR);
+  let copied = 0;
+  for (const pid of pids) {
+    const srcDir = join(aiOutRoot, pid);
+    if (!existsSync(srcDir)) continue;
+    const destDir = join(destRoot, pid);
+    mkdirSync(destDir, { recursive: true });
+    cpSync(srcDir, destDir, { recursive: true, force: true });
+    copied++;
+  }
   return copied;
 }
 

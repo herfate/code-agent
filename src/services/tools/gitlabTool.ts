@@ -12,7 +12,7 @@ import {
 import { parseTaskInputJson, listTaskInputGitRepos, type TaskInputJson } from "../../db/taskInputJson.js";
 import { getGlobalConfigByKey, getUserConfigByKey } from "../../db/systemConfig.js";
 import { TASK_TYPE, type TaskType } from "../../constants/taskType.js";
-import { copyWikiCategorySourceTypesToDir, copyWikiCategoryToDir, parseWikiDocParamJson, resolveGitReposFromWikiDocSlots, resolveWikiCategoryIdFromParent } from "../file/prepareWikiQaDemoWorkspace.js";
+import { copyWikiCategorySourceTypesToDir, copyWikiCategoryToDir, copyParentTaskAiOutToDir, parseWikiDocParamJson, resolveGitReposFromWikiDocSlots, resolveWikiCategoryIdFromParent } from "../file/prepareWikiQaDemoWorkspace.js";
 import { isWikiCategoryId, type WikiCategoryId } from "../../constants/wikiCategory.js";
 import { WIKI_SOURCE_TYPE } from "../../constants/wikiSourceType.js";
 import { AppLog } from "../appLogger.js";
@@ -323,7 +323,10 @@ function isWikiBizTaskType(taskType: TaskType | undefined): boolean {
   return (
     taskType === TASK_TYPE.StorySplit ||
     taskType === TASK_TYPE.AiStorySplit ||
-    taskType === TASK_TYPE.Brainstorm
+    taskType === TASK_TYPE.Brainstorm ||
+    taskType === TASK_TYPE.PersistMemory ||
+    taskType === TASK_TYPE.GenCodeSpec ||
+    taskType === TASK_TYPE.GenTestSpec
   );
 }
 
@@ -418,6 +421,22 @@ export async function prepareClaimedTaskRepoWorkspace(
     }
   } else if (wikiBizTask) {
     AppLog.logger.warn({ taskId, taskType }, "claimed task: wiki_doc category_id missing, skip wiki copy");
+  }
+
+  // 知识沉淀：复制关联父任务（开发自测/自Review/功能测试/业务）的 ai_out
+  const parentAiOutPids = wikiDocParam?.include_parent_task_pids ?? [];
+  if (wikiBizTask && parentAiOutPids.length > 0) {
+    try {
+      const copiedParents = copyParentTaskAiOutToDir(parentAiOutPids, taskRepoCwd);
+      AppLog.logger.info(
+        { taskId, taskRepoCwd, parentAiOutPids, copiedParents },
+        "claimed task: parent ai_out copied",
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onClonePrepFailed(msg);
+      return false;
+    }
   }
 
   const testScriptRepo = taskInputJson.testScriptRepo?.trim();

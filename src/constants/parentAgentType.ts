@@ -14,6 +14,8 @@ export const PARENT_AGENT_TYPE = {
   TestCaseOrchestrate: 5,
   /** 自动化测试编排（功能测试用例生成 → 自动化用例生成；仓库与测试环境必填） */
   AutoTest: 6,
+  /** 沉淀记忆编排（生成业务知识 → 生成代码规范 → 生成测试规范；可由 Wiki Confluence 定时同步后创建） */
+  PersistMemory: 7,
 } as const;
 
 export type ParentAgentType = (typeof PARENT_AGENT_TYPE)[keyof typeof PARENT_AGENT_TYPE];
@@ -101,6 +103,8 @@ export function parentAgentTypeLabel(code: ParentAgentType | number | string): s
       return "测试案例编排Agent";
     case PARENT_AGENT_TYPE.AutoTest:
       return "自动化测试Agent";
+    case PARENT_AGENT_TYPE.PersistMemory:
+      return "沉淀记忆Agent";
     default:
       return String(code);
   }

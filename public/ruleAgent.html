@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rule Agent — 知识沉淀</title>
+  <link rel="stylesheet" href="/app.css" />
+  <script src="/js/accessUser.js"></script>
+</head>
+<body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
+  <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
+    <header class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <h1 class="text-sm font-semibold text-slate-800">Rule Agent（知识沉淀）</h1>
+      <p class="mt-0.5 text-xs text-slate-500">
+        仅支持父任务类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">7</code>：生成业务知识 → 生成代码规范 → 生成测试规范。
+        对接 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET/POST /api/parent-tasks</code>。
+      </p>
+    </header>
+
+    <section class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+        <div class="lg:col-span-3">
+          <label class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
+          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            7 — 沉淀记忆Agent（固定）
+          </div>
+        </div>
+        <div class="lg:col-span-3">
+          <label for="ra-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题包含</label>
+          <input id="ra-title" type="text" placeholder="模糊匹配 title" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="lg:col-span-3">
+          <label for="ra-creator" class="mb-1.5 block text-xs font-medium text-slate-600">创建人</label>
+          <input id="ra-creator" type="text" placeholder="精确匹配 tasks.creator" maxlength="200" autocomplete="username" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-3">
+          <div class="flex flex-nowrap items-center gap-2">
+            <button type="button" id="ra-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增知识沉淀</button>
+            <button type="button" id="ra-btn-query" class="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">查询结果</h2>
+        <span id="ra-count" class="text-xs font-medium text-slate-500"></span>
+      </div>
+      <div class="min-h-0 flex-1 overflow-auto">
+        <p id="ra-error" class="hidden border-b border-red-100 bg-red-50/90 px-4 py-3 text-sm text-red-700"></p>
+        <div class="overflow-x-auto">
+          <table class="w-max min-w-full border-collapse text-left text-sm">
+            <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold tracking-wide text-slate-600 backdrop-blur-sm">
+              <tr>
+                <th class="whitespace-nowrap px-4 py-3">编号</th>
+                <th class="whitespace-nowrap px-4 py-3">标题</th>
+                <th class="whitespace-nowrap px-4 py-3">描述</th>
+                <th class="whitespace-nowrap px-4 py-3">执行状态</th>
+                <th class="whitespace-nowrap px-4 py-3">创建人</th>
+                <th class="whitespace-nowrap px-4 py-3">创建时间</th>
+                <th class="whitespace-nowrap px-4 py-3">操作</th>
+              </tr>
+            </thead>
+            <tbody id="ra-tbody" class="divide-y divide-slate-100 text-slate-800"></tbody>
+          </table>
+        </div>
+        <p id="ra-empty" class="hidden px-4 py-10 text-center text-sm text-slate-500">暂无数据，请调整条件后点击「查询」。</p>
+      </div>
+      <div id="ra-pagination" class="hidden shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <label id="ra-page-size-label" for="ra-page-size-trigger" class="whitespace-nowrap font-medium">每页</label>
+          <div id="ra-page-size-root" class="ui-combobox relative w-auto min-w-[4.5rem]">
+            <input type="hidden" id="ra-page-size" value="20" autocomplete="off" />
+            <div id="ra-page-size-trigger" role="combobox" aria-expanded="false" aria-controls="ra-page-size-listbox" aria-labelledby="ra-page-size-label" tabindex="0" class="ui-combobox-trigger ui-combobox-trigger-sm">
+              <span class="ui-combobox-value min-w-0 truncate">20</span>
+              <svg class="h-3.5 w-3.5 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+            </div>
+            <div id="ra-page-size-listbox" role="listbox" class="ui-combobox-list hidden min-w-full">
+              <div role="option" data-value="10" class="ui-combobox-opt">10</div>
+              <div role="option" data-value="20" class="ui-combobox-opt">20</div>
+              <div role="option" data-value="50" class="ui-combobox-opt">50</div>
+            </div>
+          </div>
+          <span id="ra-page-info" class="whitespace-nowrap text-slate-500"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" id="ra-btn-prev" disabled class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">上一页</button>
+          <button type="button" id="ra-btn-next" disabled class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">下一页</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 新增弹窗 -->
+  <div id="ra-modal-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="ra-modal-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="ra-modal-panel" role="dialog" aria-modal="true" aria-labelledby="ra-modal-title" class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="shrink-0 border-b border-slate-100 px-5 py-4">
+          <h3 id="ra-modal-title" class="text-sm font-semibold text-slate-800">新增知识沉淀父任务</h3>
+          <p class="mt-1 text-xs text-slate-500">固定类型 7；选择 wiki_base 分类后写入 <code class="font-mono text-[11px]">wiki_doc</code>，子任务为 13→14→15。</p>
+        </div>
+        <form id="ra-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <p id="ra-modal-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+            <div>
+              <label id="ra-new-wikiCategory-label" for="ra-new-wikiCategory-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">业务分类（wiki_base） <span class="text-red-500">*</span></label>
+              <div id="ra-new-wikiCategory-root" class="ui-combobox relative min-w-0">
+                <input type="hidden" id="ra-new-wikiCategory" value="" autocomplete="off" />
+                <div id="ra-new-wikiCategory-trigger" role="combobox" aria-expanded="false" aria-controls="ra-new-wikiCategory-listbox" aria-labelledby="ra-new-wikiCategory-label" tabindex="0" class="ui-combobox-trigger">
+                  <span class="ui-combobox-value min-w-0 truncate">请选择</span>
+                  <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+                <div id="ra-new-wikiCategory-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                  <div role="option" data-value="" class="ui-combobox-opt">请选择</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <span class="mb-1.5 block text-xs font-medium text-slate-600">Wiki 文档类型</span>
+              <div class="flex flex-col gap-2 text-sm text-slate-700">
+                <label class="inline-flex items-center gap-1.5"><input type="checkbox" class="ra-doc-type h-4 w-4 rounded border-slate-300 text-blue-600" value="基线文档" checked /> 基线文档</label>
+                <label class="inline-flex items-center gap-1.5"><input type="checkbox" class="ra-doc-type h-4 w-4 rounded border-slate-300 text-blue-600" value="迭代文档" checked /> 迭代文档</label>
+                <label class="inline-flex items-center gap-1.5"><input type="checkbox" class="ra-doc-type h-4 w-4 rounded border-slate-300 text-blue-600" value="系统优化文档" checked /> 系统优化文档</label>
+              </div>
+            </div>
+            <div>
+              <div class="mb-1.5 flex items-center justify-between gap-2">
+                <span class="text-xs font-medium text-slate-600">关联父任务（1/2/3/4）</span>
+                <button type="button" id="ra-parent-tasks-reload" class="text-[11px] font-medium text-blue-600 hover:underline">刷新</button>
+              </div>
+              <p class="mb-1.5 text-[11px] text-slate-500">开发自测 / 自Review / 功能测试 / 业务 Agent（按创建时间倒序）；勾选后认领时复制其 ai_out</p>
+              <p id="ra-parent-tasks-loading" class="hidden text-[11px] text-slate-500">加载中…</p>
+              <p id="ra-parent-tasks-empty" class="hidden text-[11px] text-slate-500">暂无类型 1/2/3/4 的父任务</p>
+              <div id="ra-parent-tasks-list" class="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 text-sm text-slate-700"></div>
+              <div id="ra-parent-tasks-pager" class="mt-1.5 hidden flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                <span id="ra-parent-tasks-page-info" class="text-slate-500"></span>
+                <div class="flex items-center gap-1.5">
+                  <button type="button" id="ra-parent-tasks-prev" disabled class="rounded border border-slate-200 bg-white px-2 py-0.5 font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">上一页</button>
+                  <button type="button" id="ra-parent-tasks-next" disabled class="rounded border border-slate-200 bg-white px-2 py-0.5 font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">下一页</button>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label for="ra-new-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题（可选）</label>
+              <input id="ra-new-title" type="text" maxlength="500" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="留空则用「分类 · 知识沉淀 · 日期」" />
+            </div>
+            <div>
+              <label for="ra-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明 / 需求 <span class="text-red-500">*</span></label>
+              <textarea id="ra-new-description" rows="4" maxlength="50000" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="写入任务描述与 requirement"></textarea>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label id="ra-new-provider-label" for="ra-new-provider-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">模型</label>
+                <div id="ra-new-provider-root" class="ui-combobox relative min-w-0">
+                  <input type="hidden" id="ra-new-provider" name="provider" value="claude" autocomplete="off" />
+                  <div id="ra-new-provider-trigger" role="combobox" aria-expanded="false" aria-controls="ra-new-provider-listbox" aria-labelledby="ra-new-provider-label" tabindex="0" class="ui-combobox-trigger">
+                    <span class="ui-combobox-value min-w-0 truncate">claude</span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                  <div id="ra-new-provider-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                    <div role="option" data-value="claude" class="ui-combobox-opt">claude</div>
+                    <div role="option" data-value="cursor" class="ui-combobox-opt">cursor</div>
+                  </div>
+                </div>
+              </div>
+              <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input id="ra-new-parallel" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
+                允许并行调度
+              </label>
+            </div>
+          </div>
+          <div class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+            <button type="button" id="ra-modal-cancel" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+            <button type="submit" id="ra-modal-submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700">提交</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/ui-combobox.js"></script>
+  <script>
+    (function () {
+      var PARENT_TASK_TYPE = 7;
+      /** 文档类型区可关联的父任务 Agent 类型 */
+      var RELATED_PARENT_AGENT_TYPES = "1,2,3,4";
+      var PARENT_AGENT_TYPE_LABELS = {
+        1: "开发自测",
+        2: "自Review",
+        3: "功能测试",
+        4: "业务Agent",
+      };
+      var WIKI_CATEGORIES = [
+        { id: "1", label: "大陆清算" },
+        { id: "2", label: "大陆资金" },
+        { id: "3", label: "大陆账户" },
+        { id: "4", label: "大陆支付" },
+        { id: "5", label: "海外清算" },
+        { id: "6", label: "海外资金" },
+        { id: "7", label: "海外账户" },
+        { id: "8", label: "海外支付" },
+        { id: "9", label: "海外中台" },
+        { id: "10", label: "电子签名" },
+        { id: "11", label: "零售中台" },
+      ];
+
+      var raPage = 1;
+      var raTotalPages = 0;
+      var raQueried = false;
+      var wikiCategoryCombo = null;
+      var providerCombo = null;
+      /** 关联父任务分页（按 created_at 倒序，由 API 保证） */
+      var relatedParentPage = 1;
+      var relatedParentTotalPages = 0;
+      var relatedParentPageSize = 20;
+      /** 跨页勾选的 pid 集合 */
+      var relatedParentSelected = {};
+
+      function raBase() {
+        return window.location.origin;
+      }
+
+      function currentLoginUser() {
+        try {
+          var u = window.localStorage.getItem("userName");
+          return u && String(u).trim() ? String(u).trim() : "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function fmtTime(ms) {
+        try {
+          return new Date(ms).toLocaleString();
+        } catch (e) {
+          return String(ms);
+        }
+      }
+
+      function esc(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function categoryLabel(id) {
+        for (var i = 0; i < WIKI_CATEGORIES.length; i++) {
+          if (WIKI_CATEGORIES[i].id === id) return WIKI_CATEGORIES[i].label;
+        }
+        return id;
+      }
+
+      function localDateYmd() {
+        var d = new Date();
+        var m = String(d.getMonth() + 1).padStart(2, "0");
+        var day = String(d.getDate()).padStart(2, "0");
+        return d.getFullYear() + "-" + m + "-" + day;
+      }
+
+      function openParentFlow(pid) {
+        if (!pid) return;
+        var u =
+          window.location.origin +
+          "/dev-agent/parent-flow?pid=" +
+          encodeURIComponent(pid) +
+          "&base=" +
+          encodeURIComponent(raBase());
+        window.open(u, "_blank", "noopener,noreferrer");
+      }
+
+      function execStatusCell(status) {
+        var text = status != null && String(status).trim() ? String(status).trim() : "—";
+        var color =
+          text.indexOf("失败") >= 0
+            ? "text-red-700"
+            : text.indexOf("完成") >= 0
+              ? "text-emerald-700"
+              : text.indexOf("执行") >= 0
+                ? "text-blue-700"
+                : "text-slate-700";
+        return (
+          '<td class="whitespace-nowrap px-4 py-3 text-xs font-medium ' +
+          color +
+          '">' +
+          esc(text) +
+          "</td>"
+        );
+      }
+
+      var tbody = document.getElementById("ra-tbody");
+      var emptyEl = document.getElementById("ra-empty");
+      var errEl = document.getElementById("ra-error");
+      var countEl = document.getElementById("ra-count");
+      var paginationEl = document.getElementById("ra-pagination");
+      var pageInfoEl = document.getElementById("ra-page-info");
+      var btnPrev = document.getElementById("ra-btn-prev");
+      var btnNext = document.getElementById("ra-btn-next");
+
+      function renderRow(t) {
+        var tr = document.createElement("tr");
+        tr.className = "transition-colors hover:bg-slate-50";
+        tr.innerHTML =
+          '<td class="whitespace-nowrap px-4 py-3 font-mono text-xs">' +
+          esc(t.pid) +
+          "</td>" +
+          '<td class="max-w-xs truncate px-4 py-3 sm:max-w-md" title="' +
+          esc(t.title || "") +
+          '">' +
+          esc(t.title || "—") +
+          "</td>" +
+          '<td class="max-w-md truncate px-4 py-3 text-slate-600 sm:max-w-xl" title="' +
+          esc(t.description || "") +
+          '">' +
+          esc(t.description || "—") +
+          "</td>" +
+          execStatusCell(t.exec_status) +
+          '<td class="max-w-[8rem] truncate whitespace-nowrap px-4 py-3 text-slate-700" title="' +
+          esc(t.creator || "") +
+          '">' +
+          esc(t.creator || "—") +
+          "</td>" +
+          '<td class="whitespace-nowrap px-4 py-3 text-slate-600">' +
+          esc(fmtTime(t.created_at)) +
+          "</td>" +
+          '<td class="whitespace-nowrap px-4 py-3">' +
+          '<button type="button" class="ra-flow-btn shrink-0 cursor-pointer rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100" data-pid="' +
+          esc(t.pid) +
+          '">多Agent视图</button>' +
+          "</td>";
+        return tr;
+      }
+
+      function updatePagination(total, page, pageSize, totalPages) {
+        raTotalPages = totalPages || 0;
+        if (!raQueried) {
+          paginationEl.classList.add("hidden");
+          return;
+        }
+        paginationEl.classList.remove("hidden");
+        pageInfoEl.textContent =
+          "第 " + page + " / " + Math.max(totalPages, 1) + " 页，共 " + total + " 条";
+        btnPrev.disabled = page <= 1;
+        btnNext.disabled = page >= totalPages || totalPages <= 0;
+        countEl.textContent = total + " 条";
+      }
+
+      function runQuery(resetPage) {
+        if (resetPage) raPage = 1;
+        errEl.classList.add("hidden");
+        errEl.textContent = "";
+        var title = document.getElementById("ra-title").value.trim();
+        var creator = document.getElementById("ra-creator").value.trim();
+        var pageSize = Number(document.getElementById("ra-page-size").value) || 20;
+        var qs = new URLSearchParams();
+        qs.set("task_type", String(PARENT_TASK_TYPE));
+        qs.set("page", String(raPage));
+        qs.set("limit", String(pageSize));
+        if (title) qs.set("title", title);
+        if (creator) qs.set("creator", creator);
+
+        fetch(raBase() + "/api/parent-tasks?" + qs.toString())
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            raQueried = true;
+            tbody.innerHTML = "";
+            if (!res.ok) {
+              errEl.textContent =
+                "查询失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error ? JSON.stringify(res.body.error) : JSON.stringify(res.body));
+              errEl.classList.remove("hidden");
+              emptyEl.classList.remove("hidden");
+              updatePagination(0, 1, pageSize, 0);
+              return;
+            }
+            var list = (res.body && res.body.parent_tasks) || [];
+            var total = Number(res.body && res.body.total) || 0;
+            var page = Number(res.body && res.body.page) || raPage;
+            var totalPages = Number(res.body && res.body.total_pages) || 0;
+            raPage = page;
+            if (!list.length) {
+              emptyEl.classList.remove("hidden");
+            } else {
+              emptyEl.classList.add("hidden");
+              list.forEach(function (t) {
+                tbody.appendChild(renderRow(t));
+              });
+            }
+            updatePagination(total, page, pageSize, totalPages);
+          })
+          .catch(function (e) {
+            raQueried = true;
+            tbody.innerHTML = "";
+            emptyEl.classList.remove("hidden");
+            errEl.textContent = "查询失败: " + e.message;
+            errEl.classList.remove("hidden");
+            updatePagination(0, 1, pageSize, 0);
+          });
+      }
+
+      tbody.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".ra-flow-btn");
+        if (!btn) return;
+        openParentFlow(btn.getAttribute("data-pid"));
+      });
+
+      document.getElementById("ra-btn-query").addEventListener("click", function () {
+        runQuery(true);
+      });
+      btnPrev.addEventListener("click", function () {
+        if (raPage > 1) {
+          raPage -= 1;
+          runQuery(false);
+        }
+      });
+      btnNext.addEventListener("click", function () {
+        if (raPage < raTotalPages) {
+          raPage += 1;
+          runQuery(false);
+        }
+      });
+
+      window.UiCombobox.attach(document.getElementById("ra-page-size-root"), {
+        onChange: function () {
+          if (raQueried) runQuery(true);
+        },
+      });
+      wikiCategoryCombo = window.UiCombobox.attach(document.getElementById("ra-new-wikiCategory-root"));
+      providerCombo = window.UiCombobox.attach(document.getElementById("ra-new-provider-root"));
+
+      function populateWikiCategoryOptions(cats) {
+        var list = document.getElementById("ra-new-wikiCategory-listbox");
+        list.innerHTML = '<div role="option" data-value="" class="ui-combobox-opt">请选择</div>';
+        (cats || []).forEach(function (c) {
+          var opt = document.createElement("div");
+          opt.setAttribute("role", "option");
+          opt.setAttribute("data-value", c.id);
+          opt.className = "ui-combobox-opt";
+          opt.textContent = c.id + " — " + (c.label || categoryLabel(c.id));
+          list.appendChild(opt);
+        });
+        if (wikiCategoryCombo) wikiCategoryCombo.sync();
+      }
+
+      function loadWikiCategories() {
+        fetch(raBase() + "/api/wiki-base/categories")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            var cats =
+              res.ok && res.body && res.body.categories
+                ? res.body.categories
+                : WIKI_CATEGORIES.map(function (c) {
+                    return { id: c.id, label: c.label };
+                  });
+            populateWikiCategoryOptions(cats);
+          })
+          .catch(function () {
+            populateWikiCategoryOptions(WIKI_CATEGORIES);
+          });
+      }
+
+      function syncRelatedParentSelectionFromDom() {
+        document.querySelectorAll(".ra-parent-task").forEach(function (el) {
+          var pid = el.value.trim();
+          if (!pid) return;
+          if (el.checked) relatedParentSelected[pid] = true;
+          else delete relatedParentSelected[pid];
+        });
+      }
+
+      function updateRelatedParentPager(total, page, totalPages) {
+        var pagerEl = document.getElementById("ra-parent-tasks-pager");
+        var infoEl = document.getElementById("ra-parent-tasks-page-info");
+        var prevBtn = document.getElementById("ra-parent-tasks-prev");
+        var nextBtn = document.getElementById("ra-parent-tasks-next");
+        relatedParentTotalPages = totalPages || 0;
+        relatedParentPage = page || 1;
+        if (total <= 0) {
+          pagerEl.classList.add("hidden");
+          return;
+        }
+        pagerEl.classList.remove("hidden");
+        infoEl.textContent =
+          "第 " + relatedParentPage + " / " + Math.max(relatedParentTotalPages, 1) + " 页，共 " + total + " 条（时间倒序）";
+        prevBtn.disabled = relatedParentPage <= 1;
+        nextBtn.disabled = relatedParentPage >= relatedParentTotalPages || relatedParentTotalPages <= 0;
+      }
+
+      function loadRelatedParentTasks(resetPage) {
+        if (resetPage) relatedParentPage = 1;
+        syncRelatedParentSelectionFromDom();
+        var listEl = document.getElementById("ra-parent-tasks-list");
+        var loadingEl = document.getElementById("ra-parent-tasks-loading");
+        var emptyEl = document.getElementById("ra-parent-tasks-empty");
+        listEl.innerHTML = "";
+        emptyEl.classList.add("hidden");
+        emptyEl.textContent = "暂无类型 1/2/3/4 的父任务";
+        loadingEl.classList.remove("hidden");
+        document.getElementById("ra-parent-tasks-pager").classList.add("hidden");
+        var qs = new URLSearchParams();
+        qs.set("task_types", RELATED_PARENT_AGENT_TYPES);
+        qs.set("page", String(relatedParentPage));
+        qs.set("limit", String(relatedParentPageSize));
+        fetch(raBase() + "/api/parent-tasks?" + qs.toString())
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (res) {
+            loadingEl.classList.add("hidden");
+            var list = res.ok && res.body && Array.isArray(res.body.parent_tasks) ? res.body.parent_tasks : [];
+            var total = Number(res.body && res.body.total) || 0;
+            var page = Number(res.body && res.body.page) || relatedParentPage;
+            var totalPages = Number(res.body && res.body.total_pages) || 0;
+            if (!list.length) {
+              emptyEl.classList.remove("hidden");
+              updateRelatedParentPager(0, 1, 0);
+              return;
+            }
+            var autoSelectPage = Object.keys(relatedParentSelected).length === 0;
+            list.forEach(function (t) {
+              var typeN = Number(t.task_type);
+              var typeLabel = PARENT_AGENT_TYPE_LABELS[typeN] || String(t.task_type || "");
+              var title = t.title || t.pid;
+              if (autoSelectPage) relatedParentSelected[t.pid] = true;
+              var checked = relatedParentSelected[t.pid] ? " checked" : "";
+              var label = document.createElement("label");
+              label.className = "flex items-start gap-1.5";
+              label.innerHTML =
+                '<input type="checkbox" class="ra-parent-task mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600" value="' +
+                esc(t.pid) +
+                '"' +
+                checked +
+                " />" +
+                '<span class="min-w-0 leading-snug"><span class="font-mono text-[11px] text-slate-500">' +
+                esc(t.pid) +
+                "</span> · " +
+                esc(typeLabel) +
+                ' · <span class="break-all">' +
+                esc(title) +
+                '</span><span class="mt-0.5 block text-[10px] text-slate-400">' +
+                esc(fmtTime(t.created_at)) +
+                "</span></span>";
+              listEl.appendChild(label);
+            });
+            updateRelatedParentPager(total, page, totalPages);
+          })
+          .catch(function () {
+            loadingEl.classList.add("hidden");
+            emptyEl.textContent = "加载父任务失败";
+            emptyEl.classList.remove("hidden");
+            updateRelatedParentPager(0, 1, 0);
+          });
+      }
+
+      var modalRoot = document.getElementById("ra-modal-root");
+      var modalError = document.getElementById("ra-modal-error");
+      var modalForm = document.getElementById("ra-modal-form");
+      var modalSubmit = document.getElementById("ra-modal-submit");
+
+      function setModalError(msg) {
+        if (!msg) {
+          modalError.textContent = "";
+          modalError.classList.add("hidden");
+          return;
+        }
+        modalError.textContent = msg;
+        modalError.classList.remove("hidden");
+      }
+
+      function openModal() {
+        setModalError("");
+        document.getElementById("ra-new-title").value = "";
+        document.getElementById("ra-new-description").value = "";
+        document.getElementById("ra-new-parallel").checked = false;
+        if (wikiCategoryCombo) wikiCategoryCombo.setValue("");
+        if (providerCombo) providerCombo.setValue("claude");
+        document.querySelectorAll(".ra-doc-type").forEach(function (el) {
+          el.checked = true;
+        });
+        relatedParentSelected = {};
+        loadRelatedParentTasks(true);
+        modalRoot.classList.remove("hidden");
+        modalRoot.classList.remove("pointer-events-none");
+      }
+
+      function closeModal() {
+        modalRoot.classList.add("hidden");
+        modalRoot.classList.add("pointer-events-none");
+        setModalError("");
+      }
+
+      document.getElementById("ra-btn-new").addEventListener("click", openModal);
+      document.getElementById("ra-modal-cancel").addEventListener("click", closeModal);
+      document.getElementById("ra-parent-tasks-reload").addEventListener("click", function () {
+        relatedParentSelected = {};
+        loadRelatedParentTasks(true);
+      });
+      document.getElementById("ra-parent-tasks-prev").addEventListener("click", function () {
+        if (relatedParentPage <= 1) return;
+        syncRelatedParentSelectionFromDom();
+        relatedParentPage -= 1;
+        loadRelatedParentTasks(false);
+      });
+      document.getElementById("ra-parent-tasks-next").addEventListener("click", function () {
+        if (relatedParentPage >= relatedParentTotalPages) return;
+        syncRelatedParentSelectionFromDom();
+        relatedParentPage += 1;
+        loadRelatedParentTasks(false);
+      });
+      document.getElementById("ra-parent-tasks-list").addEventListener("change", function (ev) {
+        var t = ev.target;
+        if (!t || !t.classList || !t.classList.contains("ra-parent-task")) return;
+        var pid = t.value.trim();
+        if (!pid) return;
+        if (t.checked) relatedParentSelected[pid] = true;
+        else delete relatedParentSelected[pid];
+      });
+      document.getElementById("ra-modal-backdrop").addEventListener("click", function (ev) {
+        if (ev.target === document.getElementById("ra-modal-backdrop")) closeModal();
+      });
+
+      modalForm.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        setModalError("");
+        var creator = currentLoginUser();
+        if (!creator) {
+          setModalError("获取当前登录用户失败，请先登录");
+          return;
+        }
+        var categoryId = document.getElementById("ra-new-wikiCategory").value.trim();
+        if (!categoryId) {
+          setModalError("请选择业务分类");
+          return;
+        }
+        var docTypes = [];
+        document.querySelectorAll(".ra-doc-type:checked").forEach(function (el) {
+          docTypes.push(el.value);
+        });
+        syncRelatedParentSelectionFromDom();
+        var parentTaskPids = Object.keys(relatedParentSelected);
+        if (!docTypes.length && !parentTaskPids.length) {
+          setModalError("请至少勾选 Wiki 文档类型或关联父任务");
+          return;
+        }
+        var description = document.getElementById("ra-new-description").value.trim();
+        if (!description) {
+          setModalError("请填写说明 / 需求");
+          return;
+        }
+        var label = categoryLabel(categoryId);
+        var wikiMarker = "wiki_base/" + categoryId + "/";
+        var title = document.getElementById("ra-new-title").value.trim();
+        if (!title) title = label + " · 知识沉淀 · " + localDateYmd();
+        var provider = document.getElementById("ra-new-provider").value.trim() || "claude";
+        var parallel = document.getElementById("ra-new-parallel").checked;
+
+        var body = {
+          task_type: PARENT_TASK_TYPE,
+          provider: provider,
+          creator: creator,
+          title: title,
+          description: description,
+          requirement: description,
+          gitRepos: [],
+          parallel: parallel || undefined,
+          params: [
+            {
+              param_key: "wiki_doc",
+              value_json: {
+                category_id: categoryId,
+                category_label: label,
+                wiki_path: wikiMarker,
+                include_doc_types: docTypes,
+                include_code_repo_slots: [],
+                include_parent_task_pids: parentTaskPids,
+              },
+              description: "Wiki 文档来源（Rule Agent）",
+            },
+          ],
+        };
+
+        modalSubmit.disabled = true;
+        modalSubmit.textContent = "提交中…";
+        fetch(raBase() + "/api/parent-tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            modalSubmit.disabled = false;
+            modalSubmit.textContent = "提交";
+            if (!res.ok) {
+              setModalError(
+                "提交失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error
+                    ? typeof res.body.error === "string"
+                      ? res.body.error
+                      : JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            closeModal();
+            runQuery(true);
+            var pid =
+              res.body && res.body.parent_task && res.body.parent_task.pid
+                ? res.body.parent_task.pid
+                : "";
+            if (pid) openParentFlow(pid);
+          })
+          .catch(function (e) {
+            modalSubmit.disabled = false;
+            modalSubmit.textContent = "提交";
+            setModalError("提交失败: " + e.message);
+          });
+      });
+
+      // 默认填入当前登录用户到查询条件
+      var creatorInput = document.getElementById("ra-creator");
+      var loginUser = currentLoginUser();
+      if (loginUser && !creatorInput.value) creatorInput.value = loginUser;
+
+      loadWikiCategories();
+      runQuery(true);
+    })();
+  </script>
+</body>
+</html>

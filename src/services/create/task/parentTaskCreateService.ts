@@ -14,12 +14,14 @@ import {
   DEV_PARENT_TASK_TYPE,
   DEV_REVIEW_NO_TEST_PARENT_TASK_TYPE,
   FUNC_TEST_PARENT_TASK_TYPE,
+  PERSIST_MEMORY_PARENT_TASK_TYPE,
   TEST_CASE_ORCHESTRATE_PARENT_TASK_TYPE,
   runAutoTestParentTaskWorkflow,
   runBizParentTaskWorkflow,
   runDevParentTaskWorkflow,
   runDevReviewNoTestParentTaskWorkflow,
   runFuncTestParentTaskWorkflow,
+  runPersistMemoryParentTaskWorkflow,
   runTestCaseOrchestrateParentTaskWorkflow,
 } from "./devParentTaskCreateStrategy.js";
 import type {
@@ -65,6 +67,8 @@ function runWorkflowByTaskType(
       return runTestCaseOrchestrateParentTaskWorkflow(db, { ...ctx, taskType });
     case AUTO_TEST_PARENT_TASK_TYPE:
       return runAutoTestParentTaskWorkflow(db, { ...ctx, taskType });
+    case PERSIST_MEMORY_PARENT_TASK_TYPE:
+      return runPersistMemoryParentTaskWorkflow(db, { ...ctx, taskType });
     default:
       throw new Error(`unsupported parent task_type: ${taskType}`);
   }

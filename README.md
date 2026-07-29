@@ -14,7 +14,7 @@ npm install
 copy .env.example .env   # Windows；Linux/macOS: cp .env.example .env
 ```
 
-编辑 `.env`：至少配置 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 与/或 `CURSOR_API_KEY`。若 Codex CLI 不在 `PATH` 上，设置 `CODEX_PATH` 为 `codex` 可执行文件的绝对路径（`@openai/codex-sdk` 会拉起 Codex 子进程）。定时任务默认可通过 `TASK_AGENT_PROVIDER=claude|cursor` 选择 Agent SDK（默认 `claude`）。Wiki Confluence 每日定时同步默认每天 **01:00**（本地时区）执行，仅同步已配置 Confluence 地址的业务分类；设置 `WIKI_SYNC_DAILY_HOUR=-1` 可关闭。
+编辑 `.env`：至少配置 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 与/或 `CURSOR_API_KEY`。若 Codex CLI 不在 `PATH` 上，设置 `CODEX_PATH` 为 `codex` 可执行文件的绝对路径（`@openai/codex-sdk` 会拉起 Codex 子进程）。定时任务默认可通过 `TASK_AGENT_PROVIDER=claude|cursor` 选择 Agent SDK（默认 `claude`）。Wiki Confluence 每日定时同步默认每天 **01:00**（本地时区）执行，仅同步已配置 Confluence 地址的业务分类；设置 `WIKI_SYNC_CREATE_PERSIST_MEMORY=true` 时，每个分类 Confluence 同步成功后会自动新建父任务类型 **7**（沉淀记忆 Agent，创建人 `wiki-sync`，子任务 13 生成业务知识 → 14 生成代码规范 → 15 生成测试规范；默认关闭）；设置 `WIKI_SYNC_DAILY_HOUR=-1` 可关闭同步。
 
 ```bash
 npm run dev              # 开发：tsx watch
@@ -27,21 +27,22 @@ npm run build && npm start
 
 启动服务后，在浏览器打开：
 
-**`http://<HOST>:<PORT>/`** 为管理台首页（左侧菜单）；**「对话演示」** 嵌入 **`/demo`**；**「开发 Agent」** 嵌入 **`/agent-dev`**（工作流 `tasks` 表查询）；**「父任务」** 嵌入 **`/dev-agent`**（`parent_task` 查询与新增）；**「用户配置」** 嵌入 **`/user-config`**（用户 `gitlab_token`、`tapd_token`、`anthropic_api_key` 读写）。也可单独打开 **`/agent-dev`**、**`/dev-agent`**、**`/user-config`**，或使用 **`/demo`**、**`/?page=demo`**、**`/?page=adev`**、**`/?page=dagent`**、**`/?page=ucfg`**。样式见 [`public/app.css`](public/app.css)。请勿用磁盘 `file://` 打开 HTML，否则受 CORS 限制无法调用接口。
+**`http://<HOST>:<PORT>/`** 为管理台首页（左侧菜单）；**「对话演示」** 嵌入 **`/demo`**；**「开发 Agent」** 嵌入 **`/agent-dev`**（工作流 `tasks` 表查询）；**「父任务」** 嵌入 **`/dev-agent`**（`parent_task` 查询与新增）；**「Rule Agent」** 嵌入 **`/rule-agent`**（仅类型 7 知识沉淀）；**「用户配置」** 嵌入 **`/user-config`**（用户 `gitlab_token`、`tapd_token`、`anthropic_api_key` 读写）。也可单独打开 **`/agent-dev`**、**`/dev-agent`**、**`/rule-agent`**、**`/user-config`**，或使用 **`/demo`**、**`/?page=demo`**、**`/?page=adev`**、**`/?page=dagent`**、**`/?page=ragent`**、**`/?page=ucfg`**。样式见 [`public/app.css`](public/app.css)。请勿用磁盘 `file://` 打开 HTML，否则受 CORS 限制无法调用接口。
 
 ## HTTP API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/` | 管理台（`/?page=demo` 嵌入 `/demo`；`/?page=adev` 嵌入 `/agent-dev`；`/?page=dagent` 嵌入 `/dev-agent`；`/?page=ucfg` 嵌入 `/user-config`） |
+| `GET` | `/` | 管理台（`/?page=demo` 嵌入 `/demo`；`/?page=adev` 嵌入 `/agent-dev`；`/?page=dagent` 嵌入 `/dev-agent`；`/?page=ragent` 嵌入 `/rule-agent`；`/?page=ucfg` 嵌入 `/user-config`） |
 | `GET` | `/demo` | 对话演示页（REST / Agent SSE 调试；可被管理台 iframe 嵌入） |
 | `GET` | `/agent-dev` | 开发 Agent 页（`GET /api/tasks` 查询 `tasks` 表；可嵌入管理台） |
 | `GET` | `/agent-dev/task-stream` | 任务 Agent SSE **全屏**查看页；查询参数 `taskId`（必填 UUID）、`provider`（可选 `claude` \| `cursor`，默认 `claude`）、`base`（可选 API 根地址） |
 | `GET` | `/dev-agent` | 父任务页（`GET/POST /api/parent-tasks`；可嵌入管理台） |
 | `GET` | `/dev-agent/parent-flow` | 父任务工作流页：按 `pid` 查询该父任务下全部 `tasks` 与子任务，右侧续订 Claude SSE；查询参数 `pid`（必填）、`base`（可选 API 根）、`taskId`（可选，预选中某工作流任务的 SSE） |
+| `GET` | `/rule-agent` | Rule Agent 页（仅父任务类型 **7** 知识沉淀：查询与新增；可嵌入管理台 `/?page=ragent`） |
 | `GET` | `/user-config` | 用户配置页（`GET/PUT /api/user-config/gitlab-token`、`/api/user-config/tapd-token`、`/api/user-config/anthropic-api-key`；可嵌入管理台） |
 | `GET` | `/health` | 健康检查；含 SQLite `SELECT 1` |
-| `GET` | `/api/tasks` | 工作流任务列表（表 `tasks`）；可选查询参数：`status`（整数 **1–6**：1 待执行、2 执行中、3 执行完成、4 执行失败、5 已暂停、6 已取消）、`task_type`（整数 **0–13**、**20–22** 或 **101–104**：0 设计、1 开发、2 开发规范优化、3 测试预分析、4 测试案例设计、5 测试数据分析、6 测试案例执行、7 QA 平台测试脚本生成、8 Code Review、9 拆分故事、10 头脑风暴、11 AI拆分故事、12 UI测试执行、13 沉淀记忆、20 功能测试用例生成、21 自动化用例生成、22 测试脑图分析、101 测试环境发布、102 部署间隔等待、103 测试环境发布结果、104 申请拉取分支）、`title`（标题模糊匹配）、`limit`（1–500，默认无筛选时 100） |
+| `GET` | `/api/tasks` | 工作流任务列表（表 `tasks`）；可选查询参数：`status`（整数 **1–6**：1 待执行、2 执行中、3 执行完成、4 执行失败、5 已暂停、6 已取消）、`task_type`（整数 **0–15**、**20–22** 或 **101–104**：0 设计、1 开发、2 开发规范优化、3 测试预分析、4 测试案例设计、5 测试数据分析、6 测试案例执行、7 QA 平台测试脚本生成、8 Code Review、9 拆分故事、10 头脑风暴、11 AI拆分故事、12 UI测试执行、13 生成业务知识、14 生成代码规范、15 生成测试规范、20 功能测试用例生成、21 自动化用例生成、22 测试脑图分析、101 测试环境发布、102 部署间隔等待、103 测试环境发布结果、104 申请拉取分支）、`title`（标题模糊匹配）、`limit`（1–500，默认无筛选时 100） |
 | `PATCH` | `/api/tasks/:taskId` | 更新任务；JSON 至少含其一：`status`（1–6）、`description`（整段替换）。设为 **1（待执行）** 时清空 `error_message`、`output_json`、`started_at`、`completed_at`、`followUpMessages`，并从 `meta_json` 移除 `claudeAgentRunId` / `cursorAgentRunId`；响应 `{ task }` |
 | `POST` | `/api/tasks/:taskId/follow-up` | 追加对话；JSON：`{ "message": string }`。写入 `meta_json.followUpMessages`（**不修改** `description`），设为 **1（待执行）**，清空上轮 `error_message` / `output_json` / `started_at` / `completed_at`，**保留** `cursorAgentRunId` / `claudeAgentRunId`。仅可在执行完成、失败、已暂停或已取消后调用；响应 `{ task }` |
 | `GET` | `/api/tasks/:taskId` | 单条任务详情；响应 `{ task, agent_provider }`，`agent_provider` 由任务 `pid` 查父任务 `init` 参数中的 `provider`（无 `pid` 时用 `TASK_AGENT_PROVIDER`） |
@@ -51,14 +52,14 @@ npm run build && npm start
 | `GET` | `/api/parent-tasks` | 父任务；`?pid=` 返回 `{ parent_task, parent_task_params, tasks?, task?, subtasks?, tasks_with_subtasks? }`（`tasks` 为 `tasks.pid` 关联的任务列表；`task` 为其中开发任务；`tasks_with_subtasks` 为每项任务附带 `subtasks` 数组）；否则列表 `{ parent_tasks, total, page, page_size, total_pages }`，列表项含聚合字段 `exec_status`、`case_adoption_rate`（来自 `parent_task_params.TestCaseAdoptionRate`）；可选 `task_type`（单类型）、`task_types`（逗号分隔多类型，如 `1,2,3`，与 `task_type` 互斥时优先 `task_type`）、`title`、`creator`、`tapd_task_id`（模糊匹配 `init.tapdTaskId`）、`page`（默认 1）、`limit`（每页条数，默认 20，最大 100） |
 | `PUT` | `/api/parent-tasks/:pid/params/:param_key` | 用户可编辑父任务参数 upsert；当前允许 `TestCaseAdoptionRate`（用例采纳率，JSON 请求体 `{ value_json: number \| string }`，取值 0–100）；响应 `{ parent_task_param, case_adoption_rate? }` |
 | `GET` | `/api/parent-tasks/:pid/ai-out/task-types` | 列出 `ai_out/<pid>/` 下存在可预览文档（`.md` / `.markdown` / `.json` / `.txt`）的 `task_type` 目录；响应 `{ pid, task_types: number[] }` |
-| `GET` | `/api/parent-tasks/:pid/ai-out/latest` | 读取 `ai_out/<pid>/<taskType>/` 下可预览文档；可选 `task_type`（0–13、20–22 或 101–104）；可选 `task_id`（须与 `task_type` 同传，读取 `ai_out/<pid>/<taskType>/<taskId>/`）；省略 `task_id` 时取该目录下 mtime 最新文件；响应 `{ pid, task_type, task_id?, relative_path, content, content_kind, updated_at }`；无文档时 **404** |
+| `GET` | `/api/parent-tasks/:pid/ai-out/latest` | 读取 `ai_out/<pid>/<taskType>/` 下可预览文档；可选 `task_type`（0–15、20–22 或 101–104）；可选 `task_id`（须与 `task_type` 同传，读取 `ai_out/<pid>/<taskType>/<taskId>/`）；省略 `task_id` 时取该目录下 mtime 最新文件；响应 `{ pid, task_type, task_id?, relative_path, content, content_kind, updated_at }`；无文档时 **404** |
 | `GET` | `/api/parent-tasks/:pid/ai-out/asset` | 读取 `ai_out/<pid>/<taskType>/` 下图片资源（如 UI 测试截图）；查询参数 `task_type`（必填）、`path`（相对该 taskType 目录的路径，如 `{taskId}/ui_test_screenshots/xx.png`）；成功返回二进制图片；无文件 **404** |
 | `GET` | `/api/parent-tasks/:pid/export-func-test-case-excel` | 扫描 `ai_out/<pid>/` 下 mtime 最新的功能测试用例设计 JSON（`cases[]` 规范），导出为 `.xlsx`；无符合文件 **404** |
 | `GET` | `/api/parent-tasks/:pid/export-autotest-case-excel` | 扫描 `ai_out/<pid>/` 下全部符合规范的自动化测试案例 JSON（`data.list[].scriptCaseVo`），每个 JSON 一个 sheet；若存在 `.md` 文件则首个 sheet「案例清单」写入 Markdown 原文（`test_cases_manifest.md` 优先）；合并导出 `.xlsx`；无符合 JSON **404** |
 | `POST` | `/api/export/test-case-design-excel` | 将功能测试用例设计 JSON 内容直转 `.xlsx`；JSON 请求体 `{ content: string, filename?: string }`；格式不符 **400** |
 | `GET` | `/api/parent-tasks/:pid/brainstorm-stories` | 业务 Agent 头脑风暴故事列表：按 `task_id` 读取 `ai_out/<pid>/10/<taskId>/` 并解析 `design.md` 澄清摘要；响应 `{ pid, stories: [{ task_id, title, description, status, created_at, ai_out?, clarification? }] }` |
 | `POST` | `/api/parent-tasks/:pid/brainstorm-stories/summarize-title` | 头脑风暴故事 AI 汇总标题；JSON `{ task_id, source_text }`；响应 `{ pid, task_id, summary_title }` |
-| `POST` | `/api/parent-tasks` | 新增父任务并编排：写 `parent_task` / `init` 参数（`branch_version`、可选 `gitRemoteUrl`、`testEnv`、`provider`：`claude` \| `cursor`，省略时用 `TASK_AGENT_PROVIDER`）→ 按 `task_type` 创建子任务流水线（`tasks.pid` = 父任务 pid）：**1** 开发自测（设计→…→测试环境发布→Code Review→…→测试案例执行）、**2** 开发自Review（设计→开发→测试环境发布→Code Review）；JSON 必填 `creator`（写入各 `tasks.creator`，HTTPS 克隆用户名），`pid` 可省略（自动为表中数值型 pid 的 max+1），`task_type` 默认 **1**，另可含 `app`、`requirement`；响应含 `parent_task`、`parent_task_params`、`tasks`、`task` |
+| `POST` | `/api/parent-tasks` | 新增父任务并编排：写 `parent_task` / `init` 参数（`branch_version`、可选 `gitRemoteUrl`、`testEnv`、`provider`：`claude` \| `cursor`，省略时用 `TASK_AGENT_PROVIDER`）→ 按 `task_type` 创建子任务流水线（`tasks.pid` = 父任务 pid）：**1** 开发自测（设计→…→测试环境发布→Code Review→…→测试案例执行）、**2** 开发自Review（设计→开发→测试环境发布→Code Review）、**7** 沉淀记忆（生成业务知识→生成代码规范→生成测试规范）；JSON 必填 `creator`（写入各 `tasks.creator`，HTTPS 克隆用户名），`pid` 可省略（自动为表中数值型 pid 的 max+1），`task_type` 默认 **1**，另可含 `app`、`requirement`；响应含 `parent_task`、`parent_task_params`、`tasks`、`task` |
 | `GET` | `/api/system-config` | 系统配置列表（表 `system_config`）；可选：`scope`（`global` \| `user`）、`username`（与 `scope=user` 或单独填写时筛选该用户）、`config_key`（键名子串模糊匹配）、`limit`（1–500，默认 200） |
 | `GET` | `/api/user-config/gitlab-token` | 读取用户 GitLab Token 配置状态；查询参数 `username`（必填）；响应 `{ username, configured, token_masked?, updated_at? }`（不下发完整 token） |
 | `PUT` | `/api/user-config/gitlab-token` | 保存或清除用户 GitLab Token；JSON：`{ "username": string, "gitlab_token"?: string }`（`gitlab_token` 留空则删除该用户配置）；响应同上 |

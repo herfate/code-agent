@@ -111,15 +111,20 @@ try {
     db,
     hour: config.WIKI_SYNC_DAILY_HOUR,
     minute: config.WIKI_SYNC_DAILY_MINUTE,
+    createPersistMemory: config.WIKI_SYNC_CREATE_PERSIST_MEMORY,
   });
   if (wikiSyncHandle) {
     app.log.info(
-      { hour: config.WIKI_SYNC_DAILY_HOUR, minute: config.WIKI_SYNC_DAILY_MINUTE },
+      {
+        hour: config.WIKI_SYNC_DAILY_HOUR,
+        minute: config.WIKI_SYNC_DAILY_MINUTE,
+        createPersistMemory: config.WIKI_SYNC_CREATE_PERSIST_MEMORY,
+      },
       "wiki sync scheduler enabled",
     );
   }
   app.log.info(
-    `Web: http://${config.HOST}:${config.PORT}/ 管理台 /demo /agent-dev /agent-dev/task-stream /dev-agent /dev-agent/parent-flow /wiki-agent /user-config /skill-prompt-config /?page=demo /?page=adev /?page=dagent /?page=wagent /?page=ucfg /?page=spcfg`,
+    `Web: http://${config.HOST}:${config.PORT}/ 管理台 /demo /agent-dev /agent-dev/task-stream /dev-agent /dev-agent/parent-flow /wiki-agent /test-agent /rule-agent /user-config /skill-prompt-config /?page=demo /?page=adev /?page=dagent /?page=wagent /?page=tagent /?page=ragent /?page=ucfg /?page=spcfg`,
   );
 } catch (err) {
   app.log.error(err);

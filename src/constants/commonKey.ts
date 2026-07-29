@@ -34,6 +34,8 @@ export const RESERVED_PARENT_PARAM_KEYS = [
   CHANGED_FILES_TYPE.AiStorySplitOut,
   CHANGED_FILES_TYPE.UiTestExecuteOut,
   CHANGED_FILES_TYPE.PersistMemoryOut,
+  CHANGED_FILES_TYPE.GenCodeSpecOut,
+  CHANGED_FILES_TYPE.GenTestSpecOut,
   CHANGED_FILES_TYPE.FuncTestCaseGenOut,
   CHANGED_FILES_TYPE.AutoTestCaseGenOut,
   CHANGED_FILES_TYPE.TestMindMapAnalysisOut,
