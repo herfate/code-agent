@@ -46,11 +46,8 @@ export function cloneUiTestExecuteFromDesign(
     return null;
   }
 
-  // 排在测试环境发布结果之后（若无则跟在开发之后），避免打乱原有流水线 created_at 间距
-  const anchor =
-    [...tasks].reverse().find((t) => t.task_type === TASK_TYPE.TestEnvDeployResult) ??
-    [...tasks].reverse().find((t) => t.task_type === TASK_TYPE.TestEnvDeploy) ??
-    executing;
+  // 创建时间排在同父任务下所有任务之后，保证列表末尾（listTasksByPid 按 created_at ASC）
+  const maxCreatedAt = Math.max(...tasks.map((t) => t.created_at));
 
   const designLabel = taskTypeLabel(TASK_TYPE.Design);
   const uiLabel = taskTypeLabel(TASK_TYPE.UiTestExecute);
@@ -64,7 +61,7 @@ export function cloneUiTestExecuteFromDesign(
     description: sourceDesign.description,
     task_type: TASK_TYPE.UiTestExecute,
     thread_id: null, // 新任务类型，不续 Design 会话
-    created_at: anchor.created_at + 1,
+    created_at: maxCreatedAt + 1,
   });
 
   AppLog.logger.info(
