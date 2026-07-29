@@ -52,6 +52,7 @@ npm run build && npm start
 | `PUT` | `/api/parent-tasks/:pid/params/:param_key` | 用户可编辑父任务参数 upsert；当前允许 `TestCaseAdoptionRate`（用例采纳率，JSON 请求体 `{ value_json: number \| string }`，取值 0–100）；响应 `{ parent_task_param, case_adoption_rate? }` |
 | `GET` | `/api/parent-tasks/:pid/ai-out/task-types` | 列出 `ai_out/<pid>/` 下存在可预览文档（`.md` / `.markdown` / `.json` / `.txt`）的 `task_type` 目录；响应 `{ pid, task_types: number[] }` |
 | `GET` | `/api/parent-tasks/:pid/ai-out/latest` | 读取 `ai_out/<pid>/<taskType>/` 下可预览文档；可选 `task_type`（0–13、20–22 或 101–104）；可选 `task_id`（须与 `task_type` 同传，读取 `ai_out/<pid>/<taskType>/<taskId>/`）；省略 `task_id` 时取该目录下 mtime 最新文件；响应 `{ pid, task_type, task_id?, relative_path, content, content_kind, updated_at }`；无文档时 **404** |
+| `GET` | `/api/parent-tasks/:pid/ai-out/asset` | 读取 `ai_out/<pid>/<taskType>/` 下图片资源（如 UI 测试截图）；查询参数 `task_type`（必填）、`path`（相对该 taskType 目录的路径，如 `{taskId}/ui_test_screenshots/xx.png`）；成功返回二进制图片；无文件 **404** |
 | `GET` | `/api/parent-tasks/:pid/export-func-test-case-excel` | 扫描 `ai_out/<pid>/` 下 mtime 最新的功能测试用例设计 JSON（`cases[]` 规范），导出为 `.xlsx`；无符合文件 **404** |
 | `GET` | `/api/parent-tasks/:pid/export-autotest-case-excel` | 扫描 `ai_out/<pid>/` 下全部符合规范的自动化测试案例 JSON（`data.list[].scriptCaseVo`），每个 JSON 一个 sheet；若存在 `.md` 文件则首个 sheet「案例清单」写入 Markdown 原文（`test_cases_manifest.md` 优先）；合并导出 `.xlsx`；无符合 JSON **404** |
 | `POST` | `/api/export/test-case-design-excel` | 将功能测试用例设计 JSON 内容直转 `.xlsx`；JSON 请求体 `{ content: string, filename?: string }`；格式不符 **400** |

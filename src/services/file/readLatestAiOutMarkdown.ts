@@ -259,3 +259,53 @@ export function readLatestAiOutMarkdown(
     updated_at: latest.mtimeMs,
   };
 }
+
+const AI_OUT_ASSET_SUFFIXES = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"] as const;
+
+function isAiOutAssetFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  return AI_OUT_ASSET_SUFFIXES.some((ext) => lower.endsWith(ext));
+}
+
+function mimeForAiOutAsset(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".bmp")) return "image/bmp";
+  if (lower.endsWith(".ico")) return "image/x-icon";
+  return "application/octet-stream";
+}
+
+/**
+ * 读取 `ai_out/<pid>/<taskType>/` 下图片资源（如 UI 测试报告旁的 `ui_test_screenshots/`）。
+ * `relativePath` 相对该 taskType 目录（可含 `taskId/` 前缀）。
+ */
+export function readAiOutAsset(
+  pid: string,
+  taskType: TaskType,
+  relativePath: string,
+): { buffer: Buffer; mime: string } | null {
+  assertSafePid(pid);
+  const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "").trim();
+  if (!normalized || normalized.includes("..")) {
+    throw new Error("invalid relative path");
+  }
+  if (!isAiOutAssetFile(normalized)) return null;
+
+  const typeDir = join(aiOutRoot(), pid, String(taskType));
+  const absPath = resolve(typeDir, normalized);
+  assertUnderAiOutRoot(absPath);
+  if (!absPath.startsWith(typeDir + sep) && absPath !== typeDir) {
+    throw new Error("path outside ai_out task type dir");
+  }
+  if (!existsSync(absPath)) return null;
+  const st = statSync(absPath);
+  if (!st.isFile()) return null;
+  return {
+    buffer: readFileSync(absPath),
+    mime: mimeForAiOutAsset(normalized),
+  };
+}

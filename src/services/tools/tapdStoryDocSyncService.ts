@@ -10,6 +10,7 @@ export const TAPD_SYNC_DOC_TASK_TYPES = [
   TASK_TYPE.Design,
   TASK_TYPE.TestCaseExecute,
   TASK_TYPE.CodeReview,
+  TASK_TYPE.UiTestExecute,
 ] as const;
 
 export type TapdSyncDocTaskType = (typeof TAPD_SYNC_DOC_TASK_TYPES)[number];
@@ -48,6 +49,8 @@ export function tapdSyncDocCommentTitle(taskType: TaskType): string {
       return "测试案例执行文档（AI 同步）";
     case TASK_TYPE.CodeReview:
       return "Code Review 文档（AI 同步）";
+    case TASK_TYPE.UiTestExecute:
+      return "UI测试执行文档（AI 同步）";
     default:
       return `${taskTypeLabel(taskType)}（AI 同步）`;
   }

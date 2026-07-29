@@ -43,7 +43,7 @@ import {
   PARENT_TASK_PLACEHOLDER_TITLE,
 } from "../constants/parentTask.js";
 import { listBrainstormStoriesForPid } from "../services/brainstorm/listBrainstormStories.js";
-import { readLatestAiOutMarkdown, readAiOutMarkdownByTaskId, listAiOutMarkdownTaskTypes } from "../services/file/readLatestAiOutMarkdown.js";
+import { readLatestAiOutMarkdown, readAiOutMarkdownByTaskId, listAiOutMarkdownTaskTypes, readAiOutAsset } from "../services/file/readLatestAiOutMarkdown.js";
 import {
   findAutotestCaseJsonFilesInAiOut,
   findAutotestMdFilesInAiOut,
@@ -55,7 +55,7 @@ import { autotestCaseExcelFilename } from "../services/file/parseAutotestCaseJso
 import { testCaseDesignExcelFilename } from "../services/file/parseTestCaseDesignJson.js";
 import { contentDispositionAttachment } from "../services/file/contentDisposition.js";
 import { exportExcelFilenameWithTitle } from "../services/file/exportExcelFilename.js";
-import { zTaskTypeOptional } from "../validation/taskTypeZod.js";
+import { zTaskType, zTaskTypeOptional } from "../validation/taskTypeZod.js";
 
 const listQuery = z.object({
   /** 按主键精确查询单条；有值时忽略其它筛选并只返回该条 */
@@ -78,6 +78,12 @@ const aiOutLatestQuery = z.object({
   task_type: zTaskTypeOptional,
   /** 指定 `tasks.id` 时读取 `ai_out/<pid>/<taskType>/<taskId>/`（须同时传 `task_type`） */
   task_id: z.string().trim().min(1).max(200).optional(),
+});
+
+/** `ai_out/<pid>/<taskType>/` 下图片等资源（UI 测试截图等） */
+const aiOutAssetQuery = z.object({
+  task_type: zTaskType,
+  path: z.string().trim().min(1).max(1000),
 });
 
 const summarizeStoryTitleBody = z.object({
@@ -285,6 +291,38 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       }
       request.log.error(err, "read ai_out latest markdown failed");
       return reply.status(500).send({ error: "read ai_out document failed" });
+    }
+  });
+
+  /** 读取 `ai_out/<pid>/<taskType>/` 下图片资源（如 UI 测试 `ui_test_screenshots/`） */
+  app.get("/api/parent-tasks/:pid/ai-out/asset", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parsed = aiOutAssetQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const asset = readAiOutAsset(pid, parsed.data.task_type, parsed.data.path);
+      if (!asset) {
+        return reply.status(404).send({ error: "asset not found" });
+      }
+      return reply
+        .header("Content-Type", asset.mime)
+        .header("Cache-Control", "private, max-age=3600")
+        .send(asset.buffer);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "read ai_out asset failed";
+      if (msg.includes("invalid") || msg.includes("path outside")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "read ai_out asset failed");
+      return reply.status(500).send({ error: "read ai_out asset failed" });
     }
   });
 

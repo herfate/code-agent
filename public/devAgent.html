@@ -480,12 +480,12 @@
             <section class="rounded-lg border border-violet-200 bg-gradient-to-b from-violet-50 to-white p-4 shadow-sm">
               <h4 class="text-sm font-semibold text-violet-950">文档同步到 TAPD</h4>
               <p class="mt-1 text-[11px] leading-relaxed text-violet-900/75">
-                读取 <code class="rounded bg-violet-100/80 px-1 font-mono text-[10px]">ai_out/&lt;pid&gt;/&lt;taskType&gt;/</code> 下最新 Markdown（0 设计 / 6 测试案例执行 / 8 Code Review），转为 HTML 后以评论同步到关联 TAPD 需求。
+                读取 <code class="rounded bg-violet-100/80 px-1 font-mono text-[10px]">ai_out/&lt;pid&gt;/&lt;taskType&gt;/</code> 下最新 Markdown（0 设计 / 6 测试案例执行 / 8 Code Review / 12 UI测试执行），转为 HTML 后以评论同步到关联 TAPD 需求。
               </p>
-              <div class="mt-3 flex gap-1.5">
+              <div class="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                 <button
                   type="button"
-                  class="dag-tapd-action-sync-doc min-w-0 flex-1 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="dag-tapd-action-sync-doc min-w-0 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
                   data-task-type="0"
                   title="同步设计文档（0）"
                 >
@@ -493,7 +493,7 @@
                 </button>
                 <button
                   type="button"
-                  class="dag-tapd-action-sync-doc min-w-0 flex-1 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="dag-tapd-action-sync-doc min-w-0 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
                   data-task-type="6"
                   title="同步测试案例执行文档（6）"
                 >
@@ -501,11 +501,19 @@
                 </button>
                 <button
                   type="button"
-                  class="dag-tapd-action-sync-doc min-w-0 flex-1 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="dag-tapd-action-sync-doc min-w-0 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
                   data-task-type="8"
                   title="同步 Code Review 文档（8）"
                 >
                   CR(8)
+                </button>
+                <button
+                  type="button"
+                  class="dag-tapd-action-sync-doc min-w-0 rounded-md bg-violet-600 px-2 py-1.5 text-[11px] font-medium leading-tight text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  data-task-type="12"
+                  title="同步 UI 测试执行文档（12）"
+                >
+                  UI测试(12)
                 </button>
               </div>
             </section>
@@ -564,7 +572,7 @@
     </div>
   </div>
 
-  <!-- 预览「测试结果」：仅测试案例执行(task_type=6) 文档解析展示 -->
+  <!-- 预览「测试结果」：测试案例执行(6) / UI测试执行(12) 文档解析展示 -->
   <div id="dag-preview-related-root" class="pointer-events-none fixed inset-0 z-[60] hidden">
     <div id="dag-preview-related-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
       <div
@@ -648,6 +656,7 @@
     #dag-preview-body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8125rem; }
     #dag-preview-body th, #dag-preview-body td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
     #dag-preview-body th { background: #f8fafc; font-weight: 600; }
+    #dag-preview-body img { max-width: 100%; height: auto; margin: 0.5rem 0; border-radius: 0.375rem; border: 1px solid #e2e8f0; }
     .dag-md h1 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
     .dag-md h2 { font-size: 1.125rem; font-weight: 600; margin: 0.875rem 0 0.5rem; }
     .dag-md h3 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
@@ -1790,7 +1799,7 @@
         previewDownloadBtn.disabled = !enabled;
       }
 
-      /** 仅「测试案例执行」(task_type=6) 文档预览时展示「测试结果」按钮 */
+      /** 「测试案例执行」(6) /「UI测试执行」(12) 文档预览时展示「测试结果」按钮 */
       function setPreviewRelatedVisible(visible) {
         if (visible) {
           previewRelatedBtn.classList.remove("hidden");
@@ -1800,6 +1809,46 @@
           previewRelatedBtn.disabled = true;
           closePreviewRelatedModal();
         }
+      }
+
+      function isPreviewTestResultTaskType(taskType) {
+        var n = Number(taskType);
+        return n === 6 || n === 12;
+      }
+
+      /** 将 Markdown 内相对路径图片改写为 ai_out 资源接口（UI 测试截图等） */
+      function resolveAiOutMarkdownImageSrc(src, doc) {
+        var s = String(src || "").trim();
+        if (
+          !s ||
+          /^https?:\/\//i.test(s) ||
+          /^data:/i.test(s) ||
+          s.indexOf("/api/parent-tasks/") === 0
+        ) {
+          return s;
+        }
+        if (!doc || doc.pid == null || doc.task_type == null || !doc.relative_path) return s;
+        var mdDir = String(doc.relative_path)
+          .replace(/\\/g, "/")
+          .replace(/\/[^/]+$/, "");
+        var assetPath = s.replace(/^\.\/?/, "");
+        if (mdDir) assetPath = mdDir + "/" + assetPath;
+        return (
+          dagBase() +
+          "/api/parent-tasks/" +
+          encodeURIComponent(String(doc.pid)) +
+          "/ai-out/asset?task_type=" +
+          encodeURIComponent(String(doc.task_type)) +
+          "&path=" +
+          encodeURIComponent(assetPath)
+        );
+      }
+
+      function preprocessAiOutMarkdownImages(md, doc) {
+        return String(md || "").replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (_full, alt, rawSrc) {
+          var resolved = resolveAiOutMarkdownImageSrc(rawSrc, doc);
+          return "![" + alt + "](" + resolved + ")";
+        });
       }
 
       /** 复用 parseTaskOutTestResult：取「测试结果」之后正文 */
@@ -2102,7 +2151,7 @@
         if (kind === "text") kind = detectPreviewKindFromContent(content);
         if (kind === "json") return renderJsonHtml(content);
         if (kind === "text") return renderPlainTextHtml(content);
-        return renderMarkdownHtml(content);
+        return renderMarkdownHtml(preprocessAiOutMarkdownImages(content, doc));
       }
 
       function loadPreviewDoc(pid, taskType) {
@@ -2160,7 +2209,7 @@
               fmtTime(doc.updated_at);
             previewCurrentDoc = doc;
             setPreviewDownloadEnabled(true);
-            setPreviewRelatedVisible(Number(doc.task_type) === 6);
+            setPreviewRelatedVisible(isPreviewTestResultTaskType(doc.task_type));
             previewBodyEl.innerHTML = renderPreviewContent(doc);
           })
           .catch(function (e) {

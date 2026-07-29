@@ -47,12 +47,12 @@ const storySyncDesignDocBody = z.object({
   /** 本地 parent_task.pid，用于读取 ai_out/<pid>/<task_type>/ 文档 */
   pid: z.string().trim().min(1).max(50),
   creator: z.string().trim().min(1).max(200),
-  /** ai_out 子目录 task_type：0 设计 / 6 测试案例执行 / 8 Code Review，默认 0 */
+  /** ai_out 子目录 task_type：0 设计 / 6 测试案例执行 / 8 Code Review / 12 UI测试执行，默认 0 */
   task_type: z.coerce
     .number()
     .int()
     .refine((n) => isTapdSyncDocTaskType(n), {
-      message: "task_type 仅支持 0 设计 / 6 测试案例执行 / 8 Code Review",
+      message: "task_type 仅支持 0 设计 / 6 测试案例执行 / 8 Code Review / 12 UI测试执行",
     })
     .optional()
     .default(TAPD_SYNC_DOC_TASK_TYPES[0]),

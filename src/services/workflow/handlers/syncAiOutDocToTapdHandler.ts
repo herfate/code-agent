@@ -26,7 +26,7 @@ function resolveTapdCommentAuthor(ctx: ParentTaskChangedFilesContext, creator: s
 }
 
 /**
- * 设计 / 测试案例执行 / Code Review：任务完成后将 `ai_out` 最新 Markdown 自动同步到 TAPD 需求评论。
+ * 设计 / 测试案例执行 / Code Review / UI 测试执行：任务完成后将 `ai_out` 最新 Markdown 自动同步到 TAPD 需求评论。
  * 须在 {@link copyChangedFilesToAiOutHandler} 之后执行，确保 ai_out 已写入。
  */
 export const syncAiOutDocToTapdHandler: ParentTaskChangedFilesHandler = {
