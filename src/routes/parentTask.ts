@@ -55,6 +55,7 @@ import { autotestCaseExcelFilename } from "../services/file/parseAutotestCaseJso
 import { testCaseDesignExcelFilename } from "../services/file/parseTestCaseDesignJson.js";
 import { contentDispositionAttachment } from "../services/file/contentDisposition.js";
 import { exportExcelFilenameWithTitle } from "../services/file/exportExcelFilename.js";
+import { zipUiTestScriptsFromAiOut } from "../services/file/zipUiTestScriptsFromAiOut.js";
 import { zTaskType, zTaskTypeOptional } from "../validation/taskTypeZod.js";
 
 const listQuery = z.object({
@@ -84,6 +85,12 @@ const aiOutLatestQuery = z.object({
 const aiOutAssetQuery = z.object({
   task_type: zTaskType,
   path: z.string().trim().min(1).max(1000),
+});
+
+/** 打包下载 UI 测试执行产物（`ai_out/<pid>/12/<taskId>/` → zip） */
+const uiTestScriptsZipQuery = z.object({
+  /** 可选；省略时按最新 UI 测试执行文档所在 task 目录解析 */
+  task_id: z.string().trim().min(1).max(200).optional(),
 });
 
 const summarizeStoryTitleBody = z.object({
@@ -323,6 +330,39 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       }
       request.log.error(err, "read ai_out asset failed");
       return reply.status(500).send({ error: "read ai_out asset failed" });
+    }
+  });
+
+  /** 打包下载 UI 测试执行产物：`ai_out/<pid>/12/<taskId>/` → zip（排除 node_modules 等） */
+  app.get("/api/parent-tasks/:pid/ai-out/ui-test-scripts-zip", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parsed = uiTestScriptsZipQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const zipped = await zipUiTestScriptsFromAiOut(pid, parsed.data.task_id);
+      if (!zipped) {
+        return reply.status(404).send({
+          error: "no ui test execute outputs found in ai_out (expected ai_out/<pid>/12/<taskId>/)",
+        });
+      }
+      reply.header("Content-Type", "application/zip");
+      reply.header("Content-Disposition", contentDispositionAttachment(zipped.filename));
+      return reply.send(zipped.buffer);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("invalid") || msg.includes("path outside")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "zip ui test scripts failed");
+      return reply.status(500).send({ error: "zip ui test scripts failed" });
     }
   });
 

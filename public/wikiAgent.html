@@ -135,6 +135,7 @@
           <p id="wa-story-ai-preview-meta" class="mt-1 truncate font-mono text-[11px] text-slate-500"></p>
         </div>
         <div class="flex shrink-0 items-center gap-2">
+          <button type="button" id="wa-story-ai-preview-scripts-zip" disabled class="hidden rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50" title="打包下载该 UI 测试执行任务 ai_out 下全部产物">下载脚本</button>
           <button type="button" id="wa-story-ai-preview-download" disabled class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">下载</button>
           <button type="button" id="wa-story-ai-preview-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
         </div>
@@ -634,6 +635,8 @@
     var previewReloadImagesBtn = document.getElementById("wa-preview-reload-images");
     var previewReloadMultimodalBtn = document.getElementById("wa-preview-reload-multimodal");
     var storyAiPreviewDownloadBtn = document.getElementById("wa-story-ai-preview-download");
+    var storyAiPreviewScriptsZipBtn = document.getElementById("wa-story-ai-preview-scripts-zip");
+    var storyAiPreviewScriptsZipBusy = false;
     var sourceRoot = document.getElementById("wa-source-root");
     var sourceTitle = document.getElementById("wa-source-title");
     var sourceSub = document.getElementById("wa-source-sub");
@@ -1075,6 +1078,43 @@
       storyAiPreviewDownloadBtn.disabled = !enabled;
     }
 
+    /** 「UI测试执行」(12) 文档预览时展示「下载脚本」按钮 */
+    function setStoryAiPreviewScriptsZipVisible(visible) {
+      if (visible) {
+        storyAiPreviewScriptsZipBtn.classList.remove("hidden");
+        storyAiPreviewScriptsZipBtn.disabled = storyAiPreviewScriptsZipBusy;
+      } else {
+        storyAiPreviewScriptsZipBtn.classList.add("hidden");
+        storyAiPreviewScriptsZipBtn.disabled = true;
+      }
+    }
+
+    function isPreviewUiTestExecuteTaskType(taskType) {
+      return Number(taskType) === 12;
+    }
+
+    /** 从预览文档解析 taskId（优先 task_id，否则取 relative_path 首段） */
+    function previewDocTaskId(doc) {
+      if (!doc) return "";
+      if (doc.task_id != null && String(doc.task_id).trim()) {
+        return String(doc.task_id).trim();
+      }
+      var rel = String(doc.relative_path || "")
+        .replace(/\\/g, "/")
+        .split("/")
+        .filter(Boolean);
+      var first = rel[0] || "";
+      if (
+        !first ||
+        first === "ui_test_report.md" ||
+        first === "ui-tests" ||
+        first === "ui_test_screenshots"
+      ) {
+        return "";
+      }
+      return first;
+    }
+
     function previewDownloadFilename(doc) {
       var rel = doc && doc.relative_path ? String(doc.relative_path) : "";
       var base = rel.split("/").filter(Boolean).pop();
@@ -1122,6 +1162,87 @@
 
     function downloadStoryAiPreviewDoc() {
       downloadDocContent(storyAiPreviewCurrentDoc);
+    }
+
+    /** 下载 UI 测试执行产物 zip（ai_out/<pid>/12/<taskId>/ 全部文件） */
+    function downloadStoryAiPreviewUiTestScriptsZip() {
+      if (
+        !storyAiPreviewCurrentDoc ||
+        !isPreviewUiTestExecuteTaskType(storyAiPreviewCurrentDoc.task_type)
+      ) {
+        return;
+      }
+      if (storyAiPreviewScriptsZipBusy) return;
+      var pid = String(storyAiPreviewCurrentDoc.pid || "").trim();
+      if (!pid) return;
+      var taskId = previewDocTaskId(storyAiPreviewCurrentDoc);
+      var url =
+        waBase() +
+        "/api/parent-tasks/" +
+        encodeURIComponent(pid) +
+        "/ai-out/ui-test-scripts-zip";
+      if (taskId) url += "?task_id=" + encodeURIComponent(taskId);
+
+      storyAiPreviewScriptsZipBusy = true;
+      storyAiPreviewScriptsZipBtn.disabled = true;
+      storyAiPreviewScriptsZipBtn.textContent = "打包中…";
+
+      fetch(url)
+        .then(function (r) {
+          if (!r.ok) {
+            return r.json().then(
+              function (j) {
+                var msg =
+                  j && j.error
+                    ? typeof j.error === "string"
+                      ? j.error
+                      : JSON.stringify(j.error)
+                    : "HTTP " + r.status;
+                throw new Error(msg);
+              },
+              function () {
+                throw new Error("HTTP " + r.status);
+              },
+            );
+          }
+          var cd = r.headers.get("Content-Disposition") || "";
+          var m = /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i.exec(cd);
+          var filename = "ui-test-execute.zip";
+          if (m) {
+            try {
+              filename = decodeURIComponent((m[1] || m[2] || "").trim()) || filename;
+            } catch (_e) {
+              filename = (m[1] || m[2] || filename).trim() || filename;
+            }
+          }
+          return r.blob().then(function (blob) {
+            return { blob: blob, filename: filename };
+          });
+        })
+        .then(function (res) {
+          var objUrl = URL.createObjectURL(res.blob);
+          var link = document.createElement("a");
+          link.href = objUrl;
+          link.download = res.filename;
+          link.style.display = "none";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(objUrl);
+        })
+        .catch(function (e) {
+          window.alert("下载脚本失败: " + (e && e.message ? e.message : String(e)));
+        })
+        .finally(function () {
+          storyAiPreviewScriptsZipBusy = false;
+          storyAiPreviewScriptsZipBtn.textContent = "下载脚本";
+          setStoryAiPreviewScriptsZipVisible(
+            !!(
+              storyAiPreviewCurrentDoc &&
+              isPreviewUiTestExecuteTaskType(storyAiPreviewCurrentDoc.task_type)
+            ),
+          );
+        });
     }
 
     function downloadWikiFile(categoryId, relPath, triggerBtn) {
@@ -1865,6 +1986,7 @@
       storyAiPreviewMeta.textContent = "";
       storyAiPreviewCurrentDoc = null;
       setStoryAiPreviewDownloadEnabled(false);
+      setStoryAiPreviewScriptsZipVisible(false);
       if (!isWikiModalOpenExcept(storyAiPreviewRoot)) {
         document.body.style.overflow = "";
       }
@@ -1969,6 +2091,7 @@
       closeStoryPick();
       storyAiPreviewCurrentDoc = null;
       setStoryAiPreviewDownloadEnabled(false);
+      setStoryAiPreviewScriptsZipVisible(false);
       storyAiPreviewTitle.textContent = "文档预览 · pid " + pid;
       storyAiPreviewMeta.textContent = "加载中…";
       storyAiPreviewBody.innerHTML = '<p class="text-center text-xs text-slate-400">加载文档…</p>';
@@ -2004,6 +2127,7 @@
                 var doc = res.body;
                 storyAiPreviewCurrentDoc = doc;
                 setStoryAiPreviewDownloadEnabled(!!(doc.content != null && String(doc.content).length > 0));
+                setStoryAiPreviewScriptsZipVisible(isPreviewUiTestExecuteTaskType(doc.task_type));
                 var typeLabel = workflowTaskTypeLabel(doc.task_type);
                 storyAiPreviewTitle.textContent = "文档预览 · pid " + doc.pid;
                 storyAiPreviewMeta.textContent =
@@ -2015,6 +2139,7 @@
               .catch(function (e) {
                 storyAiPreviewCurrentDoc = null;
                 setStoryAiPreviewDownloadEnabled(false);
+                setStoryAiPreviewScriptsZipVisible(false);
                 storyAiPreviewMeta.textContent = "";
                 storyAiPreviewBody.innerHTML =
                         '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
@@ -4081,6 +4206,7 @@
     });
     document.getElementById("wa-story-ai-preview-close").addEventListener("click", closeStoryAiPreview);
     document.getElementById("wa-story-ai-preview-download").addEventListener("click", downloadStoryAiPreviewDoc);
+    document.getElementById("wa-story-ai-preview-scripts-zip").addEventListener("click", downloadStoryAiPreviewUiTestScriptsZip);
     document.getElementById("wa-story-ai-preview-backdrop").addEventListener("click", function (e) {
       if (e.target.id === "wa-story-ai-preview-backdrop") closeStoryAiPreview();
     });

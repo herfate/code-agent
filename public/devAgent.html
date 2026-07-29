@@ -563,6 +563,7 @@
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <button type="button" id="dag-preview-related" disabled class="hidden rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50">测试结果</button>
+            <button type="button" id="dag-preview-scripts-zip" disabled class="hidden rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50" title="打包下载该 UI 测试执行任务 ai_out 下全部产物">下载脚本</button>
             <button type="button" id="dag-preview-download" disabled class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">下载</button>
             <button type="button" id="dag-preview-close" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
           </div>
@@ -1306,12 +1307,14 @@
       var previewPickListEl = document.getElementById("dag-preview-pick-list");
       var previewPickEmptyEl = document.getElementById("dag-preview-pick-empty");
       var previewDownloadBtn = document.getElementById("dag-preview-download");
+      var previewScriptsZipBtn = document.getElementById("dag-preview-scripts-zip");
       var previewRelatedBtn = document.getElementById("dag-preview-related");
       var previewRelatedRoot = document.getElementById("dag-preview-related-root");
       var previewRelatedBackdrop = document.getElementById("dag-preview-related-backdrop");
       var previewRelatedEmptyEl = document.getElementById("dag-preview-related-empty");
       var previewRelatedTableWrap = document.getElementById("dag-preview-related-table-wrap");
       var previewRelatedTbody = document.getElementById("dag-preview-related-tbody");
+      var previewScriptsZipBusy = false;
 
       var tapdMenuRoot = document.getElementById("dag-tapd-menu-root");
       var tapdMenuBackdrop = document.getElementById("dag-tapd-menu-backdrop");
@@ -1815,9 +1818,46 @@
         }
       }
 
+      /** 「UI测试执行」(12) 文档预览时展示「下载脚本」按钮 */
+      function setPreviewScriptsZipVisible(visible) {
+        if (visible) {
+          previewScriptsZipBtn.classList.remove("hidden");
+          previewScriptsZipBtn.disabled = previewScriptsZipBusy;
+        } else {
+          previewScriptsZipBtn.classList.add("hidden");
+          previewScriptsZipBtn.disabled = true;
+        }
+      }
+
       function isPreviewTestResultTaskType(taskType) {
         var n = Number(taskType);
         return n === 6 || n === 12;
+      }
+
+      function isPreviewUiTestExecuteTaskType(taskType) {
+        return Number(taskType) === 12;
+      }
+
+      /** 从预览文档解析 taskId（优先 task_id，否则取 relative_path 首段） */
+      function previewDocTaskId(doc) {
+        if (!doc) return "";
+        if (doc.task_id != null && String(doc.task_id).trim()) {
+          return String(doc.task_id).trim();
+        }
+        var rel = String(doc.relative_path || "")
+          .replace(/\\/g, "/")
+          .split("/")
+          .filter(Boolean);
+        var first = rel[0] || "";
+        if (
+          !first ||
+          first === "ui_test_report.md" ||
+          first === "ui-tests" ||
+          first === "ui_test_screenshots"
+        ) {
+          return "";
+        }
+        return first;
       }
 
       /** 将 Markdown 内相对路径图片改写为 ai_out 资源接口（UI 测试截图等） */
@@ -1994,6 +2034,81 @@
         URL.revokeObjectURL(url);
       }
 
+      /** 下载 UI 测试执行产物 zip（ai_out/<pid>/12/<taskId>/ 全部文件） */
+      function downloadPreviewUiTestScriptsZip() {
+        if (!previewCurrentDoc || !isPreviewUiTestExecuteTaskType(previewCurrentDoc.task_type)) {
+          return;
+        }
+        if (previewScriptsZipBusy) return;
+        var pid = String(previewCurrentDoc.pid || "").trim();
+        if (!pid) return;
+        var taskId = previewDocTaskId(previewCurrentDoc);
+        var url =
+          dagBase() +
+          "/api/parent-tasks/" +
+          encodeURIComponent(pid) +
+          "/ai-out/ui-test-scripts-zip";
+        if (taskId) url += "?task_id=" + encodeURIComponent(taskId);
+
+        previewScriptsZipBusy = true;
+        previewScriptsZipBtn.disabled = true;
+        previewScriptsZipBtn.textContent = "打包中…";
+
+        fetch(url)
+          .then(function (r) {
+            if (!r.ok) {
+              return r.json().then(
+                function (j) {
+                  var msg =
+                    j && j.error
+                      ? typeof j.error === "string"
+                        ? j.error
+                        : JSON.stringify(j.error)
+                      : "HTTP " + r.status;
+                  throw new Error(msg);
+                },
+                function () {
+                  throw new Error("HTTP " + r.status);
+                },
+              );
+            }
+            var cd = r.headers.get("Content-Disposition") || "";
+            var m = /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i.exec(cd);
+            var filename = "ui-test-execute.zip";
+            if (m) {
+              try {
+                filename = decodeURIComponent((m[1] || m[2] || "").trim()) || filename;
+              } catch (_e) {
+                filename = (m[1] || m[2] || filename).trim() || filename;
+              }
+            }
+            return r.blob().then(function (blob) {
+              return { blob: blob, filename: filename };
+            });
+          })
+          .then(function (res) {
+            var objUrl = URL.createObjectURL(res.blob);
+            var link = document.createElement("a");
+            link.href = objUrl;
+            link.download = res.filename;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(objUrl);
+          })
+          .catch(function (e) {
+            window.alert("下载脚本失败: " + (e && e.message ? e.message : String(e)));
+          })
+          .finally(function () {
+            previewScriptsZipBusy = false;
+            previewScriptsZipBtn.textContent = "下载脚本";
+            setPreviewScriptsZipVisible(
+              !!(previewCurrentDoc && isPreviewUiTestExecuteTaskType(previewCurrentDoc.task_type)),
+            );
+          });
+      }
+
       function closePreviewPicker() {
         previewPickRoot.classList.add("hidden");
         previewPickPid = "";
@@ -2012,6 +2127,7 @@
         previewCurrentDoc = null;
         setPreviewDownloadEnabled(false);
         setPreviewRelatedVisible(false);
+        setPreviewScriptsZipVisible(false);
         if (previewPickRoot.classList.contains("hidden")) {
           document.body.style.overflow = "";
         }
@@ -2164,6 +2280,7 @@
         previewCurrentDoc = null;
         setPreviewDownloadEnabled(false);
         setPreviewRelatedVisible(false);
+        setPreviewScriptsZipVisible(false);
         previewTitleEl.textContent = "文档预览 · pid " + pid;
         previewMetaEl.textContent = "加载中…";
         previewBodyEl.innerHTML =
@@ -2214,12 +2331,14 @@
             previewCurrentDoc = doc;
             setPreviewDownloadEnabled(true);
             setPreviewRelatedVisible(isPreviewTestResultTaskType(doc.task_type));
+            setPreviewScriptsZipVisible(isPreviewUiTestExecuteTaskType(doc.task_type));
             previewBodyEl.innerHTML = renderPreviewContent(doc);
           })
           .catch(function (e) {
             previewCurrentDoc = null;
             setPreviewDownloadEnabled(false);
             setPreviewRelatedVisible(false);
+            setPreviewScriptsZipVisible(false);
             previewMetaEl.textContent = "";
             previewBodyEl.innerHTML =
               '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
@@ -2597,6 +2716,7 @@
       document.getElementById("dag-modal-cancel").onclick = closeNewModal;
       document.getElementById("dag-preview-close").onclick = closePreviewModal;
       document.getElementById("dag-preview-download").onclick = downloadPreviewDoc;
+      document.getElementById("dag-preview-scripts-zip").onclick = downloadPreviewUiTestScriptsZip;
       document.getElementById("dag-preview-related").onclick = openPreviewRelatedModal;
       document.getElementById("dag-preview-related-close").onclick = closePreviewRelatedModal;
       document.getElementById("dag-preview-pick-close").onclick = closePreviewPicker;
