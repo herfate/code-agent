@@ -34,6 +34,21 @@ function isPreviewableFile(name: string): boolean {
   return PREVIEWABLE_SUFFIXES.some((ext) => lower.endsWith(ext));
 }
 
+function isMarkdownFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".md") || lower.endsWith(".markdown");
+}
+
+/**
+ * 优先取 mtime 最新的 Markdown；无 md / markdown 时再按 mtime 取其他可预览文件。
+ */
+function pickPreferredLatest(candidates: FileCandidate[]): FileCandidate | null {
+  if (candidates.length === 0) return null;
+  const markdown = candidates.filter((c) => isMarkdownFile(c.relativePath));
+  const pool = markdown.length > 0 ? markdown : candidates;
+  return pool.reduce((best, cur) => (cur.mtimeMs > best.mtimeMs ? cur : best));
+}
+
 function contentKindForFile(name: string, content: string): AiOutPreviewContentKind {
   const lower = name.toLowerCase();
   if (lower.endsWith(".json")) return "json";
@@ -173,7 +188,7 @@ export function listAiOutMarkdownFiles(pid: string, taskType: TaskType): AiOutFi
 }
 
 /**
- * 读取 `ai_out/<pid>/<taskType>/<taskId>/` 下 mtime 最新的可预览文档。
+ * 读取 `ai_out/<pid>/<taskType>/<taskId>/` 下优先最新的 Markdown；无 md 时取最新 json/txt。
  */
 export function readAiOutMarkdownByTaskId(
   pid: string,
@@ -189,10 +204,9 @@ export function readAiOutMarkdownByTaskId(
 
   const candidates: FileCandidate[] = [];
   collectPreviewableFiles(taskDir, typeDir, taskType, candidates);
-  if (candidates.length === 0) return null;
+  const latest = pickPreferredLatest(candidates);
+  if (!latest) return null;
 
-  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  const latest = candidates[0]!;
   const content = readFileSync(latest.absPath, "utf8");
 
   return {
@@ -223,7 +237,7 @@ export function listAiOutMarkdownTaskTypes(pid: string): TaskType[] {
 }
 
 /**
- * 读取 `ai_out/<pid>/<taskType>/` 下 mtime 最新的可预览文档（md / json / txt）。
+ * 读取 `ai_out/<pid>/<taskType>/` 下优先最新的 Markdown；无 md 时取最新 json/txt。
  * `taskType` 省略时扫描该 pid 下全部任务类型子目录。
  */
 export function readLatestAiOutMarkdown(
@@ -244,10 +258,9 @@ export function readLatestAiOutMarkdown(
     collectPreviewableFiles(typeDir, typeDir, tt, candidates);
   }
 
-  if (candidates.length === 0) return null;
+  const latest = pickPreferredLatest(candidates);
+  if (!latest) return null;
 
-  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  const latest = candidates[0]!;
   const content = readFileSync(latest.absPath, "utf8");
 
   return {

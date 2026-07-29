@@ -28,6 +28,7 @@ export const RESERVED_PARENT_PARAM_KEYS = [
   CHANGED_FILES_TYPE.TestDataAnalysisOut,
   CHANGED_FILES_TYPE.TestPreAnalysisOut,
   CHANGED_FILES_TYPE.TestCaseDesignOut,
+  CHANGED_FILES_TYPE.TestCaseExecuteOut,
   CHANGED_FILES_TYPE.CodeReviewOut,
   CHANGED_FILES_TYPE.StorySplitOut,
   CHANGED_FILES_TYPE.BrainstormOut,

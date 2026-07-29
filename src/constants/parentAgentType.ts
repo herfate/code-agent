@@ -6,7 +6,7 @@ export const PARENT_AGENT_TYPE = {
   DevSelfTest: 1,
   /** 开发自Review编排（设计 → 开发 → 测试环境发布 → Code Review 等子任务流水线） */
   DevReviewNoTest: 2,
-  /** 功能测试编排（测试环境发布 → 测试设计-> 测试案例设计-> 测试数据分析-> 测试案例执行） */
+  /** 功能测试编排（测试环境发布 → 测试预分析 → 测试案例设计 → 测试数据分析 → 测试案例执行 → UI测试执行） */
   FuncTest: 3,
   /** 业务编排（业务相关子任务流水线） */
   BizAgent: 4,
