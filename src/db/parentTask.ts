@@ -377,6 +377,8 @@ export type ParentTaskListFilters = {
   creator?: string;
   /** 模糊匹配 `parent_task_params.init.tapdTaskId` */
   tapdTaskIdContains?: string;
+  /** 模糊匹配父任务 `description` 或关联子任务 `tasks.input_json` */
+  contentContains?: string;
 };
 
 /** LIKE 通配符转义（配合 ESCAPE '\\'） */
@@ -423,6 +425,19 @@ function buildParentTaskListWhere(filters: ParentTaskListFilters = {}): {
       )`,
     );
     params.push(PARENT_PARAM_KEY_INIT, "%" + escapeLikePattern(tapdRaw) + "%");
+  }
+  const contentRaw = filters.contentContains?.trim();
+  if (contentRaw) {
+    const like = "%" + escapeLikePattern(contentRaw) + "%";
+    clauses.push(
+      `(parent_task.description LIKE ? ESCAPE '\\'
+         OR EXISTS (
+           SELECT 1 FROM tasks t
+           WHERE t.pid = parent_task.pid
+             AND t.input_json LIKE ? ESCAPE '\\'
+         ))`,
+    );
+    params.push(like, like);
   }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";

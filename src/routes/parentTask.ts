@@ -69,6 +69,8 @@ const listQuery = z.object({
   creator: z.string().trim().min(1).max(200).optional(),
   /** 模糊匹配 `parent_task_params.init.tapdTaskId` */
   tapd_task_id: z.string().max(200).optional(),
+  /** 模糊匹配父任务 `description` 或关联子任务 `tasks.input_json` */
+  content_like: z.string().trim().max(500).optional(),
   /** 页码，从 1 开始；列表查询时默认 1 */
   page: z.coerce.number().int().min(1).optional(),
   /** 每页条数；列表查询时默认 20，最大 100 */
@@ -156,6 +158,7 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       titleContains: q.title?.trim() || undefined,
       creator: q.creator,
       tapdTaskIdContains: q.tapd_task_id?.trim() || undefined,
+      contentContains: q.content_like?.trim() || undefined,
     };
     const pageSize = q.limit ?? 20;
     const page = q.page ?? 1;

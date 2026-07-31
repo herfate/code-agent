@@ -16,7 +16,7 @@
     <section class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
       <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
-        <div class="lg:col-span-3">
+        <div class="lg:col-span-2">
           <label id="tag-taskType-label" for="tag-taskType-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
           <div id="tag-taskType-root" class="ui-multiselect relative min-w-0">
             <input type="hidden" id="tag-taskType" value="5,6" autocomplete="off" />
@@ -50,11 +50,15 @@
           <label for="tag-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题包含</label>
           <input id="tag-title" type="text" placeholder="模糊匹配 title" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
         </div>
-        <div class="lg:col-span-3">
+        <div class="lg:col-span-2">
           <label for="tag-creator" class="mb-1.5 block text-xs font-medium text-slate-600">创建人</label>
           <input id="tag-creator" type="text" placeholder="精确匹配 tasks.creator" maxlength="200" autocomplete="username" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
         </div>
-        <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-4">
+        <div class="lg:col-span-3">
+          <label for="tag-content" class="mb-1.5 block text-xs font-medium text-slate-600">内容</label>
+          <input id="tag-content" type="text" placeholder="模糊匹配 description / input_json" maxlength="500" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
+        </div>
+        <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-3">
           <span class="mb-1.5 hidden text-xs lg:block lg:invisible" aria-hidden="true">操作</span>
           <div class="flex flex-nowrap items-center gap-2">
             <button type="button" id="tag-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增父任务</button>
@@ -2545,6 +2549,8 @@
         if (tit) params.set("title", tit);
         var creator = document.getElementById("tag-creator").value.trim();
         if (creator) params.set("creator", creator);
+        var contentLike = document.getElementById("tag-content").value.trim();
+        if (contentLike) params.set("content_like", contentLike);
         var pageSize = Number(pageSizeEl.value) || 20;
         params.set("page", String(tagPage));
         params.set("limit", String(pageSize));
