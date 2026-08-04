@@ -8,6 +8,8 @@ export type ParsedTaskOutPassRate = {
   summary?: string;
   /** `是否代码问题`；未解析到时为 `undefined` */
   isCodeProblem?: boolean;
+  /** `是否因外部dubbo接口阻塞`；未解析到时为 `undefined` */
+  isBlockedByExternalDubbo?: boolean;
   sourceFile: string;
   /** 来源文件全文（写入重试开发任务 description，便于下次续跑持久化） */
   reportContent: string;
@@ -91,6 +93,7 @@ export const TEST_RESULT_DISPLAY_FIELDS = [
   "测试用例通过率",
   "是否代码问题",
   "是否测试环境问题",
+  "是否因外部dubbo接口阻塞",
   "是否端到端测试",
   "测试总结简述",
 ] as const;
@@ -140,8 +143,15 @@ function parseTestResultFromText(
     summaryRaw != null && summaryRaw !== "" ? summaryRaw : undefined;
 
   const isCodeProblem = parseYesNoField(extractTestResultField(text, "是否代码问题")) ?? undefined;
+  const isBlockedByExternalDubbo =
+    parseYesNoField(extractTestResultField(text, "是否因外部dubbo接口阻塞")) ?? undefined;
 
-  const base = { passRate, ...(summary !== undefined ? { summary } : {}), ...(isCodeProblem !== undefined ? { isCodeProblem } : {}) };
+  const base = {
+    passRate,
+    ...(summary !== undefined ? { summary } : {}),
+    ...(isCodeProblem !== undefined ? { isCodeProblem } : {}),
+    ...(isBlockedByExternalDubbo !== undefined ? { isBlockedByExternalDubbo } : {}),
+  };
   return base;
 }
 
