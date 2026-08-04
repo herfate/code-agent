@@ -27,6 +27,22 @@ export function buildCodeReviewReportFollowUpMessage(gate: ParsedCodeReviewGate)
   return lines.join("\n");
 }
 
+/** 同上场景追加到 Code Review 任务 followUpMessages 的文本（提示复审，而非改代码） */
+export function buildCodeReviewRetryFollowUpMessage(gate: ParsedCodeReviewGate): string {
+  const lines = [
+    `上次 Code Review 未通过（允许合并：${gate.mergeAllowed ? "是" : "否"}；问题已交开发修复，请重新审查并更新结果）`,
+    `上次审查结论：${gate.verdictLabel}（${gate.verdict}）`,
+    `上次问题统计：blocker=${gate.counts.blocker}, major=${gate.counts.major}, minor=${gate.counts.minor}`,
+  ];
+  if (gate.mustFixBeforeMerge.length > 0) {
+    lines.push(`上次合并前必改（请重点复核）：${gate.mustFixBeforeMerge.join(", ")}`);
+  }
+  if (gate.summaryZh) {
+    lines.push("", "上次审查摘要：", gate.summaryZh);
+  }
+  return lines.join("\n");
+}
+
 export type CloneTasksOnCodeReviewNotPassedResult = {
   devTask: TaskRow;
   testEnvDeployTask: TaskRow | null;
@@ -34,14 +50,15 @@ export type CloneTasksOnCodeReviewNotPassedResult = {
 };
 
 /**
- * Code Review 未通过：复制新增同父任务下开发（followUpMessages 追加报告）、测试环境发布（若有）、Code Review。
+ * Code Review 未通过：复制新增同父任务下开发与 Code Review（各自 followUpMessages 追加不同提示）、测试环境发布（若有）。
  * 顺序与编排一致：开发 → [测试环境发布] → Code Review。
  */
 export function cloneTasksOnCodeReviewNotPassed(
   db: DatabaseSync,
   parentTaskId: string,
   executingTaskId: string,
-  followUpMessage: string,
+  devFollowUpMessage: string,
+  codeReviewFollowUpMessage: string,
 ): CloneTasksOnCodeReviewNotPassedResult | null {
   const executing = getTask(db, executingTaskId);
   if (!executing || executing.pid !== parentTaskId) {
@@ -65,8 +82,12 @@ export function cloneTasksOnCodeReviewNotPassed(
     return null;
   }
 
-  // 保留原 description，审查报告追加到 followUpMessages（续跑时作为 Agent 提示词）
-  const devMetaJson = pushFollowUpMessageToTaskMeta(sourceDev.meta_json, followUpMessage);
+  // 保留原 description；开发 / Code Review 各自追加不同 followUpMessages（续跑时作为 Agent 提示词）
+  const devMetaJson = pushFollowUpMessageToTaskMeta(sourceDev.meta_json, devFollowUpMessage);
+  const codeReviewMetaJson = pushFollowUpMessageToTaskMeta(
+    executing.meta_json,
+    codeReviewFollowUpMessage,
+  );
   const devTask = cloneTaskAsPending(db, sourceDev, {
     description: sourceDev.description,
     meta_json: devMetaJson,
@@ -83,6 +104,7 @@ export function cloneTasksOnCodeReviewNotPassed(
   }
   const codeReviewTask = cloneTaskAsPending(db, executing, {
     description: executing.description,
+    meta_json: codeReviewMetaJson,
     created_at: executing.created_at + codeReviewOffset,
   });
 

@@ -3,6 +3,7 @@ import { getGlobalMaxCodeReviewRunCount } from "../../dbConfig.js";
 import { parseCodeReviewGateFromChangedFiles } from "../../file/parseTaskOutCodeReviewResult.js";
 import {
   buildCodeReviewReportFollowUpMessage,
+  buildCodeReviewRetryFollowUpMessage,
   cloneTasksOnCodeReviewNotPassed,
   countCodeReviewTasksUnderParent,
 } from "../../loop/cloneTasksOnCodeReviewNotPassed.js";
@@ -33,12 +34,14 @@ export const cloneTasksOnCodeReviewFailHandler: ParentTaskChangedFilesHandler = 
       return;
     }
 
-    const followUpMessage = buildCodeReviewReportFollowUpMessage(parsed);
+    const devFollowUpMessage = buildCodeReviewReportFollowUpMessage(parsed);
+    const codeReviewFollowUpMessage = buildCodeReviewRetryFollowUpMessage(parsed);
     cloneTasksOnCodeReviewNotPassed(
       ctx.db,
       ctx.parentTaskId,
       ctx.executingTaskId,
-      followUpMessage,
+      devFollowUpMessage,
+      codeReviewFollowUpMessage,
     );
     return;
   },
