@@ -27,6 +27,16 @@ export function buildTestReportFollowUpMessage(passRate: number, summary: string
   ].join("\n");
 }
 
+/** 同上场景追加到测试执行任务 followUpMessages 的文本（提示复测，而非改代码） */
+export function buildTestExecuteRetryFollowUpMessage(passRate: number, summary: string): string {
+  return [
+    `上次测试通过率：${passRate}%（代码问题已交开发修复并重新发布，请针对失败案例重新执行测试验证并更新结果文件）`,
+    "",
+    "上次测试总结简述（请重点回归）：",
+    summary.trim(),
+  ].join("\n");
+}
+
 /** 复制源任务为 Pending（保留 thread_id 以便续跑） */
 export function cloneTaskAsPending(
   db: DatabaseSync,
@@ -65,14 +75,15 @@ export type CloneTasksOnTestNotFullyPassedResult = {
 };
 
 /**
- * 测试案例执行判定为代码问题且测试总结简述非空：复制新增同父任务下开发（followUpMessages 追加报告）、测试环境发布、部署间隔等待与测试执行任务。
+ * 测试案例执行判定为代码问题且测试总结简述非空：复制新增同父任务下开发与测试执行（各自 followUpMessages 追加不同提示）、测试环境发布、部署间隔等待与发布结果任务。
  * 参考 {@link saveDescription4TasksUnderParent} 按 `pid` + `task_type` 定位源任务。
  */
 export function cloneTasksOnTestNotFullyPassed(
   db: DatabaseSync,
   parentTaskId: string,
   executingTaskId: string,
-  followUpMessage: string,
+  devFollowUpMessage: string,
+  testFollowUpMessage: string,
 ): CloneTasksOnTestNotFullyPassedResult | null {
   const executing = getTask(db, executingTaskId);
   if (!executing || executing.pid !== parentTaskId) {
@@ -103,8 +114,9 @@ export function cloneTasksOnTestNotFullyPassed(
     return null;
   }
 
-  // 保留原 description，测试报告追加到 followUpMessages（续跑时作为 Agent 提示词）
-  const devMetaJson = pushFollowUpMessageToTaskMeta(sourceDev.meta_json, followUpMessage);
+  // 保留原 description；开发 / 测试执行各自追加不同 followUpMessages（续跑时作为 Agent 提示词）
+  const devMetaJson = pushFollowUpMessageToTaskMeta(sourceDev.meta_json, devFollowUpMessage);
+  const testMetaJson = pushFollowUpMessageToTaskMeta(executing.meta_json, testFollowUpMessage);
   const devTask = cloneTaskAsPending(db, sourceDev, {
     description: sourceDev.description,
     meta_json: devMetaJson,
@@ -126,6 +138,7 @@ export function cloneTasksOnTestNotFullyPassed(
   });
   const testTask = cloneTaskAsPending(db, executing, {
     description: executing.description,
+    meta_json: testMetaJson,
     created_at: executing.created_at + 5,
   });
 

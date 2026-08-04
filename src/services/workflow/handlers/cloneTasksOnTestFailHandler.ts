@@ -3,6 +3,7 @@ import { TASK_TYPE, type TaskType } from "../../../constants/taskType.js";
 import { getGlobalMaxRetryCount } from "../../dbConfig.js";
 import { parseTaskOutPassRateFromChangedFiles } from "../../file/parseTaskOutTestResult.js";
 import {
+  buildTestExecuteRetryFollowUpMessage,
   buildTestReportFollowUpMessage,
   cloneTasksOnTestNotFullyPassed,
   countTestCaseExecuteTasksUnderParent,
@@ -59,12 +60,20 @@ export const cloneTasksOnTestFailHandler: ParentTaskChangedFilesHandler = {
           "cloneTasksOnTestFail: max retry count reached, skip retry",
         );
       } else {
-        const followUpMessage = buildTestReportFollowUpMessage(parsed.passRate, parsed.summary);
+        const devFollowUpMessage = buildTestReportFollowUpMessage(
+          parsed.passRate,
+          parsed.summary,
+        );
+        const testFollowUpMessage = buildTestExecuteRetryFollowUpMessage(
+          parsed.passRate,
+          parsed.summary,
+        );
         cloneTasksOnTestNotFullyPassed(
           ctx.db,
           ctx.parentTaskId,
           ctx.executingTaskId,
-          followUpMessage,
+          devFollowUpMessage,
+          testFollowUpMessage,
         );
       }
     }
