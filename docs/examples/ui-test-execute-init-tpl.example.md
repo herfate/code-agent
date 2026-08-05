@@ -13,9 +13,9 @@
 
 ## 任务参数（来自 input_json，模板占位符已替换）
 
-| 字段 | 值 | 用途 |
-|------|-----|------|
-| app | {{app}} | 被测应用名；传给 `get_base_url` 的 `serverName`，并辅助定位前端入口与路由 |
+| 字段 | 值           | 用途 |
+|------|-------------|------|
+| app | 取测试应用对象名称   | 被测应用名；传给 `get_base_url` 的 `serverName`，并辅助定位前端入口与路由 |
 | testEnv | {{testEnv}} | 测试环境标识（如 `it01`）；传给 `get_base_url` 的 `itNum` |
 
 参数为空时：在报告 `open_questions.blocking` 中说明，**不要臆造环境地址或账号**。
@@ -165,7 +165,6 @@ npx playwright test --reporter=list
 
 约束：
 
-- ✅ 操作可逆或使用测试数据；避免生产数据与不可逆删除
 - ❌ 不修改前端业务源码、不提交业务 MR、不改系统配置
 - ❌ 不把「页面能打开」当成业务验收通过；须对照期望结果断言
 - ❌ 不以 MCP 浏览器工具替代 `playwright test`
