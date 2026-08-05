@@ -165,6 +165,7 @@ npx playwright test --reporter=list
 
 约束：
 
+- ✅ 操作依赖测试数据的案例需要构造测试数据
 - ❌ 不修改前端业务源码、不提交业务 MR、不改系统配置
 - ❌ 不把「页面能打开」当成业务验收通过；须对照期望结果断言
 - ❌ 不以 MCP 浏览器工具替代 `playwright test`
