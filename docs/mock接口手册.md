@@ -260,3 +260,27 @@ Invoke-RestMethod -Uri "http://trade-mock.it01.k8s.howbuy.com/api/trade/changeSt
 | `未配置返回值或Groovy脚本` | `retValue` 与 `script` 至少填一个 |
 | 关闭开关却在暴露 / 开启却销毁 | 前端以 Switch 目标状态传 `status`；后端 `1`=暴露、`0`=销毁 |
 | 改配置后类型仍错 | 重启，或 `changeStatus` 先 `0` 再 `1` |
+
+## 9. 样例
+
+### param-server
+```
+ (INTERFACE_CLASS, METHOD_NAME, RET_VALUE, RET_TYPE, INNER_RET_TYPE, STATUS, script) VALUES ('com.howbuy.paramcenter.serverfacade.tradeday.QueryTradeDtFacade', 'execute', '{"success":true,"retCode":"000000","retMsg":"成功","data":"20260723"}', 'com.howbuy.paramcenter.vo.Result<java.lang.String>', 'java.lang.String', '1', 'import java.text.SimpleDateFormat
+import java.util.Calendar
+def baseDt = request?.baseDt ?? "20260722"
+def interval = request?.interval ?? 1
+def sdf = new SimpleDateFormat("yyyyMMdd")
+def cal = Calendar.getInstance()
+cal.setTime(sdf.parse(baseDt))
+int step = interval > 0 ? 1 : (interval < 0 ? -1 : 0)
+int remaining = Math.abs(interval)
+while (remaining > 0) {
+cal.add(Calendar.DAY_OF_MONTH, step)
+int dow = cal.get(Calendar.DAY_OF_WEEK)
+if (dow != Calendar.SATURDAY && dow != Calendar.SUNDAY) {
+remaining--
+}
+}
+def result = sdf.format(cal.getTime())
+return [retCode: "000000", retMsg: "成功", data: result]');
+```
