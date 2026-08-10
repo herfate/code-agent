@@ -2,8 +2,8 @@
 
 面向 AI Agent，用于配置 Dubbo Provider Mock 数据。
 
-**基础地址：** `http://trade-mock.it01.k8s.howbuy.com/api/trade`
-***it01请替换为实际环境***
+**基础地址：** `http://trade-mock.{{testEnv]}.k8s.howbuy.com/api/trade`
+***其中的{{testEnv]}请确认为实际测试环境***
 ---
 
 ## 通用约定
@@ -200,7 +200,7 @@ $body = @{
     innerRetType = "com.howbuy.payonline.facade.query.batchstatus.BatchStatusVo"
     retValue = '{"returnCode":"0000000","batchStatusList":[{"fundId":"demoData","status":"11"}]}'
 }
-Invoke-RestMethod -Uri "http://trade-mock.it01.k8s.howbuy.com/api/trade/saveMock" -Method Post -Body $body
+Invoke-RestMethod -Uri "http://trade-mock.{{testEnv]}.k8s.howbuy.com/api/trade/saveMock" -Method Post -Body $body
 ```
 
 **多层泛型（商户分页）：**
@@ -213,20 +213,20 @@ $body = @{
     innerRetType = "com.howbuy.otc.PageData<com.howbuy.otc.search.facade.fund.querymerchantinfo.FundMerchantInfoRecord>"
     retValue = '{"returnCode":"F0000000","description":"成功","data":{"pageNum":1,"pageSize":20,"total":1,"totalPage":1,"list":[{"coopMerchantId":"1600043536","coopMerchantName":"招银理财"}]}}'
 }
-Invoke-RestMethod -Uri "http://trade-mock.it01.k8s.howbuy.com/api/trade/saveMock" -Method Post -Body $body
+Invoke-RestMethod -Uri "http://trade-mock.{{testEnv]}.k8s.howbuy.com/api/trade/saveMock" -Method Post -Body $body
 ```
 
 **启停：**
 
 ```powershell
 # 启用并暴露
-Invoke-RestMethod -Uri "http://trade-mock.it01.k8s.howbuy.com/api/trade/changeStatus" -Method Post -Body @{
+Invoke-RestMethod -Uri "http://trade-mock.{{testEnv]}.k8s.howbuy.com/api/trade/changeStatus" -Method Post -Body @{
     interfaceClass = "com.howbuy.otc.search.facade.fund.querymerchantinfo.QueryFundMerchantInfoFacade"
     methodName = "execute"
     status = "1"
 }
 # 禁用并销毁暴露
-Invoke-RestMethod -Uri "http://trade-mock.it01.k8s.howbuy.com/api/trade/changeStatus" -Method Post -Body @{
+Invoke-RestMethod -Uri "http://trade-mock.{{testEnv]}.k8s.howbuy.com/api/trade/changeStatus" -Method Post -Body @{
     interfaceClass = "com.howbuy.otc.search.facade.fund.querymerchantinfo.QueryFundMerchantInfoFacade"
     methodName = "execute"
     status = "0"
