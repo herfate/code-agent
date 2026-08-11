@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { AI_OUT_DIR } from "../../constants/commonKey.js";
 import { isTaskType, type TaskType } from "../../constants/taskType.js";
@@ -185,6 +185,94 @@ export function listAiOutMarkdownFiles(pid: string, taskType: TaskType): AiOutFi
     relative_path: c.relativePath,
     updated_at: c.mtimeMs,
   }));
+}
+
+/** 规范化并校验相对 `ai_out/<pid>/<taskType>/` 的路径 */
+function normalizeAiOutRelativePath(relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "").trim();
+  if (!normalized || normalized.includes("..")) {
+    throw new Error("invalid relative path");
+  }
+  if (!isPreviewableFile(normalized)) {
+    throw new Error("unsupported file type (only .md / .markdown / .json / .txt)");
+  }
+  return normalized;
+}
+
+/**
+ * 解析 `ai_out/<pid>/<taskType>/<relativePath>` 绝对路径（须已存在且为可预览文件）。
+ */
+function resolveExistingAiOutPreviewFile(
+  pid: string,
+  taskType: TaskType,
+  relativePath: string,
+): { absPath: string; relativePath: string; typeDir: string } {
+  assertSafePid(pid);
+  const normalized = normalizeAiOutRelativePath(relativePath);
+  const typeDir = join(aiOutRoot(), pid, String(taskType));
+  const absPath = resolve(typeDir, normalized);
+  assertUnderAiOutRoot(absPath);
+  if (!absPath.startsWith(typeDir + sep) && absPath !== typeDir) {
+    throw new Error("path outside ai_out task type dir");
+  }
+  if (!existsSync(absPath)) {
+    throw new Error("file not found");
+  }
+  const st = statSync(absPath);
+  if (!st.isFile()) {
+    throw new Error("not a file");
+  }
+  return { absPath, relativePath: normalized, typeDir };
+}
+
+/**
+ * 按相对路径读取 `ai_out/<pid>/<taskType>/` 下单个可预览文档。
+ */
+export function readAiOutFileByRelativePath(
+  pid: string,
+  taskType: TaskType,
+  relativePath: string,
+): LatestAiOutMarkdownResult | null {
+  let resolved;
+  try {
+    resolved = resolveExistingAiOutPreviewFile(pid, taskType, relativePath);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "file not found" || msg === "not a file") return null;
+    throw err;
+  }
+  const content = readFileSync(resolved.absPath, "utf8");
+  const st = statSync(resolved.absPath);
+  return {
+    pid,
+    task_type: taskType,
+    relative_path: resolved.relativePath,
+    content,
+    content_kind: contentKindForFile(resolved.relativePath, content),
+    updated_at: st.mtimeMs,
+  };
+}
+
+/**
+ * 按相对路径覆写 `ai_out/<pid>/<taskType>/` 下已有可预览文档（不允许新建路径）。
+ */
+export function writeAiOutFileByRelativePath(
+  pid: string,
+  taskType: TaskType,
+  relativePath: string,
+  content: string,
+): LatestAiOutMarkdownResult {
+  const resolved = resolveExistingAiOutPreviewFile(pid, taskType, relativePath);
+  writeFileSync(resolved.absPath, content, "utf8");
+  const st = statSync(resolved.absPath);
+  return {
+    pid,
+    task_type: taskType,
+    relative_path: resolved.relativePath,
+    content,
+    content_kind: contentKindForFile(resolved.relativePath, content),
+    updated_at: st.mtimeMs,
+  };
 }
 
 /**

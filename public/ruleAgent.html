@@ -13,7 +13,7 @@
       <h1 class="text-sm font-semibold text-slate-800">Rule Agent（知识沉淀 / 代码规范）</h1>
       <p class="mt-0.5 text-xs text-slate-500">
         类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">7</code> 知识沉淀（13→14→15）；
-        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">8</code> 代码规范（仅 14，按 gitRepos）。
+        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">8</code> 代码规范（仅 14，单仓库）。
         对接 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET/POST /api/parent-tasks</code>。
       </p>
     </header>
@@ -189,23 +189,19 @@
       <div id="ra-cs-modal-panel" role="dialog" aria-modal="true" aria-labelledby="ra-cs-modal-title" class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
         <div class="shrink-0 border-b border-slate-100 px-5 py-4">
           <h3 id="ra-cs-modal-title" class="text-sm font-semibold text-slate-800">抽取代码规范父任务</h3>
-          <p class="mt-1 text-xs text-slate-500">固定类型 8；只填 gitRepos（与开发 Agent 相同），子任务仅 14 生成代码规范。</p>
+          <p class="mt-1 text-xs text-slate-500">固定类型 8；仅支持 1 个代码仓库，子任务仅 14 生成代码规范。</p>
         </div>
         <form id="ra-cs-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <p id="ra-cs-modal-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></p>
             <div>
-              <div class="mb-1.5 flex items-center justify-between gap-2">
-                <span class="text-xs font-medium text-slate-600">代码库 gitRepos <span class="text-red-500">*</span></span>
-                <button type="button" id="ra-cs-git-add" class="text-[11px] font-medium text-blue-600 hover:underline">添加一行</button>
-              </div>
-              <div class="mb-1.5 hidden gap-2 text-[11px] font-medium text-slate-500 sm:grid sm:grid-cols-[minmax(0,8rem)_1fr_auto]">
+              <span class="mb-1.5 block text-xs font-medium text-slate-600">代码库 git 仓库 <span class="text-red-500">*</span></span>
+              <div class="mb-1.5 hidden gap-2 text-[11px] font-medium text-slate-500 sm:grid sm:grid-cols-[minmax(0,8rem)_1fr]">
                 <span>分支</span>
                 <span>git 地址</span>
-                <span class="w-14" aria-hidden="true"></span>
               </div>
               <div id="ra-cs-git-list" class="space-y-2"></div>
-              <p class="mt-1.5 text-[11px] text-slate-500">每行一个仓库及其对应分支，成对填写；至少一组。</p>
+              <p class="mt-1.5 text-[11px] text-slate-500">仅填写 1 个仓库及其分支；落盘到 knowledge_base/code-style/&lt;仓库名&gt;/.docs/，index.md 在同级项目目录下。</p>
             </div>
             <div>
               <label for="ra-cs-new-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题（可选）</label>
@@ -245,6 +241,124 @@
     </div>
   </div>
 
+  <!-- 预览：选择 ai_out taskType / 文件列表 -->
+  <div id="ra-preview-pick-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="ra-preview-pick-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div
+        id="ra-preview-pick-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ra-preview-pick-title"
+        class="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="ra-preview-pick-title" class="text-sm font-semibold text-slate-800">选择任务类型</h3>
+            <p id="ra-preview-pick-sub" class="mt-1 text-xs text-slate-500">请选择要预览的 taskType（ai_out 子目录）</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button type="button" id="ra-preview-pick-back" class="hidden shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">返回</button>
+            <button type="button" id="ra-preview-pick-close" class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+          </div>
+        </div>
+        <div id="ra-preview-pick-body" class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <p id="ra-preview-pick-empty" class="hidden text-center text-sm text-slate-500">该父任务下暂无可预览文档（.md / .json / .txt）</p>
+          <div id="ra-preview-pick-list" class="grid gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 预览 / 编辑：文档全屏 -->
+  <div id="ra-preview-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="ra-preview-backdrop" class="pointer-events-auto h-full w-full bg-white">
+      <div
+        id="ra-preview-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ra-preview-title"
+        class="flex h-full w-full flex-col overflow-hidden bg-white"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div class="min-w-0">
+            <h3 id="ra-preview-title" class="text-sm font-semibold text-slate-800">文档预览</h3>
+            <p id="ra-preview-meta" class="mt-1 truncate font-mono text-[11px] text-slate-500"></p>
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <button type="button" id="ra-preview-back-list" class="hidden rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">返回列表</button>
+            <button type="button" id="ra-preview-promote" disabled class="rounded-lg bg-orange-500 px-3.5 py-1.5 text-xs font-bold tracking-wide text-white shadow-md ring-2 ring-orange-300/80 transition hover:bg-orange-600 hover:ring-orange-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:ring-0">添加到规范文档</button>
+            <button type="button" id="ra-preview-edit" disabled class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50">编辑</button>
+            <button type="button" id="ra-preview-save" disabled class="hidden rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">保存</button>
+            <button type="button" id="ra-preview-cancel-edit" class="hidden rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">取消编辑</button>
+            <button type="button" id="ra-preview-download" disabled class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">下载</button>
+            <button type="button" id="ra-preview-close" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">关闭</button>
+          </div>
+        </div>
+        <p id="ra-preview-edit-status" class="hidden shrink-0 border-b border-amber-100 bg-amber-50 px-5 py-2 text-xs text-amber-800"></p>
+        <div id="ra-preview-body" class="min-h-0 flex-1 basis-0 overflow-x-auto overflow-y-auto px-5 py-4 text-sm text-slate-800"></div>
+        <textarea id="ra-preview-editor" spellcheck="false" class="hidden min-h-0 flex-1 basis-0 w-full resize-none border-0 bg-slate-50 px-5 py-4 font-mono text-xs leading-relaxed text-slate-800 outline-none focus:ring-0"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* 预览铺满 iframe 内容区；管理台左侧菜单在父页 aside，不受影响 */
+    #ra-preview-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      max-height: 100%;
+      max-width: 100%;
+      min-height: 0;
+      border-radius: 0;
+    }
+    #ra-preview-body,
+    #ra-preview-editor {
+      flex: 1 1 0%;
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgb(148 163 184) rgb(241 245 249);
+    }
+    #ra-preview-body::-webkit-scrollbar,
+    #ra-preview-editor::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    #ra-preview-body::-webkit-scrollbar-track,
+    #ra-preview-editor::-webkit-scrollbar-track {
+      background: rgb(241 245 249);
+      border-radius: 9999px;
+    }
+    #ra-preview-body::-webkit-scrollbar-thumb,
+    #ra-preview-editor::-webkit-scrollbar-thumb {
+      background: rgb(148 163 184);
+      border-radius: 9999px;
+      border: 2px solid rgb(241 245 249);
+    }
+    #ra-preview-body::-webkit-scrollbar-thumb:hover,
+    #ra-preview-editor::-webkit-scrollbar-thumb:hover {
+      background: rgb(100 116 139);
+    }
+    #ra-preview-body h1 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+    #ra-preview-body h2 { font-size: 1.125rem; font-weight: 600; margin: 0.875rem 0 0.5rem; }
+    #ra-preview-body h3 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
+    #ra-preview-body p { margin: 0.5rem 0; line-height: 1.625; }
+    #ra-preview-body ul, #ra-preview-body ol { margin: 0.5rem 0; padding-left: 1.25rem; }
+    #ra-preview-body li { margin: 0.25rem 0; }
+    #ra-preview-body pre { margin: 0.75rem 0; overflow-x: auto; border-radius: 0.5rem; background: #f1f5f9; padding: 0.75rem; font-size: 0.75rem; line-height: 1.5; }
+    #ra-preview-body code { font-family: ui-monospace, monospace; font-size: 0.85em; }
+    #ra-preview-body :not(pre) > code { background: #f1f5f9; padding: 0.125rem 0.25rem; border-radius: 0.25rem; }
+    #ra-preview-body blockquote { margin: 0.75rem 0; border-left: 3px solid #cbd5e1; padding-left: 0.75rem; color: #475569; }
+    #ra-preview-body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.8125rem; }
+    #ra-preview-body th, #ra-preview-body td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
+    #ra-preview-body th { background: #f8fafc; font-weight: 600; }
+    #ra-preview-body img { max-width: 100%; height: auto; margin: 0.5rem 0; border-radius: 0.375rem; border: 1px solid #e2e8f0; }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/js/ui-combobox.js"></script>
   <script>
     (function () {
@@ -258,6 +372,31 @@
         2: "自Review",
         3: "功能测试",
         4: "业务Agent",
+      };
+      /** 与 `src/constants/taskType.ts` 一致（ai_out 子目录名） */
+      var raWorkflowTaskTypeLabels = {
+        0: "设计",
+        1: "开发",
+        2: "开发规范优化",
+        3: "测试预分析",
+        4: "测试案例设计",
+        5: "测试数据分析",
+        6: "测试案例执行",
+        7: "QA平台测试脚本生成",
+        8: "Code Review",
+        9: "拆分故事",
+        10: "头脑风暴",
+        11: "AI拆分故事",
+        12: "UI测试执行",
+        13: "生成业务知识",
+        14: "生成代码规范",
+        15: "生成测试规范",
+        20: "功能测试用例生成",
+        21: "自动化用例生成",
+        22: "测试脑图分析",
+        101: "测试环境发布",
+        102: "部署间隔等待",
+        103: "测试环境发布结果",
       };
       var WIKI_CATEGORIES = [
         { id: "1", label: "大陆清算" },
@@ -403,9 +542,14 @@
           esc(fmtTime(t.created_at)) +
           "</td>" +
           '<td class="whitespace-nowrap px-4 py-3">' +
+          '<div class="flex flex-nowrap items-center gap-1.5">' +
           '<button type="button" class="ra-flow-btn shrink-0 cursor-pointer rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100" data-pid="' +
           esc(t.pid) +
           '">多Agent视图</button>' +
+          '<button type="button" class="ra-preview-doc-btn shrink-0 cursor-pointer rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100" data-pid="' +
+          esc(t.pid) +
+          '">预览文档</button>' +
+          "</div>" +
           "</td>";
         return tr;
       }
@@ -484,9 +628,830 @@
       }
 
       tbody.addEventListener("click", function (ev) {
-        var btn = ev.target.closest(".ra-flow-btn");
-        if (!btn) return;
-        openParentFlow(btn.getAttribute("data-pid"));
+        var flowBtn = ev.target.closest(".ra-flow-btn");
+        if (flowBtn) {
+          openParentFlow(flowBtn.getAttribute("data-pid"));
+          return;
+        }
+        var previewBtn = ev.target.closest(".ra-preview-doc-btn");
+        if (previewBtn) {
+          var previewPid = previewBtn.getAttribute("data-pid");
+          if (previewPid) openPreviewDoc(previewPid, previewBtn);
+        }
+      });
+
+      // —— 文档预览 / 编辑：选 taskType →（多文件则列文件）→ 预览 → 可编辑保存 ——
+      var previewRoot = document.getElementById("ra-preview-root");
+      var previewBackdrop = document.getElementById("ra-preview-backdrop");
+      var previewTitleEl = document.getElementById("ra-preview-title");
+      var previewMetaEl = document.getElementById("ra-preview-meta");
+      var previewBodyEl = document.getElementById("ra-preview-body");
+      var previewEditorEl = document.getElementById("ra-preview-editor");
+      var previewEditStatusEl = document.getElementById("ra-preview-edit-status");
+      var previewPickRoot = document.getElementById("ra-preview-pick-root");
+      var previewPickBackdrop = document.getElementById("ra-preview-pick-backdrop");
+      var previewPickTitleEl = document.getElementById("ra-preview-pick-title");
+      var previewPickSubEl = document.getElementById("ra-preview-pick-sub");
+      var previewPickListEl = document.getElementById("ra-preview-pick-list");
+      var previewPickEmptyEl = document.getElementById("ra-preview-pick-empty");
+      var previewPickBackBtn = document.getElementById("ra-preview-pick-back");
+      var previewDownloadBtn = document.getElementById("ra-preview-download");
+      var previewEditBtn = document.getElementById("ra-preview-edit");
+      var previewSaveBtn = document.getElementById("ra-preview-save");
+      var previewCancelEditBtn = document.getElementById("ra-preview-cancel-edit");
+      var previewBackListBtn = document.getElementById("ra-preview-back-list");
+      var previewPromoteBtn = document.getElementById("ra-preview-promote");
+      var previewPickPid = "";
+      var previewPickMode = "task-types"; // task-types | files
+      var previewPickTaskType = "";
+      var previewPickFiles = [];
+      var previewCurrentDoc = null;
+      var previewEditing = false;
+      var previewSaveBusy = false;
+      var previewPromoteBusy = false;
+      var previewCachedTaskTypes = [];
+
+      function setPreviewDownloadEnabled(enabled) {
+        previewDownloadBtn.disabled = !enabled;
+      }
+
+      function setPreviewEditEnabled(enabled) {
+        previewEditBtn.disabled = !enabled;
+      }
+
+      function setPreviewPromoteEnabled(enabled) {
+        previewPromoteBtn.disabled = !enabled;
+      }
+
+      function setPreviewEditStatus(msg) {
+        if (!msg) {
+          previewEditStatusEl.textContent = "";
+          previewEditStatusEl.classList.add("hidden");
+          return;
+        }
+        previewEditStatusEl.textContent = msg;
+        previewEditStatusEl.classList.remove("hidden");
+      }
+
+      function setPreviewPickBackVisible(visible) {
+        if (visible) previewPickBackBtn.classList.remove("hidden");
+        else previewPickBackBtn.classList.add("hidden");
+      }
+
+      function setPreviewBackListVisible(visible) {
+        if (visible) previewBackListBtn.classList.remove("hidden");
+        else previewBackListBtn.classList.add("hidden");
+      }
+
+      function workflowTaskTypeLabel(code) {
+        return raWorkflowTaskTypeLabels[code] || String(code);
+      }
+
+      /**
+       * 展示用文件名：去掉相对路径首段（会话/taskId 目录），保留其后路径。
+       * 例：`abc123/docs/a.md` → `docs/a.md`；无斜杠则原样返回。
+       */
+      function displayAiOutFileName(relativePath) {
+        var rel = String(relativePath || "")
+          .replace(/\\/g, "/")
+          .replace(/^\/+/, "");
+        if (!rel) return "";
+        var slash = rel.indexOf("/");
+        if (slash < 0) return rel;
+        var rest = rel.slice(slash + 1);
+        return rest || rel;
+      }
+
+      /** 将 Markdown 内相对路径图片改写为 ai_out 资源接口 */
+      function resolveAiOutMarkdownImageSrc(src, doc) {
+        var s = String(src || "").trim();
+        if (
+          !s ||
+          /^https?:\/\//i.test(s) ||
+          /^data:/i.test(s) ||
+          s.indexOf("/api/parent-tasks/") === 0
+        ) {
+          return s;
+        }
+        if (!doc || doc.pid == null || doc.task_type == null || !doc.relative_path) return s;
+        var mdDir = String(doc.relative_path)
+          .replace(/\\/g, "/")
+          .replace(/\/[^/]+$/, "");
+        var assetPath = s.replace(/^\.\/?/, "");
+        if (mdDir) assetPath = mdDir + "/" + assetPath;
+        return (
+          raBase() +
+          "/api/parent-tasks/" +
+          encodeURIComponent(String(doc.pid)) +
+          "/ai-out/asset?task_type=" +
+          encodeURIComponent(String(doc.task_type)) +
+          "&path=" +
+          encodeURIComponent(assetPath)
+        );
+      }
+
+      function preprocessAiOutMarkdownImages(md, doc) {
+        return String(md || "").replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (_full, alt, rawSrc) {
+          var resolved = resolveAiOutMarkdownImageSrc(rawSrc, doc);
+          return "![" + alt + "](" + resolved + ")";
+        });
+      }
+
+      function previewDownloadFilename(doc) {
+        var rel = doc && doc.relative_path ? String(doc.relative_path) : "";
+        var base = rel.split("/").filter(Boolean).pop();
+        if (base) return base;
+        if (doc && doc.content_kind === "json") return "document.json";
+        if (doc && doc.content_kind === "markdown") return "document.md";
+        return "document.txt";
+      }
+
+      function previewDownloadMime(doc, filename) {
+        var lower = String(filename || "").toLowerCase();
+        if (lower.endsWith(".json") || (doc && doc.content_kind === "json")) {
+          return "application/json;charset=utf-8";
+        }
+        if (
+          lower.endsWith(".md") ||
+          lower.endsWith(".markdown") ||
+          (doc && doc.content_kind === "markdown")
+        ) {
+          return "text/markdown;charset=utf-8";
+        }
+        return "text/plain;charset=utf-8";
+      }
+
+      function downloadPreviewDoc() {
+        if (!previewCurrentDoc || previewCurrentDoc.content == null) return;
+        var content = previewEditing ? previewEditorEl.value : previewCurrentDoc.content;
+        var doc = previewCurrentDoc;
+        var filename = previewDownloadFilename(doc);
+        var blob = new Blob([content], {
+          type: previewDownloadMime(doc, filename),
+        });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function exitPreviewEditMode(opts) {
+        var discard = !(opts && opts.keepDraft);
+        previewEditing = false;
+        previewEditorEl.classList.add("hidden");
+        previewBodyEl.classList.remove("hidden");
+        previewEditBtn.classList.remove("hidden");
+        previewSaveBtn.classList.add("hidden");
+        previewCancelEditBtn.classList.add("hidden");
+        previewSaveBtn.disabled = true;
+        previewSaveBtn.textContent = "保存";
+        if (discard) previewEditorEl.value = "";
+        setPreviewEditStatus("");
+        if (previewTitleEl.textContent.indexOf("编辑") === 0) {
+          previewTitleEl.textContent = previewTitleEl.textContent.replace(/^编辑/, "文档预览");
+        }
+      }
+
+      function enterPreviewEditMode() {
+        if (!previewCurrentDoc || previewCurrentDoc.content == null) return;
+        previewEditing = true;
+        previewEditorEl.value = String(previewCurrentDoc.content);
+        previewBodyEl.classList.add("hidden");
+        previewEditorEl.classList.remove("hidden");
+        previewEditBtn.classList.add("hidden");
+        previewSaveBtn.classList.remove("hidden");
+        previewCancelEditBtn.classList.remove("hidden");
+        previewSaveBtn.disabled = false;
+        previewSaveBtn.textContent = "保存";
+        previewTitleEl.textContent = String(previewTitleEl.textContent || "").replace(
+          /^文档预览/,
+          "编辑",
+        );
+        setPreviewEditStatus("编辑模式：修改后点击「保存」写回 ai_out 文件");
+        previewEditorEl.focus();
+      }
+
+      function closePreviewPicker() {
+        previewPickRoot.classList.add("hidden");
+        previewPickPid = "";
+        previewPickMode = "task-types";
+        previewPickTaskType = "";
+        previewPickFiles = [];
+        previewCachedTaskTypes = [];
+        previewPickListEl.innerHTML = "";
+        previewPickEmptyEl.classList.add("hidden");
+        setPreviewPickBackVisible(false);
+        if (previewRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function closePreviewModal() {
+        if (previewEditing) {
+          var dirty =
+            previewCurrentDoc &&
+            String(previewEditorEl.value) !== String(previewCurrentDoc.content || "");
+          if (dirty && !window.confirm("有未保存的修改，确认关闭？")) return;
+        }
+        exitPreviewEditMode();
+        previewRoot.classList.add("hidden");
+        previewBodyEl.innerHTML = "";
+        previewMetaEl.textContent = "";
+        previewCurrentDoc = null;
+        setPreviewDownloadEnabled(false);
+        setPreviewEditEnabled(false);
+        setPreviewPromoteEnabled(false);
+        setPreviewBackListVisible(false);
+        if (previewPickRoot.classList.contains("hidden")) {
+          document.body.style.overflow = "";
+        }
+      }
+
+      function showPreviewDoc(doc) {
+        var typeLabel = workflowTaskTypeLabel(doc.task_type);
+        var displayName = displayAiOutFileName(doc.relative_path || "");
+        previewTitleEl.textContent = "文档预览 · pid " + doc.pid;
+        previewMetaEl.textContent =
+          "ai_out/" +
+          doc.pid +
+          "/" +
+          doc.task_type +
+          " · " +
+          typeLabel +
+          " · " +
+          displayName +
+          " · " +
+          fmtTime(doc.updated_at);
+        previewCurrentDoc = doc;
+        setPreviewDownloadEnabled(true);
+        setPreviewEditEnabled(true);
+        setPreviewPromoteEnabled(true);
+        setPreviewBackListVisible(previewPickFiles.length > 1);
+        exitPreviewEditMode();
+        previewBodyEl.innerHTML = renderPreviewContent(doc);
+      }
+
+      function renderPreviewPickOptions(taskTypes) {
+        previewPickMode = "task-types";
+        previewPickTaskType = "";
+        previewPickFiles = [];
+        setPreviewPickBackVisible(false);
+        previewPickTitleEl.textContent = "选择任务类型 · pid " + previewPickPid;
+        previewPickSubEl.textContent =
+          "请选择要预览的 taskType（ai_out/" + previewPickPid + "/<taskType>/）";
+        previewPickEmptyEl.textContent = "该父任务下暂无可预览文档（.md / .json / .txt）";
+        previewPickListEl.innerHTML = "";
+        if (!taskTypes || taskTypes.length === 0) {
+          previewPickEmptyEl.classList.remove("hidden");
+          return;
+        }
+        previewPickEmptyEl.classList.add("hidden");
+        taskTypes.forEach(function (tt) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "ra-preview-pick-opt w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm transition hover:border-violet-300 hover:bg-violet-50";
+          btn.setAttribute("data-task-type", String(tt));
+          btn.innerHTML =
+            '<span class="font-mono text-xs text-slate-500">' +
+            esc(String(tt)) +
+            '</span><span class="ml-2 font-medium text-slate-800">' +
+            esc(workflowTaskTypeLabel(tt)) +
+            "</span>";
+          previewPickListEl.appendChild(btn);
+        });
+      }
+
+      function renderPreviewFileOptions(files, taskType) {
+        previewPickMode = "files";
+        previewPickTaskType = String(taskType);
+        previewPickFiles = files || [];
+        setPreviewPickBackVisible(true);
+        var typeLabel = workflowTaskTypeLabel(taskType);
+        previewPickTitleEl.textContent = "选择文档 · " + typeLabel;
+        previewPickSubEl.textContent =
+          "ai_out/" + previewPickPid + "/" + taskType + "/ · 共 " + previewPickFiles.length + " 个文件";
+        previewPickEmptyEl.textContent = "该 taskType 下暂无可预览文档（.md / .json / .txt）";
+        previewPickListEl.innerHTML = "";
+        if (!previewPickFiles.length) {
+          previewPickEmptyEl.classList.remove("hidden");
+          return;
+        }
+        previewPickEmptyEl.classList.add("hidden");
+        previewPickFiles.forEach(function (f) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "ra-preview-file-opt w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm transition hover:border-violet-300 hover:bg-violet-50";
+          btn.setAttribute("data-path", String(f.relative_path || ""));
+          var displayName = displayAiOutFileName(f.relative_path || "");
+          btn.innerHTML =
+            '<div class="truncate font-mono text-xs text-slate-800" title="' +
+            esc(displayName) +
+            '">' +
+            esc(displayName) +
+            '</div><div class="mt-1 text-[11px] text-slate-500">' +
+            esc(fmtTime(f.updated_at)) +
+            "</div>";
+          previewPickListEl.appendChild(btn);
+        });
+      }
+
+      function openPreviewPicker(pid, triggerBtn) {
+        if (!pid) return;
+        previewPickPid = pid;
+        previewPickMode = "task-types";
+        previewPickTaskType = "";
+        previewPickFiles = [];
+        previewCachedTaskTypes = [];
+        setPreviewPickBackVisible(false);
+        previewPickTitleEl.textContent = "选择任务类型 · pid " + pid;
+        previewPickSubEl.textContent = "请选择要预览的 taskType（ai_out/" + pid + "/<taskType>/）";
+        previewPickListEl.innerHTML =
+          '<p class="text-center text-xs text-slate-400">加载中…</p>';
+        previewPickEmptyEl.classList.add("hidden");
+        previewPickRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        if (triggerBtn) {
+          triggerBtn.disabled = true;
+          triggerBtn.textContent = "加载中…";
+        }
+        fetch(
+          raBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/ai-out/task-types",
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "预览文档";
+            }
+            if (!res.ok) {
+              closePreviewPicker();
+              errEl.textContent =
+                "加载 taskType 失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error
+                  ? JSON.stringify(res.body.error)
+                  : JSON.stringify(res.body));
+              errEl.classList.remove("hidden");
+              return;
+            }
+            previewCachedTaskTypes = res.body.task_types || [];
+            renderPreviewPickOptions(previewCachedTaskTypes);
+          })
+          .catch(function (e) {
+            if (triggerBtn) {
+              triggerBtn.disabled = false;
+              triggerBtn.textContent = "预览文档";
+            }
+            closePreviewPicker();
+            errEl.textContent = "加载 taskType 失败: " + e.message;
+            errEl.classList.remove("hidden");
+          });
+      }
+
+      function loadTaskTypeFiles(pid, taskType) {
+        if (!pid || taskType === undefined || taskType === null || taskType === "") return;
+        previewPickListEl.innerHTML =
+          '<p class="text-center text-xs text-slate-400">加载文件列表…</p>';
+        previewPickEmptyEl.classList.add("hidden");
+        setPreviewPickBackVisible(true);
+        fetch(
+          raBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/ai-out/files?task_type=" +
+            encodeURIComponent(String(taskType)),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              previewPickEmptyEl.classList.remove("hidden");
+              previewPickEmptyEl.textContent =
+                "加载文件列表失败 " +
+                res.status +
+                ": " +
+                (res.body && res.body.error
+                  ? JSON.stringify(res.body.error)
+                  : JSON.stringify(res.body));
+              previewPickListEl.innerHTML = "";
+              return;
+            }
+            var files = res.body.files || [];
+            if (files.length === 0) {
+              renderPreviewFileOptions([], taskType);
+              return;
+            }
+            if (files.length === 1) {
+              previewPickFiles = files;
+              previewPickTaskType = String(taskType);
+              loadPreviewFile(pid, taskType, files[0].relative_path);
+              return;
+            }
+            renderPreviewFileOptions(files, taskType);
+          })
+          .catch(function (e) {
+            previewPickEmptyEl.classList.remove("hidden");
+            previewPickEmptyEl.textContent = "加载文件列表失败: " + e.message;
+            previewPickListEl.innerHTML = "";
+          });
+      }
+
+      function renderMarkdownHtml(md) {
+        if (window.marked && typeof window.marked.parse === "function") {
+          return window.marked.parse(String(md || ""));
+        }
+        return '<pre class="whitespace-pre-wrap font-mono text-xs">' + esc(md || "") + "</pre>";
+      }
+
+      function renderPlainTextHtml(text) {
+        return '<pre class="whitespace-pre-wrap font-mono text-xs">' + esc(text || "") + "</pre>";
+      }
+
+      function renderJsonHtml(raw) {
+        var text = String(raw || "");
+        try {
+          return renderPlainTextHtml(JSON.stringify(JSON.parse(text), null, 2));
+        } catch (e) {
+          return renderPlainTextHtml(text);
+        }
+      }
+
+      function detectPreviewKindFromContent(content) {
+        var t = String(content || "").trim();
+        if (!t) return "text";
+        if (t.charAt(0) === "{" || t.charAt(0) === "[") {
+          try {
+            JSON.parse(t);
+            return "json";
+          } catch (e) {
+            /* 非合法 JSON，继续判断 */
+          }
+        }
+        var signals = 0;
+        var lines = t.split(/\r?\n/).slice(0, 80);
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          var s = line.trim();
+          if (!s) continue;
+          if (/^#{1,6}\s+\S/.test(s)) signals += 2;
+          if (/^```/.test(s)) signals += 2;
+          if (/^>\s+/.test(s)) signals += 1;
+          if (/^\s*[-*+]\s+\S/.test(line)) signals += 1;
+          if (/^\s*\d+\.\s+\S/.test(line)) signals += 1;
+          if (/\[[^\]]+\]\([^)]+\)/.test(s)) signals += 1;
+          if (/(\*\*|__).+?(\*\*|__)/.test(s)) signals += 1;
+          if (/^(-{3,}|_{3,}|\*{3,})$/.test(s)) signals += 1;
+        }
+        if (signals >= 2) return "markdown";
+        return "text";
+      }
+
+      function renderPreviewContent(doc) {
+        var kind = doc && doc.content_kind ? doc.content_kind : "markdown";
+        var content = doc && doc.content != null ? doc.content : "";
+        if (kind === "text") kind = detectPreviewKindFromContent(content);
+        if (kind === "json") return renderJsonHtml(content);
+        if (kind === "text") return renderPlainTextHtml(content);
+        return renderMarkdownHtml(preprocessAiOutMarkdownImages(content, doc));
+      }
+
+      function loadPreviewFile(pid, taskType, relativePath) {
+        if (!pid || taskType == null || taskType === "" || !relativePath) return;
+        closePreviewPickerKeepContext();
+        previewCurrentDoc = null;
+        setPreviewDownloadEnabled(false);
+        setPreviewEditEnabled(false);
+        setPreviewPromoteEnabled(false);
+        exitPreviewEditMode();
+        previewTitleEl.textContent = "文档预览 · pid " + pid;
+        previewMetaEl.textContent = "加载中…";
+        previewBodyEl.innerHTML =
+          '<p class="text-center text-xs text-slate-400">加载文档…</p>';
+        previewRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        setPreviewBackListVisible(previewPickFiles.length > 1);
+        fetch(
+          raBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/ai-out/file?task_type=" +
+            encodeURIComponent(String(taskType)) +
+            "&path=" +
+            encodeURIComponent(String(relativePath)),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              var msg =
+                res.status === 404
+                  ? "未找到该文档"
+                  : res.body && res.body.error
+                    ? JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body);
+              previewMetaEl.textContent = "";
+              setPreviewBackListVisible(previewPickFiles.length > 1);
+              previewBodyEl.innerHTML =
+                '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+                esc("预览失败 " + res.status + ": " + msg) +
+                "</p>";
+              return;
+            }
+            showPreviewDoc(res.body);
+          })
+          .catch(function (e) {
+            previewCurrentDoc = null;
+            setPreviewDownloadEnabled(false);
+            setPreviewEditEnabled(false);
+            setPreviewPromoteEnabled(false);
+            previewMetaEl.textContent = "";
+            previewBodyEl.innerHTML =
+              '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+              esc("预览失败: " + e.message) +
+              "</p>";
+          });
+      }
+
+      /** 关闭选择弹层但保留 pid / taskType / 文件列表上下文（便于返回列表） */
+      function closePreviewPickerKeepContext() {
+        previewPickRoot.classList.add("hidden");
+        previewPickListEl.innerHTML = "";
+        previewPickEmptyEl.classList.add("hidden");
+        setPreviewPickBackVisible(false);
+      }
+
+      function reopenFileListFromPreview() {
+        if (previewEditing) {
+          var dirty =
+            previewCurrentDoc &&
+            String(previewEditorEl.value) !== String(previewCurrentDoc.content || "");
+          if (dirty && !window.confirm("有未保存的修改，确认返回列表？")) return;
+        }
+        exitPreviewEditMode();
+        previewRoot.classList.add("hidden");
+        previewBodyEl.innerHTML = "";
+        previewMetaEl.textContent = "";
+        previewCurrentDoc = null;
+        setPreviewDownloadEnabled(false);
+        setPreviewEditEnabled(false);
+        setPreviewPromoteEnabled(false);
+        setPreviewBackListVisible(false);
+        if (!previewPickPid || !previewPickTaskType) {
+          document.body.style.overflow = "";
+          return;
+        }
+        previewPickRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        if (previewPickFiles.length > 1) {
+          renderPreviewFileOptions(previewPickFiles, previewPickTaskType);
+        } else {
+          loadTaskTypeFiles(previewPickPid, previewPickTaskType);
+        }
+      }
+
+      function savePreviewDoc() {
+        if (!previewEditing || !previewCurrentDoc || previewSaveBusy) return;
+        var pid = String(previewCurrentDoc.pid || "").trim();
+        var taskType = previewCurrentDoc.task_type;
+        var path = String(previewCurrentDoc.relative_path || "").trim();
+        if (!pid || taskType == null || !path) return;
+        var content = previewEditorEl.value;
+        previewSaveBusy = true;
+        previewSaveBtn.disabled = true;
+        previewSaveBtn.textContent = "保存中…";
+        setPreviewEditStatus("正在保存…");
+        fetch(raBase() + "/api/parent-tasks/" + encodeURIComponent(pid) + "/ai-out/file", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            task_type: Number(taskType),
+            path: path,
+            content: content,
+          }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            previewSaveBusy = false;
+            if (!res.ok) {
+              previewSaveBtn.disabled = false;
+              previewSaveBtn.textContent = "保存";
+              setPreviewEditStatus(
+                "保存失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error
+                    ? typeof res.body.error === "string"
+                      ? res.body.error
+                      : JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            showPreviewDoc(res.body);
+            setPreviewEditStatus("已保存 · " + fmtTime(res.body.updated_at));
+            window.setTimeout(function () {
+              if (!previewEditing) setPreviewEditStatus("");
+            }, 2500);
+          })
+          .catch(function (e) {
+            previewSaveBusy = false;
+            previewSaveBtn.disabled = false;
+            previewSaveBtn.textContent = "保存";
+            setPreviewEditStatus("保存失败: " + e.message);
+          });
+      }
+
+      /** 将当前预览文档写入 knowledge_base/code-style/<项目名>/.docs/ */
+      function promotePreviewDocToKnowledgeBase(overwrite) {
+        if (!previewCurrentDoc || previewPromoteBusy) return;
+        var pid = String(previewCurrentDoc.pid || "").trim();
+        var taskType = previewCurrentDoc.task_type;
+        var path = String(previewCurrentDoc.relative_path || "").trim();
+        if (!pid || taskType == null || !path) return;
+        var content = previewEditing
+          ? previewEditorEl.value
+          : String(previewCurrentDoc.content != null ? previewCurrentDoc.content : "");
+        var displayName = displayAiOutFileName(path);
+        var baseName = displayName.split("/").pop() || displayName;
+        if (!overwrite) {
+          var ok = window.confirm(
+            "确认将「" +
+              displayName +
+              "」添加到规范文档？\n\n将写入 knowledge_base/code-style/<项目名>/.docs/" +
+              baseName +
+              "\n若不存在则创建 knowledge_base/code-style/<项目名>/index.md 并登记该文档\n（项目名取自该父任务唯一 git 仓库）",
+          );
+          if (!ok) return;
+        }
+
+        previewPromoteBusy = true;
+        previewPromoteBtn.disabled = true;
+        var prevLabel = previewPromoteBtn.textContent;
+        previewPromoteBtn.textContent = overwrite ? "覆盖中…" : "添加中…";
+        setPreviewEditStatus(overwrite ? "正在覆盖写入规范文档…" : "正在添加到规范文档…");
+
+        fetch(
+          raBase() +
+            "/api/parent-tasks/" +
+            encodeURIComponent(pid) +
+            "/knowledge-base/promote",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              task_type: Number(taskType),
+              path: path,
+              content: content,
+              overwrite: overwrite === true,
+            }),
+          },
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            previewPromoteBusy = false;
+            previewPromoteBtn.textContent = prevLabel || "添加到规范文档";
+            setPreviewPromoteEnabled(!!previewCurrentDoc);
+            if (res.status === 409) {
+              var again = window.confirm(
+                (res.body && res.body.error
+                  ? String(res.body.error)
+                  : "目标文件已存在") +
+                  "\n\n是否覆盖已有规范文档？",
+              );
+              if (again) {
+                promotePreviewDocToKnowledgeBase(true);
+                return;
+              }
+              setPreviewEditStatus("已取消覆盖");
+              return;
+            }
+            if (!res.ok) {
+              setPreviewEditStatus(
+                "添加失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error
+                    ? typeof res.body.error === "string"
+                      ? res.body.error
+                      : JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            setPreviewEditStatus(
+              "已写入 " +
+                (res.body.path || "") +
+                (res.body.index_created ? " · 已创建 " + (res.body.index_path || "index.md") : "") +
+                (res.body.overwritten ? "（已覆盖）" : ""),
+            );
+            window.setTimeout(function () {
+              if (!previewEditing) setPreviewEditStatus("");
+            }, 4000);
+          })
+          .catch(function (e) {
+            previewPromoteBusy = false;
+            previewPromoteBtn.textContent = prevLabel || "添加到规范文档";
+            setPreviewPromoteEnabled(!!previewCurrentDoc);
+            setPreviewEditStatus("添加失败: " + e.message);
+          });
+      }
+
+      function openPreviewDoc(pid, triggerBtn) {
+        openPreviewPicker(pid, triggerBtn);
+      }
+
+      document.getElementById("ra-preview-close").onclick = closePreviewModal;
+      document.getElementById("ra-preview-download").onclick = downloadPreviewDoc;
+      document.getElementById("ra-preview-promote").onclick = function () {
+        promotePreviewDocToKnowledgeBase(false);
+      };
+      document.getElementById("ra-preview-edit").onclick = enterPreviewEditMode;
+      document.getElementById("ra-preview-save").onclick = savePreviewDoc;
+      document.getElementById("ra-preview-cancel-edit").onclick = function () {
+        if (!previewCurrentDoc) {
+          exitPreviewEditMode();
+          return;
+        }
+        var dirty =
+          String(previewEditorEl.value) !== String(previewCurrentDoc.content || "");
+        if (dirty && !window.confirm("放弃未保存的修改？")) return;
+        exitPreviewEditMode();
+        previewBodyEl.innerHTML = renderPreviewContent(previewCurrentDoc);
+      };
+      document.getElementById("ra-preview-back-list").onclick = reopenFileListFromPreview;
+      document.getElementById("ra-preview-pick-close").onclick = closePreviewPicker;
+      document.getElementById("ra-preview-pick-back").onclick = function () {
+        if (previewPickMode === "files") {
+          renderPreviewPickOptions(previewCachedTaskTypes);
+        }
+      };
+      previewBackdrop.addEventListener("click", function (e) {
+        if (e.target === previewBackdrop) closePreviewModal();
+      });
+      previewPickBackdrop.addEventListener("click", function (e) {
+        if (e.target === previewPickBackdrop) closePreviewPicker();
+      });
+      previewPickListEl.addEventListener("click", function (ev) {
+        if (!previewPickPid) return;
+        var fileBtn = ev.target.closest(".ra-preview-file-opt");
+        if (fileBtn) {
+          var path = fileBtn.getAttribute("data-path");
+          if (path) loadPreviewFile(previewPickPid, previewPickTaskType, path);
+          return;
+        }
+        var optBtn = ev.target.closest(".ra-preview-pick-opt");
+        if (!optBtn) return;
+        var taskType = optBtn.getAttribute("data-task-type");
+        if (taskType != null && taskType !== "") {
+          loadTaskTypeFiles(previewPickPid, taskType);
+        }
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (!previewRoot.classList.contains("hidden")) {
+          if (previewEditing) {
+            document.getElementById("ra-preview-cancel-edit").click();
+            return;
+          }
+          closePreviewModal();
+          return;
+        }
+        if (!previewPickRoot.classList.contains("hidden")) {
+          if (previewPickMode === "files") {
+            renderPreviewPickOptions(previewCachedTaskTypes);
+            return;
+          }
+          closePreviewPicker();
+        }
       });
 
       document.getElementById("ra-btn-query").addEventListener("click", function () {
@@ -841,40 +1806,20 @@
         var branchVal = pair && pair.branch_version ? pair.branch_version : "";
         var urlVal = pair && pair.gitRemoteUrl ? pair.gitRemoteUrl : "";
         var wrap = document.createElement("div");
-        wrap.className = "ra-cs-git-row grid gap-2 sm:grid-cols-[minmax(0,8rem)_1fr_auto] sm:items-center";
+        wrap.className = "ra-cs-git-row grid gap-2 sm:grid-cols-[minmax(0,8rem)_1fr] sm:items-center";
         wrap.innerHTML =
           '<input type="text" class="ra-cs-git-branch w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="500" autocomplete="off" placeholder="分支" value="' +
           esc(branchVal) +
           '" />' +
           '<input type="url" class="ra-cs-git-url min-w-0 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="2000" autocomplete="off" placeholder="HTTPS Git 仓库地址" value="' +
           esc(urlVal) +
-          '" />' +
-          '<button type="button" class="ra-cs-git-remove shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/25 sm:justify-self-end" title="移除此行">删除</button>';
+          '" />';
         var urlEl = wrap.querySelector(".ra-cs-git-url");
         urlEl.addEventListener("blur", function () {
           var normalized = normalizeGitRemoteUrl(urlEl.value);
           if (normalized !== urlEl.value.trim()) urlEl.value = normalized;
         });
-        wrap.querySelector(".ra-cs-git-remove").addEventListener("click", function () {
-          if (csGitListEl.querySelectorAll(".ra-cs-git-row").length <= 1) return;
-          wrap.remove();
-          updateCsGitRepoRowRemoveButtons();
-        });
         return wrap;
-      }
-
-      function updateCsGitRepoRowRemoveButtons() {
-        var rows = csGitListEl.querySelectorAll(".ra-cs-git-row");
-        var onlyOne = rows.length <= 1;
-        rows.forEach(function (row) {
-          var btn = row.querySelector(".ra-cs-git-remove");
-          if (!btn) return;
-          btn.disabled = onlyOne;
-          btn.classList.toggle("cursor-not-allowed", onlyOne);
-          btn.classList.toggle("opacity-40", onlyOne);
-          btn.classList.toggle("hover:bg-red-50", !onlyOne);
-          btn.classList.toggle("hover:text-red-700", !onlyOne);
-        });
       }
 
       function setCsGitRepos(repos) {
@@ -884,35 +1829,30 @@
               return p && (String(p.gitRemoteUrl || "").trim() || String(p.branch_version || "").trim());
             })
           : [];
-        if (!list.length) list = [{ gitRemoteUrl: "", branch_version: "" }];
-        list.forEach(function (p) {
-          csGitListEl.appendChild(
-            createCsGitRepoRow({
-              gitRemoteUrl: normalizeGitRemoteUrl(p.gitRemoteUrl),
-              branch_version: String(p.branch_version || "").trim(),
-            }),
-          );
-        });
-        updateCsGitRepoRowRemoveButtons();
+        // 代码规范仅支持单仓：取第一项
+        var one = list.length ? list[0] : { gitRemoteUrl: "", branch_version: "" };
+        csGitListEl.appendChild(
+          createCsGitRepoRow({
+            gitRemoteUrl: normalizeGitRemoteUrl(one.gitRemoteUrl),
+            branch_version: String(one.branch_version || "").trim(),
+          }),
+        );
       }
 
       function collectCsGitRepos() {
         var rows = csGitListEl.querySelectorAll(".ra-cs-git-row");
-        var seen = {};
-        var out = [];
-        for (var i = 0; i < rows.length; i++) {
-          var branch = rows[i].querySelector(".ra-cs-git-branch").value.trim();
-          var url = normalizeGitRemoteUrl(rows[i].querySelector(".ra-cs-git-url").value);
-          if (!branch && !url) continue;
-          if (!branch || !url) {
-            return { error: "第 " + (i + 1) + " 行：git 地址与分支需成对填写。" };
-          }
-          var key = url.toLowerCase();
-          if (seen[key]) continue;
-          seen[key] = true;
-          out.push({ gitRemoteUrl: url, branch_version: branch });
+        if (rows.length !== 1) {
+          return { error: "代码规范任务仅支持填写 1 个代码仓库。" };
         }
-        return { repos: out };
+        var branch = rows[0].querySelector(".ra-cs-git-branch").value.trim();
+        var url = normalizeGitRemoteUrl(rows[0].querySelector(".ra-cs-git-url").value);
+        if (!branch && !url) {
+          return { error: "请填写 git 地址与分支。" };
+        }
+        if (!branch || !url) {
+          return { error: "git 地址与分支需成对填写。" };
+        }
+        return { repos: [{ gitRemoteUrl: url, branch_version: branch }] };
       }
 
       function openCsModal() {
@@ -934,10 +1874,6 @@
 
       document.getElementById("ra-btn-new-code-spec").addEventListener("click", openCsModal);
       document.getElementById("ra-cs-modal-cancel").addEventListener("click", closeCsModal);
-      document.getElementById("ra-cs-git-add").addEventListener("click", function () {
-        csGitListEl.appendChild(createCsGitRepoRow({ gitRemoteUrl: "", branch_version: "" }));
-        updateCsGitRepoRowRemoveButtons();
-      });
       document.getElementById("ra-cs-modal-backdrop").addEventListener("click", function (ev) {
         if (ev.target === document.getElementById("ra-cs-modal-backdrop")) closeCsModal();
       });
@@ -956,8 +1892,8 @@
           return;
         }
         var gitRepos = collected.repos;
-        if (!gitRepos.length) {
-          setCsModalError("请至少填写一组仓库与分支");
+        if (!gitRepos || gitRepos.length !== 1) {
+          setCsModalError("代码规范任务仅支持且必须填写 1 个代码仓库");
           return;
         }
         setCsGitRepos(gitRepos);

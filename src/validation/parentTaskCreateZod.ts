@@ -89,6 +89,32 @@ function refineDevWorkflowParentTaskFields(
   }
 }
 
+/** 代码规范编排（类型 8）：必须且仅能配置 1 个 git 仓库 */
+function refineCodeSpecParentTaskFields(
+  data: {
+    task_type?: (typeof PARENT_AGENT_TYPE)[keyof typeof PARENT_AGENT_TYPE];
+    description?: string;
+    gitRepos: z.infer<typeof gitRepoPair>[];
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (data.task_type !== PARENT_AGENT_TYPE.CodeSpec) return;
+  if (!data.description?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "description is required for task_type 8",
+      path: ["description"],
+    });
+  }
+  if (data.gitRepos.length !== 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "代码规范任务仅支持且必须填写 1 个代码仓库",
+      path: ["gitRepos"],
+    });
+  }
+}
+
 /** TAPD 关联：先正则格式化，再校验 `story={id}@tapd-{workspaceId}` */
 function refineTapdTaskId(data: { tapdTaskId?: string }, ctx: z.RefinementCtx): void {
   const raw = data.tapdTaskId?.trim();
@@ -149,6 +175,7 @@ export const zCreateParentTaskBody = z
   })
   .superRefine((data, ctx) => {
     refineDevWorkflowParentTaskFields(data, ctx);
+    refineCodeSpecParentTaskFields(data, ctx);
     refineTapdTaskId(data, ctx);
   })
   .transform((data) => ({

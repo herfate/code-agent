@@ -15,11 +15,13 @@ import {
   getParentTask,
   listParentTasks,
   nextParentTaskPid,
+  parseParentTaskInitJson,
 } from "../db/parentTask.js";
 import { PARENT_AGENT_TYPE, parseParentAgentTypesCsv } from "../constants/parentAgentType.js";
 import { TASK_TYPE } from "../constants/taskType.js";
 import { aggregateParentExecStatus } from "../constants/taskStatus.js";
 import {
+  getParentTaskParamByParentAndKey,
   listParentTaskParamValueJsonByParentIdsAndKey,
   listParentTaskParamsByParentId,
   listSubTasksByTaskId,
@@ -43,7 +45,11 @@ import {
   PARENT_TASK_PLACEHOLDER_TITLE,
 } from "../constants/parentTask.js";
 import { listBrainstormStoriesForPid } from "../services/brainstorm/listBrainstormStories.js";
-import { readLatestAiOutMarkdown, readAiOutMarkdownByTaskId, listAiOutMarkdownTaskTypes, readAiOutAsset } from "../services/file/readLatestAiOutMarkdown.js";
+import { readLatestAiOutMarkdown, readAiOutMarkdownByTaskId, listAiOutMarkdownTaskTypes, listAiOutMarkdownFiles, readAiOutFileByRelativePath, writeAiOutFileByRelativePath, readAiOutAsset } from "../services/file/readLatestAiOutMarkdown.js";
+import {
+  extractProjectNameFromGitRemoteUrl,
+  promoteAiOutDocToKnowledgeBase,
+} from "../services/file/promoteToKnowledgeBase.js";
 import {
   findAutotestCaseJsonFilesInAiOut,
   findAutotestMdFilesInAiOut,
@@ -87,6 +93,33 @@ const aiOutLatestQuery = z.object({
 const aiOutAssetQuery = z.object({
   task_type: zTaskType,
   path: z.string().trim().min(1).max(1000),
+});
+
+/** 列出某 taskType 下可预览文件 */
+const aiOutFilesQuery = z.object({
+  task_type: zTaskType,
+});
+
+/** 按相对路径读取单个可预览文件 */
+const aiOutFileQuery = z.object({
+  task_type: zTaskType,
+  path: z.string().trim().min(1).max(1000),
+});
+
+/** 覆写已有可预览文件内容 */
+const aiOutFilePutBody = z.object({
+  task_type: zTaskType,
+  path: z.string().trim().min(1).max(1000),
+  content: z.string().max(5_000_000),
+});
+
+/** 将 ai_out 文档添加到 knowledge_base/code-style/<项目名>/.docs/ */
+const promoteKnowledgeBaseBody = z.object({
+  task_type: zTaskType,
+  path: z.string().trim().min(1).max(1000),
+  /** 省略则从 ai_out 读盘读取 */
+  content: z.string().max(5_000_000).optional(),
+  overwrite: z.boolean().optional(),
 });
 
 /** 打包下载 UI 测试执行产物（`ai_out/<pid>/12/<taskId>/` → zip） */
@@ -301,6 +334,167 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       }
       request.log.error(err, "read ai_out latest markdown failed");
       return reply.status(500).send({ error: "read ai_out document failed" });
+    }
+  });
+
+  /** 列出 `ai_out/<pid>/<taskType>/` 下全部可预览文档 */
+  app.get("/api/parent-tasks/:pid/ai-out/files", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parsed = aiOutFilesQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const files = listAiOutMarkdownFiles(pid, parsed.data.task_type)
+        .slice()
+        .sort((a, b) => b.updated_at - a.updated_at);
+      return { pid, task_type: parsed.data.task_type, files };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("invalid pid") || msg.includes("path outside")) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "list ai_out files failed");
+      return reply.status(500).send({ error: "list ai_out files failed" });
+    }
+  });
+
+  /** 按相对路径读取 `ai_out/<pid>/<taskType>/` 下单个可预览文档 */
+  app.get("/api/parent-tasks/:pid/ai-out/file", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parsed = aiOutFileQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const doc = readAiOutFileByRelativePath(pid, parsed.data.task_type, parsed.data.path);
+      if (!doc) {
+        return reply.status(404).send({ error: "file not found" });
+      }
+      return doc;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes("invalid") ||
+        msg.includes("path outside") ||
+        msg.includes("unsupported")
+      ) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "read ai_out file failed");
+      return reply.status(500).send({ error: "read ai_out file failed" });
+    }
+  });
+
+  /** 覆写 `ai_out/<pid>/<taskType>/` 下已有可预览文档 */
+  app.put("/api/parent-tasks/:pid/ai-out/file", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parsed = aiOutFilePutBody.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    try {
+      const doc = writeAiOutFileByRelativePath(
+        pid,
+        parsed.data.task_type,
+        parsed.data.path,
+        parsed.data.content,
+      );
+      return doc;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === "file not found" || msg === "not a file") {
+        return reply.status(404).send({ error: msg });
+      }
+      if (
+        msg.includes("invalid") ||
+        msg.includes("path outside") ||
+        msg.includes("unsupported")
+      ) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "write ai_out file failed");
+      return reply.status(500).send({ error: "write ai_out file failed" });
+    }
+  });
+
+  /**
+   * 将 `ai_out` 文档添加到 `knowledge_base/code-style/<项目名>/.docs/`，
+   * 并维护 `knowledge_base/code-style/<项目名>/index.md`（不存在则创建）。
+   * 项目名取自父任务 `init.gitRepos` 唯一仓库地址末段。
+   */
+  app.post("/api/parent-tasks/:pid/knowledge-base/promote", async (request, reply) => {
+    const pid = String((request.params as { pid?: string }).pid ?? "").trim();
+    if (!pid) {
+      return reply.status(400).send({ error: "invalid pid" });
+    }
+    const parsed = promoteKnowledgeBaseBody.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    if (!getParentTask(db, pid)) {
+      return reply.status(404).send({ error: "parent task not found" });
+    }
+    const initRow = getParentTaskParamByParentAndKey(db, pid, PARENT_PARAM_KEY_INIT);
+    const init = parseParentTaskInitJson(initRow?.value_json);
+    const gitRepos = init.gitRepos ?? [];
+    if (gitRepos.length !== 1) {
+      return reply.status(400).send({
+        error: "代码规范落盘需要父任务恰好配置 1 个 git 仓库（用于推导项目名）",
+      });
+    }
+    const projectName = extractProjectNameFromGitRemoteUrl(gitRepos[0]!.gitRemoteUrl);
+    if (!projectName) {
+      return reply.status(400).send({ error: "无法从 git 地址解析项目名" });
+    }
+    try {
+      const result = promoteAiOutDocToKnowledgeBase({
+        pid,
+        taskType: parsed.data.task_type,
+        relativePath: parsed.data.path,
+        projectName,
+        content: parsed.data.content,
+        overwrite: parsed.data.overwrite === true,
+      });
+      return { pid, ...result };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === "file already exists") {
+        return reply.status(409).send({
+          error: "目标规范文档已存在，确认覆盖后重试",
+          project_name: projectName,
+        });
+      }
+      if (msg === "file not found" || msg === "not a file") {
+        return reply.status(404).send({ error: msg });
+      }
+      if (
+        msg.includes("invalid") ||
+        msg.includes("path outside") ||
+        msg.includes("unsupported")
+      ) {
+        return reply.status(400).send({ error: msg });
+      }
+      request.log.error(err, "promote to knowledge_base failed");
+      return reply.status(500).send({ error: "promote to knowledge_base failed" });
     }
   });
 

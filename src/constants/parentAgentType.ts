@@ -16,7 +16,7 @@ export const PARENT_AGENT_TYPE = {
   AutoTest: 6,
   /** 知识沉淀编排（生成业务知识 → 生成代码规范 → 生成测试规范；可由 Wiki Confluence 定时同步后创建） */
   PersistMemory: 7,
-  /** 代码规范编排（仅生成代码规范；按 gitRepos 单仓/多仓抽取） */
+  /** 代码规范编排（仅生成代码规范；仅支持单个 git 仓库） */
   CodeSpec: 8,
 } as const;
 
