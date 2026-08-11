@@ -40,25 +40,27 @@ export const cloneTasksOnTestFailHandler: ParentTaskChangedFilesHandler = {
 
     if (parsed.passRate === 100) {
       // 已通过，不复制
-    } else if (parsed.isBlockedByExternalDubbo === true && useTradeMock) {
-      // 优先：外部 dubbo 阻塞且任务 useTradeMock=true → 仅复制测试执行
-      if (!canRetry) {
-        AppLog.logger.info(
-          { parentTaskId: ctx.parentTaskId, testRunCount, maxRetry },
-          "cloneTasksOnTestFail: max retry count reached, skip dubbo-blocked retry",
-        );
-      } else {
-        cloneTestExecuteOnExternalDubboBlocked(
-          ctx.db,
-          ctx.parentTaskId,
-          ctx.executingTaskId,
-        );
-      }
+    } else if (
+      parsed.isBlockedByExternalDubbo === true &&
+      useTradeMock &&
+      testRunCount === 1
+    ) {
+      // 外部 dubbo 阻塞 + useTradeMock + 仅执行过一次测试 → 仅复制测试执行（TradeMock）
+      cloneTestExecuteOnExternalDubboBlocked(
+        ctx.db,
+        ctx.parentTaskId,
+        ctx.executingTaskId,
+      );
     } else {
       if (parsed.isBlockedByExternalDubbo === true) {
         AppLog.logger.info(
-          { parentTaskId: ctx.parentTaskId, passRate: parsed.passRate, useTradeMock },
-          "cloneTasksOnTestFail: dubbo blocked but useTradeMock not enabled, skip dubbo-only clone",
+          {
+            parentTaskId: ctx.parentTaskId,
+            passRate: parsed.passRate,
+            useTradeMock,
+            testRunCount,
+          },
+          "cloneTasksOnTestFail: dubbo blocked but skip dubbo-only clone (need useTradeMock and first test run only)",
         );
       }
       maybeCloneOnCodeProblem(ctx, parsed, canRetry, testRunCount, maxRetry);
