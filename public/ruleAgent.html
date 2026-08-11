@@ -10,9 +10,10 @@
 <body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
   <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
     <header class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <h1 class="text-sm font-semibold text-slate-800">Rule Agent（知识沉淀）</h1>
+      <h1 class="text-sm font-semibold text-slate-800">Rule Agent（知识沉淀 / 代码规范）</h1>
       <p class="mt-0.5 text-xs text-slate-500">
-        仅支持父任务类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">7</code>：生成业务知识 → 生成代码规范 → 生成测试规范。
+        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">7</code> 知识沉淀（13→14→15）；
+        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">8</code> 代码规范（仅 14，按 gitRepos）。
         对接 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET/POST /api/parent-tasks</code>。
       </p>
     </header>
@@ -23,7 +24,7 @@
         <div class="lg:col-span-3">
           <label class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
           <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            7 — 知识沉淀Agent（固定）
+            7 知识沉淀 · 8 代码规范
           </div>
         </div>
         <div class="lg:col-span-3">
@@ -37,6 +38,7 @@
         <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-3">
           <div class="flex flex-nowrap items-center gap-2">
             <button type="button" id="ra-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增知识沉淀</button>
+            <button type="button" id="ra-btn-new-code-spec" class="shrink-0 whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-500/30">抽取代码规范</button>
             <button type="button" id="ra-btn-query" class="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
           </div>
         </div>
@@ -55,6 +57,7 @@
             <thead class="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold tracking-wide text-slate-600 backdrop-blur-sm">
               <tr>
                 <th class="whitespace-nowrap px-4 py-3">编号</th>
+                <th class="whitespace-nowrap px-4 py-3">任务类型</th>
                 <th class="whitespace-nowrap px-4 py-3">标题</th>
                 <th class="whitespace-nowrap px-4 py-3">描述</th>
                 <th class="whitespace-nowrap px-4 py-3">执行状态</th>
@@ -180,10 +183,74 @@
     </div>
   </div>
 
+  <!-- 抽取代码规范弹窗 -->
+  <div id="ra-cs-modal-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="ra-cs-modal-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="ra-cs-modal-panel" role="dialog" aria-modal="true" aria-labelledby="ra-cs-modal-title" class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="shrink-0 border-b border-slate-100 px-5 py-4">
+          <h3 id="ra-cs-modal-title" class="text-sm font-semibold text-slate-800">抽取代码规范父任务</h3>
+          <p class="mt-1 text-xs text-slate-500">固定类型 8；只填 gitRepos（与开发 Agent 相同），子任务仅 14 生成代码规范。</p>
+        </div>
+        <form id="ra-cs-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <p id="ra-cs-modal-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+            <div>
+              <div class="mb-1.5 flex items-center justify-between gap-2">
+                <span class="text-xs font-medium text-slate-600">代码库 gitRepos <span class="text-red-500">*</span></span>
+                <button type="button" id="ra-cs-git-add" class="text-[11px] font-medium text-blue-600 hover:underline">添加一行</button>
+              </div>
+              <div class="mb-1.5 hidden gap-2 text-[11px] font-medium text-slate-500 sm:grid sm:grid-cols-[minmax(0,8rem)_1fr_auto]">
+                <span>分支</span>
+                <span>git 地址</span>
+                <span class="w-14" aria-hidden="true"></span>
+              </div>
+              <div id="ra-cs-git-list" class="space-y-2"></div>
+              <p class="mt-1.5 text-[11px] text-slate-500">每行一个仓库及其对应分支，成对填写；至少一组。</p>
+            </div>
+            <div>
+              <label for="ra-cs-new-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题（可选）</label>
+              <input id="ra-cs-new-title" type="text" maxlength="500" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="留空则用「代码规范 · 日期」" />
+            </div>
+            <div>
+              <label for="ra-cs-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明 / 需求 <span class="text-red-500">*</span></label>
+              <textarea id="ra-cs-new-description" rows="4" maxlength="50000" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="写入任务描述与 requirement；可提示使用 extract-code-style skill"></textarea>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label id="ra-cs-new-provider-label" for="ra-cs-new-provider-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">模型</label>
+                <div id="ra-cs-new-provider-root" class="ui-combobox relative min-w-0">
+                  <input type="hidden" id="ra-cs-new-provider" name="provider" value="claude" autocomplete="off" />
+                  <div id="ra-cs-new-provider-trigger" role="combobox" aria-expanded="false" aria-controls="ra-cs-new-provider-listbox" aria-labelledby="ra-cs-new-provider-label" tabindex="0" class="ui-combobox-trigger">
+                    <span class="ui-combobox-value min-w-0 truncate">claude</span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                  <div id="ra-cs-new-provider-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                    <div role="option" data-value="claude" class="ui-combobox-opt">claude</div>
+                    <div role="option" data-value="cursor" class="ui-combobox-opt">cursor</div>
+                  </div>
+                </div>
+              </div>
+              <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input id="ra-cs-new-parallel" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
+                允许并行调度
+              </label>
+            </div>
+          </div>
+          <div class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+            <button type="button" id="ra-cs-modal-cancel" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+            <button type="submit" id="ra-cs-modal-submit" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-violet-700">提交</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/ui-combobox.js"></script>
   <script>
     (function () {
       var PARENT_TASK_TYPE = 7;
+      var CODE_SPEC_PARENT_TASK_TYPE = 8;
+      var LIST_TASK_TYPES = "7,8";
       /** 文档类型区可关联的父任务 Agent 类型 */
       var RELATED_PARENT_AGENT_TYPES = "1,2,3,4";
       var PARENT_AGENT_TYPE_LABELS = {
@@ -299,12 +366,22 @@
       var btnPrev = document.getElementById("ra-btn-prev");
       var btnNext = document.getElementById("ra-btn-next");
 
+      function parentTypeLabel(code) {
+        var n = Number(code);
+        if (n === 7) return "7 知识沉淀";
+        if (n === 8) return "8 代码规范";
+        return String(code != null ? code : "—");
+      }
+
       function renderRow(t) {
         var tr = document.createElement("tr");
         tr.className = "transition-colors hover:bg-slate-50";
         tr.innerHTML =
           '<td class="whitespace-nowrap px-4 py-3 font-mono text-xs">' +
           esc(t.pid) +
+          "</td>" +
+          '<td class="whitespace-nowrap px-4 py-3 text-xs font-medium text-slate-700">' +
+          esc(parentTypeLabel(t.task_type)) +
           "</td>" +
           '<td class="max-w-xs truncate px-4 py-3 sm:max-w-md" title="' +
           esc(t.title || "") +
@@ -355,7 +432,7 @@
         var creator = document.getElementById("ra-creator").value.trim();
         var pageSize = Number(document.getElementById("ra-page-size").value) || 20;
         var qs = new URLSearchParams();
-        qs.set("task_type", String(PARENT_TASK_TYPE));
+        qs.set("task_types", LIST_TASK_TYPES);
         qs.set("page", String(raPage));
         qs.set("limit", String(pageSize));
         if (title) qs.set("title", title);
@@ -733,6 +810,218 @@
             modalSubmit.disabled = false;
             modalSubmit.textContent = "提交";
             setModalError("提交失败: " + e.message);
+          });
+      });
+
+      // ——— 抽取代码规范弹窗（类型 8，仅 gitRepos）———
+      var csProviderCombo = window.UiCombobox.attach(document.getElementById("ra-cs-new-provider-root"));
+      var csModalRoot = document.getElementById("ra-cs-modal-root");
+      var csModalError = document.getElementById("ra-cs-modal-error");
+      var csModalForm = document.getElementById("ra-cs-modal-form");
+      var csModalSubmit = document.getElementById("ra-cs-modal-submit");
+      var csGitListEl = document.getElementById("ra-cs-git-list");
+
+      function normalizeGitRemoteUrl(url) {
+        var s = String(url || "").trim();
+        if (!s) return "";
+        return s.replace(/\.git\/?$/i, "");
+      }
+
+      function setCsModalError(msg) {
+        if (!msg) {
+          csModalError.textContent = "";
+          csModalError.classList.add("hidden");
+          return;
+        }
+        csModalError.textContent = msg;
+        csModalError.classList.remove("hidden");
+      }
+
+      function createCsGitRepoRow(pair) {
+        var branchVal = pair && pair.branch_version ? pair.branch_version : "";
+        var urlVal = pair && pair.gitRemoteUrl ? pair.gitRemoteUrl : "";
+        var wrap = document.createElement("div");
+        wrap.className = "ra-cs-git-row grid gap-2 sm:grid-cols-[minmax(0,8rem)_1fr_auto] sm:items-center";
+        wrap.innerHTML =
+          '<input type="text" class="ra-cs-git-branch w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="500" autocomplete="off" placeholder="分支" value="' +
+          esc(branchVal) +
+          '" />' +
+          '<input type="url" class="ra-cs-git-url min-w-0 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="2000" autocomplete="off" placeholder="HTTPS Git 仓库地址" value="' +
+          esc(urlVal) +
+          '" />' +
+          '<button type="button" class="ra-cs-git-remove shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/25 sm:justify-self-end" title="移除此行">删除</button>';
+        var urlEl = wrap.querySelector(".ra-cs-git-url");
+        urlEl.addEventListener("blur", function () {
+          var normalized = normalizeGitRemoteUrl(urlEl.value);
+          if (normalized !== urlEl.value.trim()) urlEl.value = normalized;
+        });
+        wrap.querySelector(".ra-cs-git-remove").addEventListener("click", function () {
+          if (csGitListEl.querySelectorAll(".ra-cs-git-row").length <= 1) return;
+          wrap.remove();
+          updateCsGitRepoRowRemoveButtons();
+        });
+        return wrap;
+      }
+
+      function updateCsGitRepoRowRemoveButtons() {
+        var rows = csGitListEl.querySelectorAll(".ra-cs-git-row");
+        var onlyOne = rows.length <= 1;
+        rows.forEach(function (row) {
+          var btn = row.querySelector(".ra-cs-git-remove");
+          if (!btn) return;
+          btn.disabled = onlyOne;
+          btn.classList.toggle("cursor-not-allowed", onlyOne);
+          btn.classList.toggle("opacity-40", onlyOne);
+          btn.classList.toggle("hover:bg-red-50", !onlyOne);
+          btn.classList.toggle("hover:text-red-700", !onlyOne);
+        });
+      }
+
+      function setCsGitRepos(repos) {
+        csGitListEl.innerHTML = "";
+        var list = Array.isArray(repos)
+          ? repos.filter(function (p) {
+              return p && (String(p.gitRemoteUrl || "").trim() || String(p.branch_version || "").trim());
+            })
+          : [];
+        if (!list.length) list = [{ gitRemoteUrl: "", branch_version: "" }];
+        list.forEach(function (p) {
+          csGitListEl.appendChild(
+            createCsGitRepoRow({
+              gitRemoteUrl: normalizeGitRemoteUrl(p.gitRemoteUrl),
+              branch_version: String(p.branch_version || "").trim(),
+            }),
+          );
+        });
+        updateCsGitRepoRowRemoveButtons();
+      }
+
+      function collectCsGitRepos() {
+        var rows = csGitListEl.querySelectorAll(".ra-cs-git-row");
+        var seen = {};
+        var out = [];
+        for (var i = 0; i < rows.length; i++) {
+          var branch = rows[i].querySelector(".ra-cs-git-branch").value.trim();
+          var url = normalizeGitRemoteUrl(rows[i].querySelector(".ra-cs-git-url").value);
+          if (!branch && !url) continue;
+          if (!branch || !url) {
+            return { error: "第 " + (i + 1) + " 行：git 地址与分支需成对填写。" };
+          }
+          var key = url.toLowerCase();
+          if (seen[key]) continue;
+          seen[key] = true;
+          out.push({ gitRemoteUrl: url, branch_version: branch });
+        }
+        return { repos: out };
+      }
+
+      function openCsModal() {
+        setCsModalError("");
+        document.getElementById("ra-cs-new-title").value = "";
+        document.getElementById("ra-cs-new-description").value = "";
+        document.getElementById("ra-cs-new-parallel").checked = false;
+        if (csProviderCombo) csProviderCombo.setValue("claude");
+        setCsGitRepos([{ gitRemoteUrl: "", branch_version: "" }]);
+        csModalRoot.classList.remove("hidden");
+        csModalRoot.classList.remove("pointer-events-none");
+      }
+
+      function closeCsModal() {
+        csModalRoot.classList.add("hidden");
+        csModalRoot.classList.add("pointer-events-none");
+        setCsModalError("");
+      }
+
+      document.getElementById("ra-btn-new-code-spec").addEventListener("click", openCsModal);
+      document.getElementById("ra-cs-modal-cancel").addEventListener("click", closeCsModal);
+      document.getElementById("ra-cs-git-add").addEventListener("click", function () {
+        csGitListEl.appendChild(createCsGitRepoRow({ gitRemoteUrl: "", branch_version: "" }));
+        updateCsGitRepoRowRemoveButtons();
+      });
+      document.getElementById("ra-cs-modal-backdrop").addEventListener("click", function (ev) {
+        if (ev.target === document.getElementById("ra-cs-modal-backdrop")) closeCsModal();
+      });
+
+      csModalForm.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        setCsModalError("");
+        var creator = currentLoginUser();
+        if (!creator) {
+          setCsModalError("获取当前登录用户失败，请先登录");
+          return;
+        }
+        var collected = collectCsGitRepos();
+        if (collected.error) {
+          setCsModalError(collected.error);
+          return;
+        }
+        var gitRepos = collected.repos;
+        if (!gitRepos.length) {
+          setCsModalError("请至少填写一组仓库与分支");
+          return;
+        }
+        setCsGitRepos(gitRepos);
+        var description = document.getElementById("ra-cs-new-description").value.trim();
+        if (!description) {
+          setCsModalError("请填写说明 / 需求");
+          return;
+        }
+        var title = document.getElementById("ra-cs-new-title").value.trim();
+        if (!title) title = "代码规范 · " + localDateYmd();
+        var provider = document.getElementById("ra-cs-new-provider").value.trim() || "claude";
+        var parallel = document.getElementById("ra-cs-new-parallel").checked;
+
+        var body = {
+          task_type: CODE_SPEC_PARENT_TASK_TYPE,
+          provider: provider,
+          creator: creator,
+          title: title,
+          description: description,
+          requirement: description,
+          gitRepos: gitRepos,
+          parallel: parallel || undefined,
+        };
+
+        csModalSubmit.disabled = true;
+        csModalSubmit.textContent = "提交中…";
+        fetch(raBase() + "/api/parent-tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            csModalSubmit.disabled = false;
+            csModalSubmit.textContent = "提交";
+            if (!res.ok) {
+              setCsModalError(
+                "提交失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error
+                    ? typeof res.body.error === "string"
+                      ? res.body.error
+                      : JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            closeCsModal();
+            runQuery(true);
+            var pid =
+              res.body && res.body.parent_task && res.body.parent_task.pid
+                ? res.body.parent_task.pid
+                : "";
+            if (pid) openParentFlow(pid);
+          })
+          .catch(function (e) {
+            csModalSubmit.disabled = false;
+            csModalSubmit.textContent = "提交";
+            setCsModalError("提交失败: " + e.message);
           });
       });
 

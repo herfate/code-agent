@@ -711,6 +711,7 @@
         "3": "功能测试",
         "4": "业务Agent",
         "7": "知识沉淀",
+        "8": "代码规范",
       };
       /** 与 `src/constants/taskType.ts` 一致（ai_out 子目录名） */
       var dagWorkflowTaskTypeLabels = {
@@ -827,6 +828,7 @@
         if (n === 3) return "功能测试Agent";
         if (n === 4) return "业务Agent";
         if (n === 7) return "知识沉淀Agent";
+        if (n === 8) return "代码规范Agent";
         return String(code ?? "");
       }
 

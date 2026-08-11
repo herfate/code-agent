@@ -16,6 +16,7 @@ import { copyWikiCategorySourceTypesToDir, copyWikiCategoryToDir, copyParentTask
 import { isWikiCategoryId, type WikiCategoryId } from "../../constants/wikiCategory.js";
 import { WIKI_SOURCE_TYPE } from "../../constants/wikiSourceType.js";
 import { AppLog } from "../appLogger.js";
+import { copyProjectSkillsToClaudeDir } from "../skill/copyProjectSkillsToClaudeDir.js";
 import {
   planGitRepoWorkspaceDirs,
   resolveGitRepoWorkspacePath,
@@ -330,6 +331,33 @@ function isWikiBizTaskType(taskType: TaskType | undefined): boolean {
   );
 }
 
+/** 知识沉淀流水线子任务：生成业务知识 / 代码规范 / 测试规范 */
+function isPersistMemoryPipelineTaskType(taskType: TaskType | undefined): boolean {
+  return (
+    taskType === TASK_TYPE.PersistMemory ||
+    taskType === TASK_TYPE.GenCodeSpec ||
+    taskType === TASK_TYPE.GenTestSpec
+  );
+}
+
+/** 将仓库根 `skills/` 复制到会话 `.claude/skills/`（失败仅记日志） */
+function maybeCopyPersistSkills(taskId: string, taskRepoCwd: string, taskType: TaskType | undefined): void {
+  if (!isPersistMemoryPipelineTaskType(taskType)) return;
+  try {
+    const { copied } = copyProjectSkillsToClaudeDir(taskRepoCwd);
+    AppLog.logger.info(
+      { taskId, taskRepoCwd, taskType, copied },
+      "claimed task: project skills copied to .claude/skills",
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    AppLog.logger.warn(
+      { taskId, taskRepoCwd, taskType, err: msg },
+      "claimed task: copy project skills failed, continue",
+    );
+  }
+}
+
 /** 认领任务：根据 `input_json.gitlab` 克隆或建空目录；含从 DB 拼 HTTPS；失败时 `onClonePrepFailed` 并返回 `false` */
 export type PrepareClaimedTaskRepoWorkspaceInput = {
   db: DatabaseSync;
@@ -355,6 +383,7 @@ export async function prepareClaimedTaskRepoWorkspace(
 
   if (reuseExisting && existsSync(taskRepoCwd)) {
     AppLog.logger.info({ taskId, taskRepoCwd }, "claimed task: reuse existing workspace, skip clone");
+    maybeCopyPersistSkills(taskId, taskRepoCwd, taskType);
     return true;
   }
 
@@ -473,6 +502,7 @@ export async function prepareClaimedTaskRepoWorkspace(
     }
   }
 
+  maybeCopyPersistSkills(taskId, taskRepoCwd, taskType);
   return true;
 }
 

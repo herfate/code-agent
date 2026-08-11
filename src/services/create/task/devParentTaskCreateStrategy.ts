@@ -83,6 +83,9 @@ export const PERSIST_MEMORY_WORKFLOW_TASK_TYPES = [
   TASK_TYPE.GenTestSpec,
 ] as const;
 
+/** 代码规范父任务（`parent_task.task_type = 8`）：仅生成代码规范 */
+export const CODE_SPEC_WORKFLOW_TASK_TYPES = [TASK_TYPE.GenCodeSpec] as const;
+
 export type DevParentTaskWorkflowResult = {
   /** 设计 → 开发 → 测试环境发布 → … → 测试数据分析 → 测试案例执行 */
   tasks: TaskRow[];
@@ -295,3 +298,14 @@ export function runPersistMemoryParentTaskWorkflow(
 
 /** 知识沉淀父任务类型（供编排层路由） */
 export const PERSIST_MEMORY_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.PersistMemory;
+
+/** 代码规范父任务（`parent_task.task_type = 8`）：仅生成代码规范 */
+export function runCodeSpecParentTaskWorkflow(
+  db: DatabaseSync,
+  ctx: DevParentTaskWorkflowContext,
+): DevParentTaskWorkflowResult {
+  return createWorkflowTasks(db, ctx, CODE_SPEC_WORKFLOW_TASK_TYPES);
+}
+
+/** 代码规范父任务类型（供编排层路由） */
+export const CODE_SPEC_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.CodeSpec;

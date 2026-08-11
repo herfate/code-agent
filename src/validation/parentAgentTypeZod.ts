@@ -6,7 +6,7 @@ export const zParentAgentType = z.coerce
   .int()
   .refine((n): n is ParentAgentType => isParentAgentType(n), {
     message:
-      "invalid parent task_type (1 开发自测Agent / 2 开发自Review Agent / 3 功能测试Agent / 4 业务Agent / 5 测试案例编排Agent / 6 自动化测试Agent / 7 知识沉淀Agent)",
+      "invalid parent task_type (1 开发自测Agent / 2 开发自Review Agent / 3 功能测试Agent / 4 业务Agent / 5 测试案例编排Agent / 6 自动化测试Agent / 7 知识沉淀Agent / 8 代码规范Agent)",
   });
 
 export const zParentAgentTypeOptional = zParentAgentType.optional();

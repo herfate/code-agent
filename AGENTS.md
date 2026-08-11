@@ -31,10 +31,12 @@
 | [`public/wikiAgent.html`](public/wikiAgent.html) | Wiki Agent 独立页（`wiki_base` 分类卡片与文档浏览） |
 | [`public/brainstormStories.html`](public/brainstormStories.html) | 头脑风暴故事列表页（`?pid=&base=`：故事描述 + 澄清点选） |
 | [`public/testAgent.html`](public/testAgent.html) | 测试 Agent 独立页（`parent_task` 类型 5/6） |
-| [`public/ruleAgent.html`](public/ruleAgent.html) | Rule Agent 独立页（仅 `parent_task` 类型 7 知识沉淀查询与新增） |
+| [`public/ruleAgent.html`](public/ruleAgent.html) | Rule Agent 独立页（`parent_task` 类型 7 知识沉淀、类型 8 代码规范：查询与新增） |
 | [`public/userConfig.html`](public/userConfig.html) | 用户配置独立页（`gitlab_token`、`tapd_token` 读写） |
 | [`public/app.css`](public/app.css) | Tailwind 构建产物（由 `npm run build` / `build:css` 生成） |
 | [`src/styles/tailwind.css`](src/styles/tailwind.css) | Tailwind 入口（`@tailwind` 指令） |
+| [`knowledge_base/`](knowledge_base/) | 代码规范与业务核心抽取产物（每条一 md；[`INDEX.md`](knowledge_base/INDEX.md) 总索引；仅 `status: accepted` 视为生效） |
+| [`skills/`](skills/) | Skill 规范源（`extract-code-style`、`extract-business-core` 等）。知识沉淀子任务 13/14/15 认领时复制到会话 `task-repo/.../.claude/skills/` |
 
 > `GET /` 返回管理台（[`public/index.html`](public/index.html)，含 `/?page=demo` 嵌入 [`/demo`](public/demo.html)、`/?page=adev` 嵌入 [`/agent-dev`](public/agentDev.html)、`/?page=dagent` 嵌入 [`/dev-agent`](public/devAgent.html)、`/?page=wagent` 嵌入 [`/wiki-agent`](public/wikiAgent.html)、`/?page=ragent` 嵌入 [`/rule-agent`](public/ruleAgent.html)、`/?page=ucfg` 嵌入 [`/user-config`](public/userConfig.html)）；`GET /demo`、`GET /agent-dev`、`GET /agent-dev/task-stream`、`GET /dev-agent`、`GET /dev-agent/parent-flow`、`GET /wiki-agent`、`GET /wiki-agent/brainstorm-stories`、`GET /test-agent`、`GET /rule-agent`、`GET /user-config` 分别返回对应独立页面。改界面编辑 `public/index.html`、`public/demo.html`、`public/agentDev.html`、`public/agentDevTaskStream.html`、`public/parentTaskFlow.html`、`public/devAgent.html`、`public/wikiAgent.html`、`public/brainstormStories.html`、`public/testAgent.html`、`public/ruleAgent.html`、`public/userConfig.html` 与 [`src/styles/tailwind.css`](src/styles/tailwind.css)（如 `.form-select`），交付前执行 **`npm run build`**（含 `build:css`）。本地改样式时可并行运行 **`npm run dev:css`**（监听生成 `public/app.css`）与 **`npm run dev`**。静态资源由 `public/` 经 `@fastify/static` 挂载（如 `/app.css`）。
 
