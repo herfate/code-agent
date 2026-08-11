@@ -36,28 +36,50 @@
     <div id="ra-view-tasks" class="hidden flex min-h-0 flex-1 flex-col gap-4">
     <section class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
       <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
-        <div class="lg:col-span-3">
-          <label class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            7 知识沉淀 · 8 代码规范 · 9 业务知识
+      <div class="flex flex-nowrap items-end gap-3 overflow-x-auto">
+        <div class="w-72 shrink-0">
+          <label id="ra-taskType-label" for="ra-taskType-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
+          <div id="ra-taskType-root" class="ui-multiselect relative min-w-0">
+            <input type="hidden" id="ra-taskType" value="7,8,9" autocomplete="off" />
+            <div
+              id="ra-taskType-trigger"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="ra-taskType-listbox"
+              aria-labelledby="ra-taskType-label"
+              tabindex="0"
+              class="ui-multiselect-trigger"
+            >
+              <div class="ui-multiselect-tags" aria-live="polite"></div>
+              <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div id="ra-taskType-listbox" role="listbox" aria-multiselectable="true" class="ui-multiselect-list hidden">
+              <label class="ui-multiselect-opt" data-value="7">
+                <input type="checkbox" data-value="7" checked />
+                <span>7 — 知识沉淀</span>
+              </label>
+              <label class="ui-multiselect-opt" data-value="8">
+                <input type="checkbox" data-value="8" checked />
+                <span>8 — 代码规范</span>
+              </label>
+              <label class="ui-multiselect-opt" data-value="9">
+                <input type="checkbox" data-value="9" checked />
+                <span>9 — 业务知识</span>
+              </label>
+            </div>
           </div>
         </div>
-        <div class="lg:col-span-3">
-          <label for="ra-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题包含</label>
-          <input id="ra-title" type="text" placeholder="模糊匹配 title" maxlength="200" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
-        </div>
-        <div class="lg:col-span-3">
+        <div class="w-48 shrink-0">
           <label for="ra-creator" class="mb-1.5 block text-xs font-medium text-slate-600">创建人</label>
           <input id="ra-creator" type="text" placeholder="精确匹配 tasks.creator" maxlength="200" autocomplete="username" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
         </div>
-        <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" id="ra-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增知识沉淀</button>
-            <button type="button" id="ra-btn-new-code-spec" class="shrink-0 whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-500/30">抽取代码规范</button>
-            <button type="button" id="ra-btn-new-biz-core" class="shrink-0 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 shadow-sm transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500/30">抽取业务知识</button>
-            <button type="button" id="ra-btn-query" class="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
-          </div>
+        <div class="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
+          <button type="button" id="ra-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增知识沉淀</button>
+          <button type="button" id="ra-btn-new-code-spec" class="shrink-0 whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-500/30">抽取代码规范</button>
+          <button type="button" id="ra-btn-new-biz-core" class="shrink-0 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 shadow-sm transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500/30">抽取业务知识</button>
+          <button type="button" id="ra-btn-query" class="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
         </div>
       </div>
     </section>
@@ -219,15 +241,17 @@
                 <span>git 地址</span>
               </div>
               <div id="ra-cs-git-list" class="space-y-2"></div>
-              <p class="mt-1.5 text-[11px] text-slate-500">仅填写 1 个仓库及其分支；落盘到 knowledge_base/code-style/&lt;仓库名&gt;/.docs/，index.md 在同级项目目录下。</p>
+              <p class="mt-1.5 text-[11px] text-slate-500">仅填写 1 个仓库及其分支（默认 master）；落盘到 knowledge_base/code-style/&lt;仓库名&gt;/.docs/，index.md 在同级项目目录下。标题提交时自动生成「代码规范 · 日期」。</p>
             </div>
+            <input id="ra-cs-new-title" type="hidden" value="" />
             <div>
-              <label for="ra-cs-new-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题（可选）</label>
-              <input id="ra-cs-new-title" type="text" maxlength="500" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="留空则用「代码规范 · 日期」" />
-            </div>
-            <div>
-              <label for="ra-cs-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明 / 需求 <span class="text-red-500">*</span></label>
-              <textarea id="ra-cs-new-description" rows="4" maxlength="50000" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="写入任务描述与 requirement；可提示使用 extract-code-style skill"></textarea>
+              <div class="mb-1.5 flex items-center justify-between gap-2">
+                <span class="text-xs font-medium text-slate-600">说明 / 需求</span>
+                <button type="button" id="ra-cs-rewrite-prompt" class="rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800">重写提示词</button>
+              </div>
+              <div id="ra-cs-desc-wrap" class="hidden">
+                <textarea id="ra-cs-new-description" rows="3" maxlength="50000" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="任务描述与 requirement"></textarea>
+              </div>
             </div>
             <div class="space-y-4">
               <div>
@@ -277,15 +301,17 @@
                 <span>git 地址</span>
               </div>
               <div id="ra-bc-git-list" class="space-y-2"></div>
-              <p class="mt-1.5 text-[11px] text-slate-500">仅填写 1 个仓库及其分支；落盘到 knowledge_base/business-core/&lt;仓库名&gt;/.docs/，index.md 在同级项目目录下。</p>
+              <p class="mt-1.5 text-[11px] text-slate-500">仅填写 1 个仓库及其分支（默认 master）；落盘到 knowledge_base/business-core/&lt;仓库名&gt;/.docs/，index.md 在同级项目目录下。标题提交时自动生成「业务知识 · 日期」。</p>
             </div>
+            <input id="ra-bc-new-title" type="hidden" value="" />
             <div>
-              <label for="ra-bc-new-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题（可选）</label>
-              <input id="ra-bc-new-title" type="text" maxlength="500" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="留空则用「业务知识 · 日期」" />
-            </div>
-            <div>
-              <label for="ra-bc-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明 / 需求 <span class="text-red-500">*</span></label>
-              <textarea id="ra-bc-new-description" rows="4" maxlength="50000" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="写入任务描述与 requirement；可提示使用 extract-business-core skill"></textarea>
+              <div class="mb-1.5 flex items-center justify-between gap-2">
+                <span class="text-xs font-medium text-slate-600">说明 / 需求</span>
+                <button type="button" id="ra-bc-rewrite-prompt" class="rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800">重写提示词</button>
+              </div>
+              <div id="ra-bc-desc-wrap" class="hidden">
+                <textarea id="ra-bc-new-description" rows="3" maxlength="50000" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="任务描述与 requirement"></textarea>
+              </div>
             </div>
             <div class="space-y-4">
               <div>
@@ -521,12 +547,18 @@
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/js/ui-combobox.js"></script>
+  <script src="/js/ui-multiselect.js"></script>
   <script>
     (function () {
       var PARENT_TASK_TYPE = 7;
       var CODE_SPEC_PARENT_TASK_TYPE = 8;
       var BUSINESS_CORE_PARENT_TASK_TYPE = 9;
       var LIST_TASK_TYPES = "7,8,9";
+      var raQueryTaskTypeLabels = {
+        "7": "知识沉淀",
+        "8": "代码规范",
+        "9": "业务知识",
+      };
       /** 子任务类型：生成业务知识 / 生成代码规范 */
       var TASK_TYPE_PERSIST_MEMORY = 13;
       var TASK_TYPE_GEN_CODE_SPEC = 14;
@@ -738,14 +770,13 @@
         if (resetPage) raPage = 1;
         errEl.classList.add("hidden");
         errEl.textContent = "";
-        var title = document.getElementById("ra-title").value.trim();
         var creator = document.getElementById("ra-creator").value.trim();
         var pageSize = Number(document.getElementById("ra-page-size").value) || 20;
         var qs = new URLSearchParams();
-        qs.set("task_types", LIST_TASK_TYPES);
+        var taskTypes = document.getElementById("ra-taskType").value.trim() || LIST_TASK_TYPES;
+        qs.set("task_types", taskTypes);
         qs.set("page", String(raPage));
         qs.set("limit", String(pageSize));
-        if (title) qs.set("title", title);
         if (creator) qs.set("creator", creator);
 
         fetch(raBase() + "/api/parent-tasks?" + qs.toString())
@@ -1932,6 +1963,10 @@
         }
       });
 
+      window.UiMultiselect.attach(document.getElementById("ra-taskType-root"), {
+        labelMap: raQueryTaskTypeLabels,
+        emptyLabel: "全部类型",
+      });
       window.UiCombobox.attach(document.getElementById("ra-page-size-root"), {
         onChange: function () {
           if (raQueried) runQuery(true);
@@ -2247,6 +2282,10 @@
       var csModalForm = document.getElementById("ra-cs-modal-form");
       var csModalSubmit = document.getElementById("ra-cs-modal-submit");
       var csGitListEl = document.getElementById("ra-cs-git-list");
+      /** 打开弹窗时预填的说明 / 需求（默认不展示，点「重写提示词」可编辑） */
+      var CS_DEFAULT_DESCRIPTION = "请分析本仓库代码，使用 extract-code-style skill 抽取代码规范。";
+      var csDescWrap = document.getElementById("ra-cs-desc-wrap");
+      var csDescEl = document.getElementById("ra-cs-new-description");
 
       function normalizeGitRemoteUrl(url) {
         var s = String(url || "").trim();
@@ -2291,12 +2330,12 @@
               return p && (String(p.gitRemoteUrl || "").trim() || String(p.branch_version || "").trim());
             })
           : [];
-        // 代码规范仅支持单仓：取第一项
-        var one = list.length ? list[0] : { gitRemoteUrl: "", branch_version: "" };
+        // 代码规范仅支持单仓：取第一项；分支缺省 master
+        var one = list.length ? list[0] : { gitRemoteUrl: "", branch_version: "master" };
         csGitListEl.appendChild(
           createCsGitRepoRow({
             gitRemoteUrl: normalizeGitRemoteUrl(one.gitRemoteUrl),
-            branch_version: String(one.branch_version || "").trim(),
+            branch_version: String(one.branch_version || "master").trim() || "master",
           }),
         );
       }
@@ -2306,24 +2345,32 @@
         if (rows.length !== 1) {
           return { error: "代码规范任务仅支持填写 1 个代码仓库。" };
         }
-        var branch = rows[0].querySelector(".ra-cs-git-branch").value.trim();
+        var branch = rows[0].querySelector(".ra-cs-git-branch").value.trim() || "master";
         var url = normalizeGitRemoteUrl(rows[0].querySelector(".ra-cs-git-url").value);
-        if (!branch && !url) {
-          return { error: "请填写 git 地址与分支。" };
-        }
-        if (!branch || !url) {
-          return { error: "git 地址与分支需成对填写。" };
+        if (!url) {
+          return { error: "请填写 git 地址。" };
         }
         return { repos: [{ gitRemoteUrl: url, branch_version: branch }] };
+      }
+
+      function resetCsDescEditor() {
+        csDescEl.value = CS_DEFAULT_DESCRIPTION;
+        csDescWrap.classList.add("hidden");
+      }
+
+      function openCsDescEditor() {
+        if (!csDescEl.value.trim()) csDescEl.value = CS_DEFAULT_DESCRIPTION;
+        csDescWrap.classList.remove("hidden");
+        csDescEl.focus();
       }
 
       function openCsModal() {
         setCsModalError("");
         document.getElementById("ra-cs-new-title").value = "";
-        document.getElementById("ra-cs-new-description").value = "";
+        resetCsDescEditor();
         document.getElementById("ra-cs-new-parallel").checked = false;
         if (csProviderCombo) csProviderCombo.setValue("claude");
-        setCsGitRepos([{ gitRemoteUrl: "", branch_version: "" }]);
+        setCsGitRepos([{ gitRemoteUrl: "", branch_version: "master" }]);
         csModalRoot.classList.remove("hidden");
         csModalRoot.classList.remove("pointer-events-none");
       }
@@ -2336,6 +2383,7 @@
 
       document.getElementById("ra-btn-new-code-spec").addEventListener("click", openCsModal);
       document.getElementById("ra-cs-modal-cancel").addEventListener("click", closeCsModal);
+      document.getElementById("ra-cs-rewrite-prompt").addEventListener("click", openCsDescEditor);
       document.getElementById("ra-cs-modal-backdrop").addEventListener("click", function (ev) {
         if (ev.target === document.getElementById("ra-cs-modal-backdrop")) closeCsModal();
       });
@@ -2359,11 +2407,7 @@
           return;
         }
         setCsGitRepos(gitRepos);
-        var description = document.getElementById("ra-cs-new-description").value.trim();
-        if (!description) {
-          setCsModalError("请填写说明 / 需求");
-          return;
-        }
+        var description = csDescEl.value.trim() || CS_DEFAULT_DESCRIPTION;
         var title = document.getElementById("ra-cs-new-title").value.trim();
         if (!title) title = "代码规范 · " + localDateYmd();
         var provider = document.getElementById("ra-cs-new-provider").value.trim() || "claude";
@@ -2430,6 +2474,10 @@
       var bcModalForm = document.getElementById("ra-bc-modal-form");
       var bcModalSubmit = document.getElementById("ra-bc-modal-submit");
       var bcGitListEl = document.getElementById("ra-bc-git-list");
+      /** 打开弹窗时预填的说明 / 需求（默认不展示，点「重写提示词」可编辑） */
+      var BC_DEFAULT_DESCRIPTION = "请分析本仓库代码，使用 extract-business-core skill 抽取业务核心知识。";
+      var bcDescWrap = document.getElementById("ra-bc-desc-wrap");
+      var bcDescEl = document.getElementById("ra-bc-new-description");
 
       function setBcModalError(msg) {
         if (!msg) {
@@ -2468,11 +2516,12 @@
               return p && (String(p.gitRemoteUrl || "").trim() || String(p.branch_version || "").trim());
             })
           : [];
-        var one = list.length ? list[0] : { gitRemoteUrl: "", branch_version: "" };
+        // 业务知识仅支持单仓：取第一项；分支缺省 master
+        var one = list.length ? list[0] : { gitRemoteUrl: "", branch_version: "master" };
         bcGitListEl.appendChild(
           createBcGitRepoRow({
             gitRemoteUrl: normalizeGitRemoteUrl(one.gitRemoteUrl),
-            branch_version: String(one.branch_version || "").trim(),
+            branch_version: String(one.branch_version || "master").trim() || "master",
           }),
         );
       }
@@ -2482,24 +2531,32 @@
         if (rows.length !== 1) {
           return { error: "业务知识任务仅支持填写 1 个代码仓库。" };
         }
-        var branch = rows[0].querySelector(".ra-bc-git-branch").value.trim();
+        var branch = rows[0].querySelector(".ra-bc-git-branch").value.trim() || "master";
         var url = normalizeGitRemoteUrl(rows[0].querySelector(".ra-bc-git-url").value);
-        if (!branch && !url) {
-          return { error: "请填写 git 地址与分支。" };
-        }
-        if (!branch || !url) {
-          return { error: "git 地址与分支需成对填写。" };
+        if (!url) {
+          return { error: "请填写 git 地址。" };
         }
         return { repos: [{ gitRemoteUrl: url, branch_version: branch }] };
+      }
+
+      function resetBcDescEditor() {
+        bcDescEl.value = BC_DEFAULT_DESCRIPTION;
+        bcDescWrap.classList.add("hidden");
+      }
+
+      function openBcDescEditor() {
+        if (!bcDescEl.value.trim()) bcDescEl.value = BC_DEFAULT_DESCRIPTION;
+        bcDescWrap.classList.remove("hidden");
+        bcDescEl.focus();
       }
 
       function openBcModal() {
         setBcModalError("");
         document.getElementById("ra-bc-new-title").value = "";
-        document.getElementById("ra-bc-new-description").value = "";
+        resetBcDescEditor();
         document.getElementById("ra-bc-new-parallel").checked = false;
         if (bcProviderCombo) bcProviderCombo.setValue("claude");
-        setBcGitRepos([{ gitRemoteUrl: "", branch_version: "" }]);
+        setBcGitRepos([{ gitRemoteUrl: "", branch_version: "master" }]);
         bcModalRoot.classList.remove("hidden");
         bcModalRoot.classList.remove("pointer-events-none");
       }
@@ -2512,6 +2569,7 @@
 
       document.getElementById("ra-btn-new-biz-core").addEventListener("click", openBcModal);
       document.getElementById("ra-bc-modal-cancel").addEventListener("click", closeBcModal);
+      document.getElementById("ra-bc-rewrite-prompt").addEventListener("click", openBcDescEditor);
       document.getElementById("ra-bc-modal-backdrop").addEventListener("click", function (ev) {
         if (ev.target === document.getElementById("ra-bc-modal-backdrop")) closeBcModal();
       });
@@ -2535,11 +2593,7 @@
           return;
         }
         setBcGitRepos(gitRepos);
-        var description = document.getElementById("ra-bc-new-description").value.trim();
-        if (!description) {
-          setBcModalError("请填写说明 / 需求");
-          return;
-        }
+        var description = bcDescEl.value.trim() || BC_DEFAULT_DESCRIPTION;
         var title = document.getElementById("ra-bc-new-title").value.trim();
         if (!title) title = "业务知识 · " + localDateYmd();
         var provider = document.getElementById("ra-bc-new-provider").value.trim() || "claude";

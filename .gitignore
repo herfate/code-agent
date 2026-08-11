@@ -11,3 +11,5 @@ confluence_out/
 *.zip
 task-repo/
 code_base/
+knowledge_base/
+wiki_base/
