@@ -174,8 +174,15 @@
     color: #d1fae5;
   }
   .chat-tool-label {
-    @apply mb-1 text-[10px] font-semibold;
+    @apply mb-1 flex items-baseline justify-between gap-2 text-[10px] font-semibold;
     color: #94a3b8;
+  }
+  .chat-tool-label-title {
+    @apply min-w-0 truncate;
+  }
+  .chat-tool-label-time {
+    @apply shrink-0 font-mono font-normal tabular-nums tracking-tight;
+    opacity: 0.85;
   }
   .chat-tool-use .chat-tool-label {
     color: #7dd3fc;

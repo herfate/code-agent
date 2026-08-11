@@ -52,10 +52,10 @@ function emitData(
   data: Record<string, unknown>,
 ): void {
   if (recorder) {
-    const seq = appendAgentRunEvent(recorder.db, recorder.runId, "message", data);
-    safeSse(reply, () => sendSseData(reply, { ...data, seq }));
+    const { seq, created_at } = appendAgentRunEvent(recorder.db, recorder.runId, "message", data);
+    safeSse(reply, () => sendSseData(reply, { ...data, seq, created_at }));
   } else {
-    safeSse(reply, () => sendSseData(reply, data));
+    safeSse(reply, () => sendSseData(reply, { ...data, created_at: Date.now() }));
   }
 }
 
@@ -126,8 +126,10 @@ export async function streamCodexTurnToSse(
 
     assistantText = latestAgentText(seen) || null;
 
-    const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
-    safeSse(reply, () => sendSseDone(reply, doneSeq != null ? { seq: doneSeq } : undefined));
+    const done = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
+    safeSse(reply, () =>
+      sendSseDone(reply, done != null ? { seq: done.seq, created_at: done.created_at } : undefined),
+    );
     if (recorder) {
       finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
     }
@@ -138,8 +140,10 @@ export async function streamCodexTurnToSse(
       appendAgentRunEvent(recorder.db, recorder.runId, "error", { message });
       safeSse(reply, () => sendSseError(reply, message));
       finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: message });
-      const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
-      safeSse(reply, () => sendSseDone(reply, { ok: false, seq: doneSeq }));
+      const doneEv = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
+      safeSse(reply, () =>
+        sendSseDone(reply, { ok: false, seq: doneEv.seq, created_at: doneEv.created_at }),
+      );
     } else {
       safeSse(reply, () => sendSseError(reply, message));
     }

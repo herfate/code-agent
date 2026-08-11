@@ -10,7 +10,7 @@ export const WIKI_CATEGORIES = [
   { id: "8", label: "海外支付" },
   { id: "9", label: "海外中台" },
   { id: "10", label: "电子签名" },
-  { id: "11", label: "零售中台" },
+  { id: "11", label: "税延中台" },
 ] as const;
 
 export type WikiCategoryId = (typeof WIKI_CATEGORIES)[number]["id"];

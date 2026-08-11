@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { TPL_KEY } from "../../constants/tplKey.js";
+import { listPromptTplByTaskTypeAndUser } from "../../db/prompt/listPromptTplByTaskTypeAndUser.js";
 import {
   TASK_STATUS,
   TASK_TYPE,
@@ -10,6 +12,8 @@ import {
   type TaskType,
 } from "../../db/workflow.js";
 import { AppLog } from "../appLogger.js";
+import { firstPromptTplContent } from "../prompt/buildClaimedTaskPrompt.js";
+import { applyInputJsonPlaceholders } from "../prompt/replaceInputJsonPlaceholders.js";
 import { pushFollowUpMessageToTaskMeta } from "../taskFollowUpPrompt.js";
 
 /** 同父任务下已存在的测试案例执行任务数 */
@@ -35,6 +39,70 @@ export function buildTestExecuteRetryFollowUpMessage(passRate: number, summary: 
     "上次测试总结简述（请重点回归）：",
     summary.trim(),
   ].join("\n");
+}
+
+/**
+ * 查询 `tpl_key=10`（TradeMockTpl）提示词；无模板返回 `null`（调用方应跳过复制）。
+ */
+export function resolveTradeMockFollowUpMessage(db: DatabaseSync, task: TaskRow): string | null {
+  const username = task.creator?.trim() ?? "";
+  if (!username) return null;
+  const templates = listPromptTplByTaskTypeAndUser(db, task.task_type, username, {
+    tplKey: TPL_KEY.TradeMockTpl,
+  });
+  const fromDb = firstPromptTplContent(templates);
+  if (!fromDb) return null;
+  return applyInputJsonPlaceholders(fromDb, task.input_json);
+}
+
+/**
+ * 因外部 dubbo 接口阻塞：仅复制新增同父任务下测试执行（followUpMessages 追加 TradeMockTpl 提示）。
+ * 取不到 TradeMockTpl 提示词时不复制，返回 `null`。
+ */
+export function cloneTestExecuteOnExternalDubboBlocked(
+  db: DatabaseSync,
+  parentTaskId: string,
+  executingTaskId: string,
+  followUpMessage?: string,
+): TaskRow | null {
+  const executing = getTask(db, executingTaskId);
+  if (!executing || executing.pid !== parentTaskId) {
+    AppLog.logger.warn(
+      { parentTaskId, executingTaskId },
+      "cloneTestExecuteOnExternalDubboBlocked: executing task not found",
+    );
+    return null;
+  }
+  if (executing.task_type !== TASK_TYPE.TestCaseExecute) {
+    return null;
+  }
+
+  const message = followUpMessage?.trim() || resolveTradeMockFollowUpMessage(db, executing);
+  if (!message) {
+    AppLog.logger.info(
+      { parentTaskId, executingTaskId, taskType: executing.task_type },
+      "cloneTestExecuteOnExternalDubboBlocked: TradeMockTpl prompt missing, skip clone",
+    );
+    return null;
+  }
+
+  const testMetaJson = pushFollowUpMessageToTaskMeta(executing.meta_json, message);
+  const testTask = cloneTaskAsPending(db, executing, {
+    description: executing.description,
+    meta_json: testMetaJson,
+    created_at: executing.created_at + 1,
+  });
+
+  AppLog.logger.info(
+    {
+      parentTaskId,
+      sourceTestTaskId: executing.id,
+      newTestTaskId: testTask.id,
+    },
+    "cloneTestExecuteOnExternalDubboBlocked: cloned test execute task only",
+  );
+
+  return testTask;
 }
 
 /** 复制源任务为 Pending（保留 thread_id 以便续跑） */

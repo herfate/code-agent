@@ -5,12 +5,12 @@ import { endSse, initSse, sendSseData, sendSseDone, sendSseError } from "./helpe
 
 const POLL_MS = 120;
 
-function wirePayload(row: { seq: number; payload_json: string }): Record<string, unknown> {
+function wirePayload(row: { seq: number; payload_json: string; created_at: number }): Record<string, unknown> {
   const parsed: unknown = JSON.parse(row.payload_json);
   if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-    return { ...(parsed as Record<string, unknown>), seq: row.seq };
+    return { ...(parsed as Record<string, unknown>), seq: row.seq, created_at: row.created_at };
   }
-  return { _body: parsed, seq: row.seq };
+  return { _body: parsed, seq: row.seq, created_at: row.created_at };
 }
 
 /**

@@ -45,12 +45,13 @@ export function finishAgentRun(
   );
 }
 
+/** 写入一条 run 事件，返回序号与落库时间（毫秒），供 SSE 一并下发 */
 export function appendAgentRunEvent(
   db: DatabaseSync,
   runId: string,
   eventName: "message" | "done" | "error",
   payload: unknown,
-): number {
+): { seq: number; created_at: number } {
   const now = Date.now();
   const row = db.prepare(`SELECT COALESCE(MAX(seq), 0) AS m FROM agent_run_events WHERE run_id = ?`).get(runId) as {
     m: number;
@@ -59,7 +60,7 @@ export function appendAgentRunEvent(
   db.prepare(
     `INSERT INTO agent_run_events (run_id, seq, event_name, payload_json, created_at) VALUES (?, ?, ?, ?, ?)`,
   ).run(runId, seq, eventName, JSON.stringify(payload), now);
-  return seq;
+  return { seq, created_at: now };
 }
 
 export function listAgentRunEventsAfter(

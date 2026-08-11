@@ -1,11 +1,13 @@
 /**
  * 表 `prompt_tpl.tpl_key` 持久化数值。
- * 1 init 提示词、2 out_tpl、3 follow_up（追加对话）。
+ * 1 init 提示词、2 out_tpl、3 follow_up（追加对话）、10 TradeMockTpl（外部 dubbo 阻塞续跑）。
  */
 export const TPL_KEY = {
   Init: 1,
   OutTpl: 2,
   FollowUp: 3,
+  /** trade-mock 辅助：外部 dubbo 阻塞时测试执行续跑 followUp */
+  TradeMockTpl: 10,
 } as const;
 
 export type TplKey = (typeof TPL_KEY)[keyof typeof TPL_KEY];
@@ -42,6 +44,8 @@ export function tplKeyLabel(code: TplKey | number | string): string {
       return "out_tpl";
     case TPL_KEY.FollowUp:
       return "follow_up";
+    case TPL_KEY.TradeMockTpl:
+      return "TradeMockTpl";
     default:
       return String(code);
   }

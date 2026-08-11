@@ -3,6 +3,30 @@
  * 使用 `window.CursorSseRender.appendEvent(logEl, eventName, payload)`。
  */
 (function (global) {
+  /** 毫秒时间戳 → yyyy-MM-dd HH:mm:ss */
+  function fmtEventTime(ms) {
+    var n = Number(ms);
+    if (!Number.isFinite(n)) return "";
+    var d = new Date(n);
+    if (Number.isNaN(d.getTime())) return "";
+    function pad(v) {
+      return v < 10 ? "0" + v : String(v);
+    }
+    return (
+      d.getFullYear() +
+      "-" +
+      pad(d.getMonth() + 1) +
+      "-" +
+      pad(d.getDate()) +
+      " " +
+      pad(d.getHours()) +
+      ":" +
+      pad(d.getMinutes()) +
+      ":" +
+      pad(d.getSeconds())
+    );
+  }
+
   function prettyJson(value) {
     try {
       return JSON.stringify(value, null, 2);
@@ -48,22 +72,31 @@
     return prettyJson(value);
   }
 
+  /** 工具标签行：左侧标题 + 右侧格式化时间 */
+  function appendToolLabel(wrap, title, createdAt) {
+    var label = el("div", "chat-tool-label");
+    label.appendChild(el("span", "chat-tool-label-title", title));
+    var timeText = fmtEventTime(createdAt);
+    if (timeText) label.appendChild(el("span", "chat-tool-label-time", timeText));
+    wrap.appendChild(label);
+  }
+
   /** 与 Claude 渲染一致：工具调用参数块 */
-  function renderBlockToolUse(bubble, name, input) {
+  function renderBlockToolUse(bubble, name, input, createdAt) {
     var inputBody = formatToolBody(input).trim();
     if (!name && !inputBody) return;
     var wrap = el("div", "chat-tool chat-tool-use");
-    wrap.appendChild(el("div", "chat-tool-label", "调用 · " + (name || "工具")));
+    appendToolLabel(wrap, "调用 · " + (name || "工具"), createdAt);
     if (inputBody) appendScrollPre(wrap, inputBody);
     bubble.appendChild(wrap);
   }
 
   /** 与 Claude 渲染一致：工具结果块（可滚动收敛） */
-  function renderBlockToolResult(bubble, result, isError) {
+  function renderBlockToolResult(bubble, result, isError, createdAt) {
     var resultBody = formatToolBody(result).trim();
     if (!resultBody) return;
     var wrap = el("div", "chat-tool" + (isError ? " chat-tool-error" : " chat-tool-result"));
-    wrap.appendChild(el("div", "chat-tool-label", isError ? "工具错误" : "工具结果"));
+    appendToolLabel(wrap, isError ? "工具错误" : "工具结果", createdAt);
     appendScrollPre(wrap, resultBody);
     bubble.appendChild(wrap);
   }
@@ -79,9 +112,10 @@
       .join("\n");
   }
 
-  function renderCursorPayload(logEl, inner) {
+  function renderCursorPayload(logEl, inner, createdAt) {
     if (!inner || typeof inner !== "object") return;
     var type = inner.type != null ? String(inner.type) : "unknown";
+    var at = createdAt != null ? createdAt : inner.created_at;
 
     if (type === "assistant") {
       var turn = createTurn("assistant");
@@ -107,13 +141,13 @@
     if (type === "tool_call") {
       var toolTurn = createTurn("assistant");
       var toolName = inner.name != null ? String(inner.name).trim() : "";
-      if (inner.args != null) renderBlockToolUse(toolTurn.bubble, toolName, inner.args);
+      if (inner.args != null) renderBlockToolUse(toolTurn.bubble, toolName, inner.args, at);
       if (inner.result != null) {
         var toolFailed = inner.status === "error" || inner.is_error === true;
-        renderBlockToolResult(toolTurn.bubble, inner.result, toolFailed);
+        renderBlockToolResult(toolTurn.bubble, inner.result, toolFailed, at);
       }
       if (toolTurn.bubble.childNodes.length === 0) {
-        renderBlockToolUse(toolTurn.bubble, toolName || "工具", null);
+        renderBlockToolUse(toolTurn.bubble, toolName || "工具", null, at);
       }
       mountTurn(logEl, toolTurn);
       return;
@@ -176,12 +210,14 @@
 
     if (payload && payload.type === "meta") return;
 
+    var createdAt =
+      payload && payload.created_at != null ? payload.created_at : Date.now();
     var inner = payload;
     if (payload && payload.channel === "cursor" && payload.payload != null) {
       inner = payload.payload;
     }
 
-    renderCursorPayload(logEl, inner);
+    renderCursorPayload(logEl, inner, createdAt);
   }
 
   function clearLog(logEl) {

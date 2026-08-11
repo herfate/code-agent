@@ -123,10 +123,10 @@ function emitData(
   data: Record<string, unknown>,
 ): void {
   if (recorder) {
-    const seq = appendAgentRunEvent(recorder.db, recorder.runId, "message", data);
-    safeSse(reply, (r) => sendSseData(r, { ...data, seq }));
+    const { seq, created_at } = appendAgentRunEvent(recorder.db, recorder.runId, "message", data);
+    safeSse(reply, (r) => sendSseData(r, { ...data, seq, created_at }));
   } else {
-    safeSse(reply, (r) => sendSseData(r, data));
+    safeSse(reply, (r) => sendSseData(r, { ...data, created_at: Date.now() }));
   }
 }
 
@@ -201,8 +201,8 @@ function finishCursorRunCancelled(
     appendAgentRunEvent(recorder.db, recorder.runId, "error", { message: "cancelled" });
     safeSse(reply, (r) => sendSseError(r, "cancelled"));
     finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: "cancelled" });
-    const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
-    safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: doneSeq }));
+    const done = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
+    safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: done.seq, created_at: done.created_at }));
   } else {
     safeSse(reply, (r) => sendSseError(r, "cancelled"));
   }
@@ -289,8 +289,10 @@ export async function streamCursorQueryToSse(
       sdkError = "cancelled";
       finishCursorRunCancelled(reply, recorder);
     } else {
-      const doneSeq = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
-      safeSse(reply, (r) => sendSseDone(r, doneSeq != null ? { seq: doneSeq } : undefined));
+      const done = recorder ? appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: true }) : null;
+      safeSse(reply, (r) =>
+        sendSseDone(r, done != null ? { seq: done.seq, created_at: done.created_at } : undefined),
+      );
       if (recorder) {
         finishAgentRun(recorder.db, recorder.runId, { status: "completed" });
       }
@@ -307,8 +309,8 @@ export async function streamCursorQueryToSse(
       appendAgentRunEvent(recorder.db, recorder.runId, "error", { message });
       safeSse(reply, (r) => sendSseError(r, message));
       finishAgentRun(recorder.db, recorder.runId, { status: "failed", error_message: message });
-      const doneSeq = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
-      safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: doneSeq }));
+      const done = appendAgentRunEvent(recorder.db, recorder.runId, "done", { ok: false });
+      safeSse(reply, (r) => sendSseDone(r, { ok: false, seq: done.seq, created_at: done.created_at }));
     } else {
       safeSse(reply, (r) => sendSseError(r, message));
     }

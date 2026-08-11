@@ -3,6 +3,30 @@
  * 使用 `window.ClaudeSseRender.appendEvent(logEl, eventName, payload)`。
  */
 (function (global) {
+  /** 毫秒时间戳 → yyyy-MM-dd HH:mm:ss */
+  function fmtEventTime(ms) {
+    var n = Number(ms);
+    if (!Number.isFinite(n)) return "";
+    var d = new Date(n);
+    if (Number.isNaN(d.getTime())) return "";
+    function pad(v) {
+      return v < 10 ? "0" + v : String(v);
+    }
+    return (
+      d.getFullYear() +
+      "-" +
+      pad(d.getMonth() + 1) +
+      "-" +
+      pad(d.getDate()) +
+      " " +
+      pad(d.getHours()) +
+      ":" +
+      pad(d.getMinutes()) +
+      ":" +
+      pad(d.getSeconds())
+    );
+  }
+
   function prettyJson(value) {
     try {
       return JSON.stringify(value, null, 2);
@@ -109,33 +133,42 @@
     bubble.appendChild(wrap);
   }
 
-  function renderBlockToolUse(bubble, block) {
+  /** 工具标签行：左侧标题 + 右侧格式化时间 */
+  function appendToolLabel(wrap, title, createdAt) {
+    var label = el("div", "chat-tool-label");
+    label.appendChild(el("span", "chat-tool-label-title", title));
+    var timeText = fmtEventTime(createdAt);
+    if (timeText) label.appendChild(el("span", "chat-tool-label-time", timeText));
+    wrap.appendChild(label);
+  }
+
+  function renderBlockToolUse(bubble, block, createdAt) {
     var name = block.name != null ? String(block.name).trim() : "";
     var inputBody = block.input != null ? prettyJson(block.input).trim() : "";
     if (!name && !inputBody) return;
     var wrap = el("div", "chat-tool chat-tool-use");
-    wrap.appendChild(el("div", "chat-tool-label", "调用 · " + (name || "工具")));
+    appendToolLabel(wrap, "调用 · " + (name || "工具"), createdAt);
     if (inputBody) appendScrollPre(wrap, inputBody);
     bubble.appendChild(wrap);
   }
 
-  function renderBlockToolResult(bubble, block) {
+  function renderBlockToolResult(bubble, block, createdAt) {
     var resultBody = toolResultBody(block).trim();
     if (!resultBody) return;
     var wrap = el("div", "chat-tool" + (block.is_error ? " chat-tool-error" : " chat-tool-result"));
-    wrap.appendChild(el("div", "chat-tool-label", block.is_error ? "工具错误" : "工具结果"));
+    appendToolLabel(wrap, block.is_error ? "工具错误" : "工具结果", createdAt);
     appendScrollPre(wrap, resultBody);
     bubble.appendChild(wrap);
   }
 
-  function renderBlockUnknown(bubble, block) {
+  function renderBlockUnknown(bubble, block, createdAt) {
     var body = thinkingText(block).trim() || textOf(block).trim();
     if (body) {
       appendTextPart(bubble, body);
       return;
     }
     if (block && typeof block === "object" && block.input != null) {
-      renderBlockToolUse(bubble, block);
+      renderBlockToolUse(bubble, block, createdAt);
     }
   }
 
@@ -174,41 +207,49 @@
     return role;
   }
 
-  function renderToolUseResultValue(bubble, value, isError) {
+  function renderToolUseResultValue(bubble, value, isError, createdAt) {
     if (value == null) return;
     if (typeof value === "string") {
-      renderBlockToolResult(bubble, { type: "tool_result", content: value, is_error: isError });
+      renderBlockToolResult(bubble, { type: "tool_result", content: value, is_error: isError }, createdAt);
       return;
     }
     if (typeof value === "object") {
       if (value.type === "tool_result") {
-        renderBlockToolResult(bubble, value);
+        renderBlockToolResult(bubble, value, createdAt);
         return;
       }
       if (value.content !== undefined) {
-        renderBlockToolResult(bubble, {
-          type: "tool_result",
-          content: value.content,
-          is_error: isError || value.is_error,
-        });
+        renderBlockToolResult(
+          bubble,
+          {
+            type: "tool_result",
+            content: value.content,
+            is_error: isError || value.is_error,
+          },
+          createdAt,
+        );
         return;
       }
       var asText = textOf(value);
       if (!asText) asText = prettyJson(value);
       if (asText.trim()) {
-        renderBlockToolResult(bubble, { type: "tool_result", content: asText, is_error: isError });
+        renderBlockToolResult(
+          bubble,
+          { type: "tool_result", content: asText, is_error: isError },
+          createdAt,
+        );
       }
     }
   }
 
-  function renderContentBlocks(bubble, content) {
+  function renderContentBlocks(bubble, content, createdAt) {
     if (content == null) return;
     if (typeof content === "string") {
       renderBlockText(bubble, { type: "text", text: content });
       return;
     }
     if (!Array.isArray(content)) {
-      renderBlockUnknown(bubble, content);
+      renderBlockUnknown(bubble, content, createdAt);
       return;
     }
     content.forEach(function (block) {
@@ -227,40 +268,41 @@
         return;
       }
       if (type === "tool_use") {
-        renderBlockToolUse(bubble, block);
+        renderBlockToolUse(bubble, block, createdAt);
         return;
       }
       if (type === "tool_result") {
-        renderBlockToolResult(bubble, block);
+        renderBlockToolResult(bubble, block, createdAt);
         return;
       }
-      renderBlockUnknown(bubble, block);
+      renderBlockUnknown(bubble, block, createdAt);
     });
   }
 
-  function renderMessageTurn(logEl, role, sdkEnvelope) {
+  function renderMessageTurn(logEl, role, sdkEnvelope, createdAt) {
     if (!sdkEnvelope || typeof sdkEnvelope !== "object") return;
     var turn = createTurn(resolveTurnRole(role, sdkEnvelope));
     var body = resolveAnthropicBody(sdkEnvelope);
     if (body) {
       if (body.content !== undefined) {
-        renderContentBlocks(turn.bubble, body.content);
+        renderContentBlocks(turn.bubble, body.content, createdAt);
       } else if (typeof body.text === "string") {
         renderBlockText(turn.bubble, { type: "text", text: body.text });
       }
     }
     if (sdkEnvelope.tool_use_result !== undefined && sdkEnvelope.tool_use_result !== null) {
-      renderToolUseResultValue(turn.bubble, sdkEnvelope.tool_use_result, false);
+      renderToolUseResultValue(turn.bubble, sdkEnvelope.tool_use_result, false, createdAt);
     }
     mountTurn(logEl, turn);
   }
 
-  function renderClaudePayload(logEl, inner) {
+  function renderClaudePayload(logEl, inner, createdAt) {
     if (!inner || typeof inner !== "object") return;
     var type = inner.type != null ? String(inner.type) : "unknown";
+    var at = createdAt != null ? createdAt : inner.created_at;
 
     if (type === "assistant" || type === "user") {
-      renderMessageTurn(logEl, type, inner.message || inner);
+      renderMessageTurn(logEl, type, inner.message || inner, at);
       return;
     }
 
@@ -290,12 +332,12 @@
       var msg = inner.message;
       var msgType = msg.type != null ? String(msg.type) : "";
       if (msgType === "assistant" || msgType === "user") {
-        renderMessageTurn(logEl, msgType, msg);
+        renderMessageTurn(logEl, msgType, msg, at);
         return;
       }
       var body = resolveAnthropicBody(msg);
       if (body && body.content !== undefined) {
-        renderMessageTurn(logEl, "assistant", msg);
+        renderMessageTurn(logEl, "assistant", msg, at);
       }
     }
   }
@@ -351,12 +393,14 @@
       return;
     }
 
+    var createdAt =
+      payload && payload.created_at != null ? payload.created_at : Date.now();
     var inner = payload;
     if (payload && payload.channel === "claude" && payload.payload != null) {
       inner = payload.payload;
     }
 
-    renderClaudePayload(logEl, inner);
+    renderClaudePayload(logEl, inner, createdAt);
   }
 
   function clearLog(logEl) {
