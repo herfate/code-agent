@@ -55,12 +55,16 @@
 | medium | 主路径清楚但分支不全 |
 | low | 仅目录/命名推断，或大量「未在代码中定位」 |
 
+## 正文标题
+
+- 一级标题固定为 `# 简述`，后接一两句概括；**不要**用与 frontmatter `title` 重复的一级标题
+
 ## 反模式
 
 - 复制 Wiki/需求全文却不对照代码
 - 把代码风格写入 business-core（应走 `extract-code-style`）
 - 单文件超长（宜拆 id）
-- 覆盖 `accepted` 未获 regenerate 授权
+- 覆盖已有文件而未获 regenerate 授权
 - 把猜测写成确定不变量
 
 ## 与知识沉淀任务

@@ -9,9 +9,9 @@ evidence:
 updated: YYYY-MM-DD
 ---
 
-# 命名约定
+# 简述
 
-从本仓库代码与配置抽取。仅当 `status: accepted` 时视为生效规范。
+（一两句概括本类约定要点，勿重复 title）
 
 ## ALWAYS
 

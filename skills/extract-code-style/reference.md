@@ -61,13 +61,17 @@
 
 每条下附 **1 个**短代码摘录（来自本仓库），并在 frontmatter `evidence` 列路径。
 
+## 正文标题
+
+- 一级标题固定为 `# 简述`，后接一两句概括；**不要**用 `# 命名约定` 等与 frontmatter `title` 重复的标题
+
 ## 反模式
 
 - 把通用语言最佳实践整页抄入（Agent 已知）；只写**本仓库特有**或**与默认不同**的约定
 - 把偶发坏味道写成 ALWAYS
 - 单文件塞多类（应拆到上表 id）
-- 覆盖 `status: accepted` 而未获用户 regenerate 授权
+- 覆盖已有文件而未获用户 regenerate 授权
 
 ## 与 Cursor rules / AGENTS.md
 
-本 skill **不**自动写入 `.cursor/rules` 或根 `AGENTS.md`。用户可将 `accepted` 条目人工同步为 rules；若用户另行要求同步，再另开任务。
+本 skill **不**自动写入 `.cursor/rules` 或根 `AGENTS.md`。若用户另行要求同步为 rules，再另开任务。

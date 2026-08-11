@@ -10,9 +10,9 @@ evidence:
 updated: YYYY-MM-DD
 ---
 
-# 示例子系统
+# 简述
 
-从本仓库代码抽取。仅当 `status: accepted` 时视为生效业务知识。
+（一两句概括本子系统/用例职责与边界，勿重复 title）
 
 ## 职责与边界
 

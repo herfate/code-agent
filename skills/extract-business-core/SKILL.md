@@ -10,7 +10,7 @@ description: >-
 
 # 业务核心抽取
 
-从当前工作区（或用户指定的仓库根）抽取**业务核心**知识，按子系统或核心用例拆成独立 Markdown，写入 `knowledge_base/business-core/`。用户通过 frontmatter `status` 选用。
+从当前工作区（或用户指定的仓库根）抽取**业务核心**知识，按子系统或核心用例拆成独立 Markdown，写入 `knowledge_base/business-core/`。
 
 方法论细节见 [reference.md](reference.md)。单文件骨架见 [templates/item.md](templates/item.md)。
 
@@ -54,11 +54,11 @@ description: >-
 ### 3. Artifact（成文落盘）
 
 - 用 [templates/item.md](templates/item.md) 写入 `knowledge_base/business-core/<id>.md`
+- 正文一级标题固定为 **`# 简述`**，下接一两句职责要点（不要写成 `# 示例子系统` 这类与 title 重复的标题）
 - 含：职责、主流程、关键类型/表/接口、坑点、可选 Mermaid
 - `status` 默认 `candidate`；`updated` 用当天日期（YYYY-MM-DD）
 - frontmatter `evidence` 至少 2 个真实相对路径
-- **已存在且 `status: accepted`：默认不覆盖**（除非用户明确要求 regenerate）
-- `rejected`：不擅自改为 `accepted`
+- 已存在文件：默认不覆盖（除非用户明确要求 regenerate）
 
 ### 4. 刷新 INDEX
 
@@ -67,8 +67,7 @@ description: >-
 
 ### 5. 收尾
 
-- 列出候选文件，请用户将要保留的改为 `accepted`，不要的改为 `rejected` 或删除
-- 提醒：仅 `accepted` 视为生效业务知识
+- 列出本次写入/更新的文件路径
 
 ## 仅刷新 INDEX
 
@@ -78,7 +77,8 @@ description: >-
 
 - [ ] 每文件聚焦单一子系统/用例
 - [ ] frontmatter 完整（category: business-core）
+- [ ] 正文以 `# 简述` 开头，且简述非空
 - [ ] 有主流程与至少一处失败/边界说明（代码不可见则标明「未在代码中定位」）
 - [ ] evidence 真实；可选 Mermaid 语法合法
-- [ ] 未覆盖未授权的 `accepted` 文件
+- [ ] 未擅自覆盖已有文件（除非用户要求 regenerate）
 - [ ] INDEX 与磁盘一致

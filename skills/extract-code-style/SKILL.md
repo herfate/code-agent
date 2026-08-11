@@ -9,7 +9,7 @@ description: >-
 
 # 代码规范抽取
 
-从当前工作区（或用户指定的仓库根）抽取**已有**约定，写入 `knowledge_base/code-style/`。一类一文件；用户通过 frontmatter `status` 选用。
+从当前工作区（或用户指定的仓库根）抽取**已有**约定，写入 `knowledge_base/code-style/`。一类一文件。
 
 详细门槛与类别说明见 [reference.md](reference.md)。单文件骨架见 [templates/item.md](templates/item.md)。
 
@@ -56,18 +56,16 @@ description: >-
 
 3. **落盘**
    - 用 [templates/item.md](templates/item.md) 写/更新 `knowledge_base/code-style/<id>.md`
+   - 正文一级标题固定为 **`# 简述`**，下接一两句要点（不要写成 `# 命名约定` 这类与 title 重复的标题）
    - `status` 默认 `candidate`；`updated` 用当天日期（YYYY-MM-DD）
-   - **已存在且 `status: accepted`：默认不覆盖**（除非用户明确要求 regenerate）
-   - 若文件为 `rejected`：不要擅自改成 `accepted`；可跳过或仅在用户要求时更新正文并保持 `rejected`
+   - 已存在文件：默认不覆盖（除非用户明确要求 regenerate）
 
 4. **刷新 INDEX**
    - 扫描 `knowledge_base/code-style/*.md` 与 `knowledge_base/business-core/*.md` 的 frontmatter
    - 重写 `knowledge_base/INDEX.md` 表格（列：id、title、category、status、path）
 
 5. **收尾**
-   - 向用户列出本次候选文件路径与 status
-   - 请用户把要保留的改为 `accepted`，不要的改为 `rejected` 或删除文件
-   - 提醒：仅 `accepted` 视为生效规范
+   - 向用户列出本次写入/更新的文件路径
 
 ## 仅刷新 INDEX
 
@@ -76,7 +74,8 @@ description: >-
 ## 质量检查
 
 - [ ] 每份文件有完整 frontmatter（含 category: code-style）
+- [ ] 正文以 `# 简述` 开头，且简述非空
 - [ ] 规则为祈使句，含 ALWAYS/NEVER/PREFERRED 至少一类
 - [ ] evidence 指向真实相对路径
-- [ ] 未覆盖未授权的 `accepted` 文件
+- [ ] 未擅自覆盖已有文件（除非用户要求 regenerate）
 - [ ] INDEX 与磁盘文件一致
