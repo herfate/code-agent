@@ -25,7 +25,7 @@ export const TASK_TYPE = {
   AiStorySplit: 11,
   /** UI 测试执行 */
   UiTestExecute: 12,
-  /** 生成业务知识（原「沉淀记忆」） */
+  /** 生成业务知识（原「知识沉淀」） */
   PersistMemory: 13,
   /** 生成代码规范 */
   GenCodeSpec: 14,

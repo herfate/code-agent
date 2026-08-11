@@ -14,7 +14,7 @@ npm install
 copy .env.example .env   # Windows；Linux/macOS: cp .env.example .env
 ```
 
-编辑 `.env`：至少配置 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 与/或 `CURSOR_API_KEY`。若 Codex CLI 不在 `PATH` 上，设置 `CODEX_PATH` 为 `codex` 可执行文件的绝对路径（`@openai/codex-sdk` 会拉起 Codex 子进程）。定时任务默认可通过 `TASK_AGENT_PROVIDER=claude|cursor` 选择 Agent SDK（默认 `claude`）。Wiki Confluence 每日定时同步默认每天 **01:00**（本地时区）执行，仅同步已配置 Confluence 地址的业务分类；设置 `WIKI_SYNC_CREATE_PERSIST_MEMORY=true` 时，每个分类 Confluence 同步成功后会自动新建父任务类型 **7**（沉淀记忆 Agent，创建人 `wiki-sync`，子任务 13 生成业务知识 → 14 生成代码规范 → 15 生成测试规范；默认关闭）；设置 `WIKI_SYNC_DAILY_HOUR=-1` 可关闭同步。
+编辑 `.env`：至少配置 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 与/或 `CURSOR_API_KEY`。若 Codex CLI 不在 `PATH` 上，设置 `CODEX_PATH` 为 `codex` 可执行文件的绝对路径（`@openai/codex-sdk` 会拉起 Codex 子进程）。定时任务默认可通过 `TASK_AGENT_PROVIDER=claude|cursor` 选择 Agent SDK（默认 `claude`）。Wiki Confluence 每日定时同步默认每天 **01:00**（本地时区）执行，仅同步已配置 Confluence 地址的业务分类；设置 `WIKI_SYNC_CREATE_PERSIST_MEMORY=true` 时，每个分类 Confluence 同步成功后会自动新建父任务类型 **7**（知识沉淀 Agent，创建人 `wiki-sync`，子任务 13 生成业务知识 → 14 生成代码规范 → 15 生成测试规范；默认关闭）；设置 `WIKI_SYNC_DAILY_HOUR=-1` 可关闭同步。
 
 ```bash
 npm run dev              # 开发：tsx watch
@@ -60,7 +60,7 @@ npm run build && npm start
 | `POST` | `/api/export/test-case-design-excel` | 将功能测试用例设计 JSON 内容直转 `.xlsx`；JSON 请求体 `{ content: string, filename?: string }`；格式不符 **400** |
 | `GET` | `/api/parent-tasks/:pid/brainstorm-stories` | 业务 Agent 头脑风暴故事列表：按 `task_id` 读取 `ai_out/<pid>/10/<taskId>/` 并解析 `design.md` 澄清摘要；响应 `{ pid, stories: [{ task_id, title, description, status, created_at, ai_out?, clarification? }] }` |
 | `POST` | `/api/parent-tasks/:pid/brainstorm-stories/summarize-title` | 头脑风暴故事 AI 汇总标题；JSON `{ task_id, source_text }`；响应 `{ pid, task_id, summary_title }` |
-| `POST` | `/api/parent-tasks` | 新增父任务并编排：写 `parent_task` / `init` 参数（`branch_version`、可选 `gitRemoteUrl`、`testEnv`、`provider`：`claude` \| `cursor`，省略时用 `TASK_AGENT_PROVIDER`）→ 按 `task_type` 创建子任务流水线（`tasks.pid` = 父任务 pid）：**1** 开发自测（设计→…→测试环境发布→Code Review→…→测试案例执行）、**2** 开发自Review（设计→开发→测试环境发布→Code Review）、**7** 沉淀记忆（生成业务知识→生成代码规范→生成测试规范）；JSON 必填 `creator`（写入各 `tasks.creator`，HTTPS 克隆用户名），`pid` 可省略（自动为表中数值型 pid 的 max+1），`task_type` 默认 **1**，另可含 `app`、`requirement`；响应含 `parent_task`、`parent_task_params`、`tasks`、`task` |
+| `POST` | `/api/parent-tasks` | 新增父任务并编排：写 `parent_task` / `init` 参数（`branch_version`、可选 `gitRemoteUrl`、`testEnv`、`provider`：`claude` \| `cursor`，省略时用 `TASK_AGENT_PROVIDER`）→ 按 `task_type` 创建子任务流水线（`tasks.pid` = 父任务 pid）：**1** 开发自测（设计→…→测试环境发布→Code Review→…→测试案例执行）、**2** 开发自Review（设计→开发→测试环境发布→Code Review）、**7** 知识沉淀（生成业务知识→生成代码规范→生成测试规范）；JSON 必填 `creator`（写入各 `tasks.creator`，HTTPS 克隆用户名），`pid` 可省略（自动为表中数值型 pid 的 max+1），`task_type` 默认 **1**，另可含 `app`、`requirement`；响应含 `parent_task`、`parent_task_params`、`tasks`、`task` |
 | `GET` | `/api/system-config` | 系统配置列表（表 `system_config`）；可选：`scope`（`global` \| `user`）、`username`（与 `scope=user` 或单独填写时筛选该用户）、`config_key`（键名子串模糊匹配）、`limit`（1–500，默认 200） |
 | `GET` | `/api/user-config/gitlab-token` | 读取用户 GitLab Token 配置状态；查询参数 `username`（必填）；响应 `{ username, configured, token_masked?, updated_at? }`（不下发完整 token） |
 | `PUT` | `/api/user-config/gitlab-token` | 保存或清除用户 GitLab Token；JSON：`{ "username": string, "gitlab_token"?: string }`（`gitlab_token` 留空则删除该用户配置）；响应同上 |

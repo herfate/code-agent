@@ -8,7 +8,7 @@ import { AppLog } from "../appLogger.js";
 import { createParentTaskWorkflow } from "../create/task/parentTaskCreateService.js";
 import type { WikiCategorySyncResult } from "./wikiSyncService.js";
 
-/** 定时同步自动创建沉淀记忆任务时的固定创建人 */
+/** 定时同步自动创建知识沉淀任务时的固定创建人 */
 export const WIKI_SYNC_PERSIST_MEMORY_CREATOR = "wiki-sync";
 
 /** 本地日期 YYYY-MM-DD（用于标题） */
@@ -20,7 +20,7 @@ function localDateYmd(d = new Date()): string {
 }
 
 /**
- * Confluence 同步成功后：若存在非 skip 的文档源，则新建父任务类型 7（沉淀记忆 Agent）。
+ * Confluence 同步成功后：若存在非 skip 的文档源，则新建父任务类型 7（知识沉淀 Agent）。
  * 创建失败只记日志，由调用方决定是否继续后续同步。
  */
 export function createPersistMemoryParentTaskAfterConfluenceSync(
@@ -40,7 +40,7 @@ export function createPersistMemoryParentTaskAfterConfluenceSync(
   const label = getWikiCategoryLabel(categoryId) ?? categoryId;
   const wikiMarker = `wiki_base/${categoryId}/`;
   const dateStr = localDateYmd();
-  const title = `${label} · 沉淀记忆 · ${dateStr}`;
+  const title = `${label} · 知识沉淀 · ${dateStr}`;
   const requirement =
     `请根据已同步的 Confluence 文档（目录 ${wikiMarker}）依次完成：` +
     `生成业务知识、生成代码规范、生成测试规范。` +

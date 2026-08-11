@@ -25,14 +25,14 @@ function msUntilNextDailyRun(hour: number, minute: number): number {
  * 每日定时同步 Wiki：Confluence 文档 → `wiki_base`，代码库 → `code_base`。
  * 仅处理至少配置了一条 Confluence 或代码库地址的业务分类。
  * 当 `createPersistMemory` 为 true 时，每个分类 Confluence 同步成功后若存在有效文档源，
- * 则自动创建沉淀记忆父任务（类型 7：生成业务知识 → 生成代码规范 → 生成测试规范）。
+ * 则自动创建知识沉淀父任务（类型 7：生成业务知识 → 生成代码规范 → 生成测试规范）。
  * `hour === -1` 时不启动。
  */
 export function startWikiSyncScheduler(opts: {
   db: DatabaseSync;
   hour: number;
   minute?: number;
-  /** 是否在 Confluence 同步后创建沉淀记忆父任务；默认 false */
+  /** 是否在 Confluence 同步后创建知识沉淀父任务；默认 false */
   createPersistMemory?: boolean;
 }): WikiSyncSchedulerHandle | null {
   const { db, hour, minute = 0, createPersistMemory = false } = opts;
@@ -85,7 +85,7 @@ export function startWikiSyncScheduler(opts: {
             "wiki sync scheduler category confluence done",
           );
           if (createPersistMemory) {
-            // Confluence 同步成功后按分类新建沉淀记忆父任务（类型 7）
+            // Confluence 同步成功后按分类新建知识沉淀父任务（类型 7）
             tryCreatePersistMemoryParentTaskAfterConfluenceSync(db, confluence);
           }
         } catch (e) {

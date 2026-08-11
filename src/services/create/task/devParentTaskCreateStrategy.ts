@@ -76,7 +76,7 @@ export const AUTO_TEST_WORKFLOW_TASK_TYPES = [
   TASK_TYPE.AutoTestCaseGen,
 ] as const;
 
-/** 沉淀记忆父任务（`parent_task.task_type = 7`）：生成业务知识 → 生成代码规范 → 生成测试规范 */
+/** 知识沉淀父任务（`parent_task.task_type = 7`）：生成业务知识 → 生成代码规范 → 生成测试规范 */
 export const PERSIST_MEMORY_WORKFLOW_TASK_TYPES = [
   TASK_TYPE.PersistMemory,
   TASK_TYPE.GenCodeSpec,
@@ -285,7 +285,7 @@ export function runAutoTestParentTaskWorkflow(
 /** 自动化测试父任务类型（供编排层路由） */
 export const AUTO_TEST_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.AutoTest;
 
-/** 沉淀记忆父任务（`parent_task.task_type = 7`）：生成业务知识 → 生成代码规范 → 生成测试规范 */
+/** 知识沉淀父任务（`parent_task.task_type = 7`）：生成业务知识 → 生成代码规范 → 生成测试规范 */
 export function runPersistMemoryParentTaskWorkflow(
   db: DatabaseSync,
   ctx: DevParentTaskWorkflowContext,
@@ -293,5 +293,5 @@ export function runPersistMemoryParentTaskWorkflow(
   return createWorkflowTasks(db, ctx, PERSIST_MEMORY_WORKFLOW_TASK_TYPES);
 }
 
-/** 沉淀记忆父任务类型（供编排层路由） */
+/** 知识沉淀父任务类型（供编排层路由） */
 export const PERSIST_MEMORY_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.PersistMemory;

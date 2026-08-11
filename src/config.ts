@@ -21,7 +21,7 @@ const envSchema = z.object({
   /** 每日 Wiki 同步分钟（0–59） */
   WIKI_SYNC_DAILY_MINUTE: z.coerce.number().int().min(0).max(59).default(0),
   /**
-   * Confluence 同步成功后是否定时自动创建沉淀记忆父任务（类型 7）；
+   * Confluence 同步成功后是否定时自动创建知识沉淀父任务（类型 7）；
    * 默认关闭；设为 `true` / `1` 开启
    */
   WIKI_SYNC_CREATE_PERSIST_MEMORY: z.preprocess((v) => {
