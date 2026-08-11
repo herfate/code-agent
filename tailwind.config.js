@@ -11,6 +11,7 @@ export default {
     "./public/wikiAgent.html",
     "./public/brainstormStories.html",
     "./public/testAgent.html",
+    "./public/ruleAgent.html",
     "./public/skillPromptConfig.html",
     "./public/js/claude-sse-render.js",
   ],
