@@ -86,6 +86,9 @@ export const PERSIST_MEMORY_WORKFLOW_TASK_TYPES = [
 /** 代码规范父任务（`parent_task.task_type = 8`）：仅生成代码规范 */
 export const CODE_SPEC_WORKFLOW_TASK_TYPES = [TASK_TYPE.GenCodeSpec] as const;
 
+/** 业务知识父任务（`parent_task.task_type = 9`）：仅生成业务知识 */
+export const BUSINESS_CORE_WORKFLOW_TASK_TYPES = [TASK_TYPE.PersistMemory] as const;
+
 export type DevParentTaskWorkflowResult = {
   /** 设计 → 开发 → 测试环境发布 → … → 测试数据分析 → 测试案例执行 */
   tasks: TaskRow[];
@@ -309,3 +312,14 @@ export function runCodeSpecParentTaskWorkflow(
 
 /** 代码规范父任务类型（供编排层路由） */
 export const CODE_SPEC_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.CodeSpec;
+
+/** 业务知识父任务（`parent_task.task_type = 9`）：仅生成业务知识 */
+export function runBusinessCoreParentTaskWorkflow(
+  db: DatabaseSync,
+  ctx: DevParentTaskWorkflowContext,
+): DevParentTaskWorkflowResult {
+  return createWorkflowTasks(db, ctx, BUSINESS_CORE_WORKFLOW_TASK_TYPES);
+}
+
+/** 业务知识父任务类型（供编排层路由） */
+export const BUSINESS_CORE_PARENT_TASK_TYPE = PARENT_AGENT_TYPE.BusinessCore;

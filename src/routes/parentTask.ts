@@ -48,6 +48,7 @@ import { listBrainstormStoriesForPid } from "../services/brainstorm/listBrainsto
 import { readLatestAiOutMarkdown, readAiOutMarkdownByTaskId, listAiOutMarkdownTaskTypes, listAiOutMarkdownFiles, readAiOutFileByRelativePath, writeAiOutFileByRelativePath, readAiOutAsset } from "../services/file/readLatestAiOutMarkdown.js";
 import {
   extractProjectNameFromGitRemoteUrl,
+  KNOWLEDGE_BASE_CATEGORY,
   promoteAiOutDocToKnowledgeBase,
 } from "../services/file/promoteToKnowledgeBase.js";
 import {
@@ -113,10 +114,14 @@ const aiOutFilePutBody = z.object({
   content: z.string().max(5_000_000),
 });
 
-/** 将 ai_out 文档添加到 knowledge_base/code-style/<项目名>/.docs/ */
+/** 将 ai_out 文档添加到 knowledge_base/<category>/<项目名>/.docs/ */
 const promoteKnowledgeBaseBody = z.object({
   task_type: zTaskType,
   path: z.string().trim().min(1).max(1000),
+  /** 省略则默认 code-style；业务知识用 business-core */
+  category: z
+    .enum([KNOWLEDGE_BASE_CATEGORY.CodeStyle, KNOWLEDGE_BASE_CATEGORY.BusinessCore])
+    .optional(),
   /** 省略则从 ai_out 读盘读取 */
   content: z.string().max(5_000_000).optional(),
   overwrite: z.boolean().optional(),
@@ -437,9 +442,10 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
   });
 
   /**
-   * 将 `ai_out` 文档添加到 `knowledge_base/code-style/<项目名>/.docs/`，
-   * 并维护 `knowledge_base/code-style/<项目名>/index.md`（不存在则创建）。
+   * 将 `ai_out` 文档添加到 `knowledge_base/<category>/<项目名>/.docs/`，
+   * 并维护 `knowledge_base/<category>/<项目名>/index.md`（不存在则创建）。
    * 项目名取自父任务 `init.gitRepos` 唯一仓库地址末段。
+   * category 默认 `code-style`；业务知识传 `business-core`。
    */
   app.post("/api/parent-tasks/:pid/knowledge-base/promote", async (request, reply) => {
     const pid = String((request.params as { pid?: string }).pid ?? "").trim();
@@ -453,12 +459,15 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
     if (!getParentTask(db, pid)) {
       return reply.status(404).send({ error: "parent task not found" });
     }
+    const category = parsed.data.category ?? KNOWLEDGE_BASE_CATEGORY.CodeStyle;
+    const categoryLabelZh =
+      category === KNOWLEDGE_BASE_CATEGORY.BusinessCore ? "业务知识" : "代码规范";
     const initRow = getParentTaskParamByParentAndKey(db, pid, PARENT_PARAM_KEY_INIT);
     const init = parseParentTaskInitJson(initRow?.value_json);
     const gitRepos = init.gitRepos ?? [];
     if (gitRepos.length !== 1) {
       return reply.status(400).send({
-        error: "代码规范落盘需要父任务恰好配置 1 个 git 仓库（用于推导项目名）",
+        error: `${categoryLabelZh}落盘需要父任务恰好配置 1 个 git 仓库（用于推导项目名）`,
       });
     }
     const projectName = extractProjectNameFromGitRemoteUrl(gitRepos[0]!.gitRemoteUrl);
@@ -471,6 +480,7 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
         taskType: parsed.data.task_type,
         relativePath: parsed.data.path,
         projectName,
+        category,
         content: parsed.data.content,
         overwrite: parsed.data.overwrite === true,
       });
@@ -479,8 +489,9 @@ export function registerParentTaskRoutes(app: FastifyInstance, deps: { db: Datab
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === "file already exists") {
         return reply.status(409).send({
-          error: "目标规范文档已存在，确认覆盖后重试",
+          error: `目标${categoryLabelZh}文档已存在，确认覆盖后重试`,
           project_name: projectName,
+          category,
         });
       }
       if (msg === "file not found" || msg === "not a file") {

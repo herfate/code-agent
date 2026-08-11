@@ -10,10 +10,11 @@
 <body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
   <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
     <header class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <h1 class="text-sm font-semibold text-slate-800">Rule Agent（知识沉淀 / 代码规范）</h1>
+      <h1 class="text-sm font-semibold text-slate-800">Rule Agent（知识沉淀 / 代码规范 / 业务知识）</h1>
       <p class="mt-0.5 text-xs text-slate-500">
         类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">7</code> 知识沉淀（13→14→15）；
-        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">8</code> 代码规范（仅 14，单仓库）。
+        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">8</code> 代码规范（仅 14，单仓库）；
+        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">9</code> 业务知识（仅 13，单仓库）。
         对接 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET/POST /api/parent-tasks</code>。
       </p>
     </header>
@@ -24,7 +25,7 @@
         <div class="lg:col-span-3">
           <label class="mb-1.5 block text-xs font-medium text-slate-600">任务类型</label>
           <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            7 知识沉淀 · 8 代码规范
+            7 知识沉淀 · 8 代码规范 · 9 业务知识
           </div>
         </div>
         <div class="lg:col-span-3">
@@ -36,9 +37,10 @@
           <input id="ra-creator" type="text" placeholder="精确匹配 tasks.creator" maxlength="200" autocomplete="username" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" />
         </div>
         <div class="flex flex-col justify-end sm:col-span-2 lg:col-span-3">
-          <div class="flex flex-nowrap items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <button type="button" id="ra-btn-new" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">新增知识沉淀</button>
             <button type="button" id="ra-btn-new-code-spec" class="shrink-0 whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 shadow-sm transition hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-500/30">抽取代码规范</button>
+            <button type="button" id="ra-btn-new-biz-core" class="shrink-0 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 shadow-sm transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500/30">抽取业务知识</button>
             <button type="button" id="ra-btn-query" class="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">查询</button>
           </div>
         </div>
@@ -241,6 +243,64 @@
     </div>
   </div>
 
+  <!-- 抽取业务知识弹窗 -->
+  <div id="ra-bc-modal-root" class="pointer-events-none fixed inset-0 z-50 hidden">
+    <div id="ra-bc-modal-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
+      <div id="ra-bc-modal-panel" role="dialog" aria-modal="true" aria-labelledby="ra-bc-modal-title" class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="shrink-0 border-b border-slate-100 px-5 py-4">
+          <h3 id="ra-bc-modal-title" class="text-sm font-semibold text-slate-800">抽取业务知识父任务</h3>
+          <p class="mt-1 text-xs text-slate-500">固定类型 9；仅支持 1 个代码仓库，子任务仅 13 生成业务知识。</p>
+        </div>
+        <form id="ra-bc-modal-form" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <p id="ra-bc-modal-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+            <div>
+              <span class="mb-1.5 block text-xs font-medium text-slate-600">代码库 git 仓库 <span class="text-red-500">*</span></span>
+              <div class="mb-1.5 hidden gap-2 text-[11px] font-medium text-slate-500 sm:grid sm:grid-cols-[minmax(0,8rem)_1fr]">
+                <span>分支</span>
+                <span>git 地址</span>
+              </div>
+              <div id="ra-bc-git-list" class="space-y-2"></div>
+              <p class="mt-1.5 text-[11px] text-slate-500">仅填写 1 个仓库及其分支；落盘到 knowledge_base/business-core/&lt;仓库名&gt;/.docs/，index.md 在同级项目目录下。</p>
+            </div>
+            <div>
+              <label for="ra-bc-new-title" class="mb-1.5 block text-xs font-medium text-slate-600">标题（可选）</label>
+              <input id="ra-bc-new-title" type="text" maxlength="500" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="留空则用「业务知识 · 日期」" />
+            </div>
+            <div>
+              <label for="ra-bc-new-description" class="mb-1.5 block text-xs font-medium text-slate-600">说明 / 需求 <span class="text-red-500">*</span></label>
+              <textarea id="ra-bc-new-description" rows="4" maxlength="50000" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" placeholder="写入任务描述与 requirement；可提示使用 extract-business-core skill"></textarea>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label id="ra-bc-new-provider-label" for="ra-bc-new-provider-trigger" class="mb-1.5 block text-xs font-medium text-slate-600">模型</label>
+                <div id="ra-bc-new-provider-root" class="ui-combobox relative min-w-0">
+                  <input type="hidden" id="ra-bc-new-provider" name="provider" value="claude" autocomplete="off" />
+                  <div id="ra-bc-new-provider-trigger" role="combobox" aria-expanded="false" aria-controls="ra-bc-new-provider-listbox" aria-labelledby="ra-bc-new-provider-label" tabindex="0" class="ui-combobox-trigger">
+                    <span class="ui-combobox-value min-w-0 truncate">claude</span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                  <div id="ra-bc-new-provider-listbox" role="listbox" class="ui-combobox-list ui-combobox-list-raised hidden">
+                    <div role="option" data-value="claude" class="ui-combobox-opt">claude</div>
+                    <div role="option" data-value="cursor" class="ui-combobox-opt">cursor</div>
+                  </div>
+                </div>
+              </div>
+              <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input id="ra-bc-new-parallel" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
+                允许并行调度
+              </label>
+            </div>
+          </div>
+          <div class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+            <button type="button" id="ra-bc-modal-cancel" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">取消</button>
+            <button type="submit" id="ra-bc-modal-submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700">提交</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- 预览：选择 ai_out taskType / 文件列表 -->
   <div id="ra-preview-pick-root" class="pointer-events-none fixed inset-0 z-50 hidden">
     <div id="ra-preview-pick-backdrop" class="pointer-events-auto flex h-full w-full items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]">
@@ -364,7 +424,11 @@
     (function () {
       var PARENT_TASK_TYPE = 7;
       var CODE_SPEC_PARENT_TASK_TYPE = 8;
-      var LIST_TASK_TYPES = "7,8";
+      var BUSINESS_CORE_PARENT_TASK_TYPE = 9;
+      var LIST_TASK_TYPES = "7,8,9";
+      /** 子任务类型：生成业务知识 / 生成代码规范 */
+      var TASK_TYPE_PERSIST_MEMORY = 13;
+      var TASK_TYPE_GEN_CODE_SPEC = 14;
       /** 文档类型区可关联的父任务 Agent 类型 */
       var RELATED_PARENT_AGENT_TYPES = "1,2,3,4";
       var PARENT_AGENT_TYPE_LABELS = {
@@ -509,6 +573,7 @@
         var n = Number(code);
         if (n === 7) return "7 知识沉淀";
         if (n === 8) return "8 代码规范";
+        if (n === 9) return "9 业务知识";
         return String(code != null ? code : "—");
       }
 
@@ -680,7 +745,41 @@
       }
 
       function setPreviewPromoteEnabled(enabled) {
+        var target = resolvePromoteTarget(previewCurrentDoc);
+        if (!target) {
+          previewPromoteBtn.disabled = true;
+          previewPromoteBtn.classList.add("hidden");
+          previewPromoteBtn.textContent = "添加到规范文档";
+          return;
+        }
+        previewPromoteBtn.classList.remove("hidden");
+        previewPromoteBtn.textContent = target.label;
         previewPromoteBtn.disabled = !enabled;
+      }
+
+      /** 按预览文档的子任务类型决定落盘分类 */
+      function resolvePromoteTarget(doc) {
+        if (!doc) return null;
+        var tt = Number(doc.task_type);
+        if (tt === TASK_TYPE_PERSIST_MEMORY) {
+          return {
+            category: "business-core",
+            label: "添加到业务知识",
+            kindZh: "业务知识",
+            dirHint: "knowledge_base/business-core/<项目名>/.docs/",
+            indexHint: "knowledge_base/business-core/<项目名>/index.md",
+          };
+        }
+        if (tt === TASK_TYPE_GEN_CODE_SPEC) {
+          return {
+            category: "code-style",
+            label: "添加到规范文档",
+            kindZh: "规范文档",
+            dirHint: "knowledge_base/code-style/<项目名>/.docs/",
+            indexHint: "knowledge_base/code-style/<项目名>/index.md",
+          };
+        }
+        return null;
       }
 
       function setPreviewEditStatus(msg) {
@@ -1286,9 +1385,14 @@
           });
       }
 
-      /** 将当前预览文档写入 knowledge_base/code-style/<项目名>/.docs/ */
+      /** 将当前预览文档写入 knowledge_base/<category>/<项目名>/.docs/ */
       function promotePreviewDocToKnowledgeBase(overwrite) {
         if (!previewCurrentDoc || previewPromoteBusy) return;
+        var target = resolvePromoteTarget(previewCurrentDoc);
+        if (!target) {
+          setPreviewEditStatus("当前文档类型不支持添加到 knowledge_base（仅 13 业务知识 / 14 代码规范）");
+          return;
+        }
         var pid = String(previewCurrentDoc.pid || "").trim();
         var taskType = previewCurrentDoc.task_type;
         var path = String(previewCurrentDoc.relative_path || "").trim();
@@ -1302,9 +1406,14 @@
           var ok = window.confirm(
             "确认将「" +
               displayName +
-              "」添加到规范文档？\n\n将写入 knowledge_base/code-style/<项目名>/.docs/" +
+              "」添加到" +
+              target.kindZh +
+              "？\n\n将写入 " +
+              target.dirHint +
               baseName +
-              "\n若不存在则创建 knowledge_base/code-style/<项目名>/index.md 并登记该文档\n（项目名取自该父任务唯一 git 仓库）",
+              "\n若不存在则创建 " +
+              target.indexHint +
+              " 并登记该文档\n（项目名取自该父任务唯一 git 仓库）",
           );
           if (!ok) return;
         }
@@ -1313,7 +1422,9 @@
         previewPromoteBtn.disabled = true;
         var prevLabel = previewPromoteBtn.textContent;
         previewPromoteBtn.textContent = overwrite ? "覆盖中…" : "添加中…";
-        setPreviewEditStatus(overwrite ? "正在覆盖写入规范文档…" : "正在添加到规范文档…");
+        setPreviewEditStatus(
+          overwrite ? "正在覆盖写入" + target.kindZh + "…" : "正在添加到" + target.kindZh + "…",
+        );
 
         fetch(
           raBase() +
@@ -1326,6 +1437,7 @@
             body: JSON.stringify({
               task_type: Number(taskType),
               path: path,
+              category: target.category,
               content: content,
               overwrite: overwrite === true,
             }),
@@ -1338,14 +1450,16 @@
           })
           .then(function (res) {
             previewPromoteBusy = false;
-            previewPromoteBtn.textContent = prevLabel || "添加到规范文档";
+            previewPromoteBtn.textContent = prevLabel || target.label;
             setPreviewPromoteEnabled(!!previewCurrentDoc);
             if (res.status === 409) {
               var again = window.confirm(
                 (res.body && res.body.error
                   ? String(res.body.error)
                   : "目标文件已存在") +
-                  "\n\n是否覆盖已有规范文档？",
+                  "\n\n是否覆盖已有" +
+                  target.kindZh +
+                  "？",
               );
               if (again) {
                 promotePreviewDocToKnowledgeBase(true);
@@ -1379,7 +1493,7 @@
           })
           .catch(function (e) {
             previewPromoteBusy = false;
-            previewPromoteBtn.textContent = prevLabel || "添加到规范文档";
+            previewPromoteBtn.textContent = prevLabel || target.label;
             setPreviewPromoteEnabled(!!previewCurrentDoc);
             setPreviewEditStatus("添加失败: " + e.message);
           });
@@ -1958,6 +2072,182 @@
             csModalSubmit.disabled = false;
             csModalSubmit.textContent = "提交";
             setCsModalError("提交失败: " + e.message);
+          });
+      });
+
+      // ——— 抽取业务知识弹窗（类型 9，仅 gitRepos）———
+      var bcProviderCombo = window.UiCombobox.attach(document.getElementById("ra-bc-new-provider-root"));
+      var bcModalRoot = document.getElementById("ra-bc-modal-root");
+      var bcModalError = document.getElementById("ra-bc-modal-error");
+      var bcModalForm = document.getElementById("ra-bc-modal-form");
+      var bcModalSubmit = document.getElementById("ra-bc-modal-submit");
+      var bcGitListEl = document.getElementById("ra-bc-git-list");
+
+      function setBcModalError(msg) {
+        if (!msg) {
+          bcModalError.textContent = "";
+          bcModalError.classList.add("hidden");
+          return;
+        }
+        bcModalError.textContent = msg;
+        bcModalError.classList.remove("hidden");
+      }
+
+      function createBcGitRepoRow(pair) {
+        var branchVal = pair && pair.branch_version ? pair.branch_version : "";
+        var urlVal = pair && pair.gitRemoteUrl ? pair.gitRemoteUrl : "";
+        var wrap = document.createElement("div");
+        wrap.className = "ra-bc-git-row grid gap-2 sm:grid-cols-[minmax(0,8rem)_1fr] sm:items-center";
+        wrap.innerHTML =
+          '<input type="text" class="ra-bc-git-branch w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="500" autocomplete="off" placeholder="分支" value="' +
+          esc(branchVal) +
+          '" />' +
+          '<input type="url" class="ra-bc-git-url min-w-0 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs text-slate-900 shadow-sm placeholder:text-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25" maxlength="2000" autocomplete="off" placeholder="HTTPS Git 仓库地址" value="' +
+          esc(urlVal) +
+          '" />';
+        var urlEl = wrap.querySelector(".ra-bc-git-url");
+        urlEl.addEventListener("blur", function () {
+          var normalized = normalizeGitRemoteUrl(urlEl.value);
+          if (normalized !== urlEl.value.trim()) urlEl.value = normalized;
+        });
+        return wrap;
+      }
+
+      function setBcGitRepos(repos) {
+        bcGitListEl.innerHTML = "";
+        var list = Array.isArray(repos)
+          ? repos.filter(function (p) {
+              return p && (String(p.gitRemoteUrl || "").trim() || String(p.branch_version || "").trim());
+            })
+          : [];
+        var one = list.length ? list[0] : { gitRemoteUrl: "", branch_version: "" };
+        bcGitListEl.appendChild(
+          createBcGitRepoRow({
+            gitRemoteUrl: normalizeGitRemoteUrl(one.gitRemoteUrl),
+            branch_version: String(one.branch_version || "").trim(),
+          }),
+        );
+      }
+
+      function collectBcGitRepos() {
+        var rows = bcGitListEl.querySelectorAll(".ra-bc-git-row");
+        if (rows.length !== 1) {
+          return { error: "业务知识任务仅支持填写 1 个代码仓库。" };
+        }
+        var branch = rows[0].querySelector(".ra-bc-git-branch").value.trim();
+        var url = normalizeGitRemoteUrl(rows[0].querySelector(".ra-bc-git-url").value);
+        if (!branch && !url) {
+          return { error: "请填写 git 地址与分支。" };
+        }
+        if (!branch || !url) {
+          return { error: "git 地址与分支需成对填写。" };
+        }
+        return { repos: [{ gitRemoteUrl: url, branch_version: branch }] };
+      }
+
+      function openBcModal() {
+        setBcModalError("");
+        document.getElementById("ra-bc-new-title").value = "";
+        document.getElementById("ra-bc-new-description").value = "";
+        document.getElementById("ra-bc-new-parallel").checked = false;
+        if (bcProviderCombo) bcProviderCombo.setValue("claude");
+        setBcGitRepos([{ gitRemoteUrl: "", branch_version: "" }]);
+        bcModalRoot.classList.remove("hidden");
+        bcModalRoot.classList.remove("pointer-events-none");
+      }
+
+      function closeBcModal() {
+        bcModalRoot.classList.add("hidden");
+        bcModalRoot.classList.add("pointer-events-none");
+        setBcModalError("");
+      }
+
+      document.getElementById("ra-btn-new-biz-core").addEventListener("click", openBcModal);
+      document.getElementById("ra-bc-modal-cancel").addEventListener("click", closeBcModal);
+      document.getElementById("ra-bc-modal-backdrop").addEventListener("click", function (ev) {
+        if (ev.target === document.getElementById("ra-bc-modal-backdrop")) closeBcModal();
+      });
+
+      bcModalForm.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        setBcModalError("");
+        var creator = currentLoginUser();
+        if (!creator) {
+          setBcModalError("获取当前登录用户失败，请先登录");
+          return;
+        }
+        var collected = collectBcGitRepos();
+        if (collected.error) {
+          setBcModalError(collected.error);
+          return;
+        }
+        var gitRepos = collected.repos;
+        if (!gitRepos || gitRepos.length !== 1) {
+          setBcModalError("业务知识任务仅支持且必须填写 1 个代码仓库");
+          return;
+        }
+        setBcGitRepos(gitRepos);
+        var description = document.getElementById("ra-bc-new-description").value.trim();
+        if (!description) {
+          setBcModalError("请填写说明 / 需求");
+          return;
+        }
+        var title = document.getElementById("ra-bc-new-title").value.trim();
+        if (!title) title = "业务知识 · " + localDateYmd();
+        var provider = document.getElementById("ra-bc-new-provider").value.trim() || "claude";
+        var parallel = document.getElementById("ra-bc-new-parallel").checked;
+
+        var body = {
+          task_type: BUSINESS_CORE_PARENT_TASK_TYPE,
+          provider: provider,
+          creator: creator,
+          title: title,
+          description: description,
+          requirement: description,
+          gitRepos: gitRepos,
+          parallel: parallel || undefined,
+        };
+
+        bcModalSubmit.disabled = true;
+        bcModalSubmit.textContent = "提交中…";
+        fetch(raBase() + "/api/parent-tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            bcModalSubmit.disabled = false;
+            bcModalSubmit.textContent = "提交";
+            if (!res.ok) {
+              setBcModalError(
+                "提交失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error
+                    ? typeof res.body.error === "string"
+                      ? res.body.error
+                      : JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            closeBcModal();
+            runQuery(true);
+            var pid =
+              res.body && res.body.parent_task && res.body.parent_task.pid
+                ? res.body.parent_task.pid
+                : "";
+            if (pid) openParentFlow(pid);
+          })
+          .catch(function (e) {
+            bcModalSubmit.disabled = false;
+            bcModalSubmit.textContent = "提交";
+            setBcModalError("提交失败: " + e.message);
           });
       });
 

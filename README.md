@@ -27,7 +27,7 @@ npm run build && npm start
 
 启动服务后，在浏览器打开：
 
-**`http://<HOST>:<PORT>/`** 为管理台首页（左侧菜单）；**「对话演示」** 嵌入 **`/demo`**；**「开发 Agent」** 嵌入 **`/agent-dev`**（工作流 `tasks` 表查询）；**「父任务」** 嵌入 **`/dev-agent`**（`parent_task` 查询与新增）；**「Rule Agent」** 嵌入 **`/rule-agent`**（类型 7 知识沉淀、类型 8 代码规范）；**「用户配置」** 嵌入 **`/user-config`**（用户 `gitlab_token`、`tapd_token`、`anthropic_api_key` 读写）。也可单独打开 **`/agent-dev`**、**`/dev-agent`**、**`/rule-agent`**、**`/user-config`**，或使用 **`/demo`**、**`/?page=demo`**、**`/?page=adev`**、**`/?page=dagent`**、**`/?page=ragent`**、**`/?page=ucfg`**。样式见 [`public/app.css`](public/app.css)。请勿用磁盘 `file://` 打开 HTML，否则受 CORS 限制无法调用接口。
+**`http://<HOST>:<PORT>/`** 为管理台首页（左侧菜单）；**「对话演示」** 嵌入 **`/demo`**；**「开发 Agent」** 嵌入 **`/agent-dev`**（工作流 `tasks` 表查询）；**「父任务」** 嵌入 **`/dev-agent`**（`parent_task` 查询与新增）；**「Rule Agent」** 嵌入 **`/rule-agent`**（类型 7 知识沉淀、类型 8 代码规范、类型 9 业务知识）；**「用户配置」** 嵌入 **`/user-config`**（用户 `gitlab_token`、`tapd_token`、`anthropic_api_key` 读写）。也可单独打开 **`/agent-dev`**、**`/dev-agent`**、**`/rule-agent`**、**`/user-config`**，或使用 **`/demo`**、**`/?page=demo`**、**`/?page=adev`**、**`/?page=dagent`**、**`/?page=ragent`**、**`/?page=ucfg`**。样式见 [`public/app.css`](public/app.css)。请勿用磁盘 `file://` 打开 HTML，否则受 CORS 限制无法调用接口。
 
 ## HTTP API
 
@@ -39,7 +39,7 @@ npm run build && npm start
 | `GET` | `/agent-dev/task-stream` | 任务 Agent SSE **全屏**查看页；查询参数 `taskId`（必填 UUID）、`provider`（可选 `claude` \| `cursor`，默认 `claude`）、`base`（可选 API 根地址） |
 | `GET` | `/dev-agent` | 父任务页（`GET/POST /api/parent-tasks`；可嵌入管理台） |
 | `GET` | `/dev-agent/parent-flow` | 父任务工作流页：按 `pid` 查询该父任务下全部 `tasks` 与子任务，右侧续订 Claude SSE；查询参数 `pid`（必填）、`base`（可选 API 根）、`taskId`（可选，预选中某工作流任务的 SSE） |
-| `GET` | `/rule-agent` | Rule Agent 页（父任务类型 **7** 知识沉淀、**8** 代码规范：查询与新增；可嵌入管理台 `/?page=ragent`） |
+| `GET` | `/rule-agent` | Rule Agent 页（父任务类型 **7** 知识沉淀、**8** 代码规范、**9** 业务知识：查询与新增；可嵌入管理台 `/?page=ragent`） |
 | `GET` | `/user-config` | 用户配置页（`GET/PUT /api/user-config/gitlab-token`、`/api/user-config/tapd-token`、`/api/user-config/anthropic-api-key`；可嵌入管理台） |
 | `GET` | `/health` | 健康检查；含 SQLite `SELECT 1` |
 | `GET` | `/api/tasks` | 工作流任务列表（表 `tasks`）；可选查询参数：`status`（整数 **1–6**：1 待执行、2 执行中、3 执行完成、4 执行失败、5 已暂停、6 已取消）、`task_type`（整数 **0–15**、**20–22** 或 **101–104**：0 设计、1 开发、2 开发规范优化、3 测试预分析、4 测试案例设计、5 测试数据分析、6 测试案例执行、7 QA 平台测试脚本生成、8 Code Review、9 拆分故事、10 头脑风暴、11 AI拆分故事、12 UI测试执行、13 生成业务知识、14 生成代码规范、15 生成测试规范、20 功能测试用例生成、21 自动化用例生成、22 测试脑图分析、101 测试环境发布、102 部署间隔等待、103 测试环境发布结果、104 申请拉取分支）、`title`（标题模糊匹配）、`limit`（1–500，默认无筛选时 100） |
@@ -55,7 +55,7 @@ npm run build && npm start
 | `GET` | `/api/parent-tasks/:pid/ai-out/files` | 列出 `ai_out/<pid>/<taskType>/` 下全部可预览文档；查询参数 `task_type`（必填）；响应 `{ pid, task_type, files: [{ relative_path, updated_at }] }`（按 mtime 倒序） |
 | `GET` | `/api/parent-tasks/:pid/ai-out/file` | 按相对路径读取单个可预览文档；查询参数 `task_type`、`path`（相对该 taskType 目录）；响应同 `latest`；无文件 **404** |
 | `PUT` | `/api/parent-tasks/:pid/ai-out/file` | 覆写已有可预览文档；JSON body `{ task_type, path, content }`（不允许新建路径）；成功返回更新后的文档对象 |
-| `POST` | `/api/parent-tasks/:pid/knowledge-base/promote` | 将 ai_out 文档写入 `knowledge_base/code-style/<项目名>/.docs/`；并维护 `knowledge_base/code-style/<项目名>/index.md`（不存在则创建）；项目名取自父任务 `init.gitRepos` **唯一**仓库地址末段；body `{ task_type, path, content?, overwrite? }`；已存在且未 `overwrite` 时 **409** |
+| `POST` | `/api/parent-tasks/:pid/knowledge-base/promote` | 将 ai_out 文档写入 `knowledge_base/<category>/<项目名>/.docs/`；并维护同级 `index.md`（不存在则创建）；`category` 为 `code-style`（默认）或 `business-core`；项目名取自父任务 `init.gitRepos` **唯一**仓库地址末段；body `{ task_type, path, category?, content?, overwrite? }`；已存在且未 `overwrite` 时 **409** |
 | `GET` | `/api/parent-tasks/:pid/ai-out/latest` | 读取 `ai_out/<pid>/<taskType>/` 下可预览文档；可选 `task_type`（0–15、20–22 或 101–104）；可选 `task_id`（须与 `task_type` 同传，读取 `ai_out/<pid>/<taskType>/<taskId>/`）；省略 `task_id` 时取该目录下 mtime 最新文件；响应 `{ pid, task_type, task_id?, relative_path, content, content_kind, updated_at }`；无文档时 **404** |
 | `GET` | `/api/parent-tasks/:pid/ai-out/asset` | 读取 `ai_out/<pid>/<taskType>/` 下图片资源（如 UI 测试截图）；查询参数 `task_type`（必填）、`path`（相对该 taskType 目录的路径，如 `{taskId}/ui_test_screenshots/xx.png`）；成功返回二进制图片；无文件 **404** |
 | `GET` | `/api/parent-tasks/:pid/ai-out/ui-test-scripts-zip` | 打包下载 UI 测试执行产物：`ai_out/<pid>/12/<taskId>/` 全部文件 → `.zip`（排除 `node_modules` / `test-results` / `playwright-report`）；可选 `task_id`（省略时按最新 UI 测试执行文档所在目录）；无输出 **404** |
@@ -64,7 +64,7 @@ npm run build && npm start
 | `POST` | `/api/export/test-case-design-excel` | 将功能测试用例设计 JSON 内容直转 `.xlsx`；JSON 请求体 `{ content: string, filename?: string }`；格式不符 **400** |
 | `GET` | `/api/parent-tasks/:pid/brainstorm-stories` | 业务 Agent 头脑风暴故事列表：按 `task_id` 读取 `ai_out/<pid>/10/<taskId>/` 并解析 `design.md` 澄清摘要；响应 `{ pid, stories: [{ task_id, title, description, status, created_at, ai_out?, clarification? }] }` |
 | `POST` | `/api/parent-tasks/:pid/brainstorm-stories/summarize-title` | 头脑风暴故事 AI 汇总标题；JSON `{ task_id, source_text }`；响应 `{ pid, task_id, summary_title }` |
-| `POST` | `/api/parent-tasks` | 新增父任务并编排：写 `parent_task` / `init` 参数（`branch_version`、可选 `gitRemoteUrl`、`testEnv`、`provider`：`claude` \| `cursor`，省略时用 `TASK_AGENT_PROVIDER`）→ 按 `task_type` 创建子任务流水线（`tasks.pid` = 父任务 pid）：**1** 开发自测（设计→…→测试环境发布→Code Review→…→测试案例执行）、**2** 开发自Review（设计→开发→测试环境发布→Code Review）、**7** 知识沉淀（生成业务知识→生成代码规范→生成测试规范）、**8** 代码规范（仅生成代码规范，按 `gitRepos`）；JSON 必填 `creator`（写入各 `tasks.creator`，HTTPS 克隆用户名），`pid` 可省略（自动为表中数值型 pid 的 max+1），`task_type` 默认 **1**，另可含 `app`、`requirement`；响应含 `parent_task`、`parent_task_params`、`tasks`、`task` |
+| `POST` | `/api/parent-tasks` | 新增父任务并编排：写 `parent_task` / `init` 参数（`branch_version`、可选 `gitRemoteUrl`、`testEnv`、`provider`：`claude` \| `cursor`，省略时用 `TASK_AGENT_PROVIDER`）→ 按 `task_type` 创建子任务流水线（`tasks.pid` = 父任务 pid）：**1** 开发自测（设计→…→测试环境发布→Code Review→…→测试案例执行）、**2** 开发自Review（设计→开发→测试环境发布→Code Review）、**7** 知识沉淀（生成业务知识→生成代码规范→生成测试规范）、**8** 代码规范（仅生成代码规范，按 `gitRepos`）、**9** 业务知识（仅生成业务知识，按 `gitRepos`）；JSON 必填 `creator`（写入各 `tasks.creator`，HTTPS 克隆用户名），`pid` 可省略（自动为表中数值型 pid 的 max+1），`task_type` 默认 **1**，另可含 `app`、`requirement`；响应含 `parent_task`、`parent_task_params`、`tasks`、`task` |
 | `GET` | `/api/system-config` | 系统配置列表（表 `system_config`）；可选：`scope`（`global` \| `user`）、`username`（与 `scope=user` 或单独填写时筛选该用户）、`config_key`（键名子串模糊匹配）、`limit`（1–500，默认 200） |
 | `GET` | `/api/user-config/gitlab-token` | 读取用户 GitLab Token 配置状态；查询参数 `username`（必填）；响应 `{ username, configured, token_masked?, updated_at? }`（不下发完整 token） |
 | `PUT` | `/api/user-config/gitlab-token` | 保存或清除用户 GitLab Token；JSON：`{ "username": string, "gitlab_token"?: string }`（`gitlab_token` 留空则删除该用户配置）；响应同上 |

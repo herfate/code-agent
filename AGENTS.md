@@ -31,7 +31,7 @@
 | [`public/wikiAgent.html`](public/wikiAgent.html) | Wiki Agent 独立页（`wiki_base` 分类卡片与文档浏览） |
 | [`public/brainstormStories.html`](public/brainstormStories.html) | 头脑风暴故事列表页（`?pid=&base=`：故事描述 + 澄清点选） |
 | [`public/testAgent.html`](public/testAgent.html) | 测试 Agent 独立页（`parent_task` 类型 5/6） |
-| [`public/ruleAgent.html`](public/ruleAgent.html) | Rule Agent 独立页（`parent_task` 类型 7 知识沉淀、类型 8 代码规范：查询与新增） |
+| [`public/ruleAgent.html`](public/ruleAgent.html) | Rule Agent 独立页（`parent_task` 类型 7 知识沉淀、类型 8 代码规范、类型 9 业务知识：查询与新增） |
 | [`public/userConfig.html`](public/userConfig.html) | 用户配置独立页（`gitlab_token`、`tapd_token` 读写） |
 | [`public/app.css`](public/app.css) | Tailwind 构建产物（由 `npm run build` / `build:css` 生成） |
 | [`src/styles/tailwind.css`](src/styles/tailwind.css) | Tailwind 入口（`@tailwind` 指令） |

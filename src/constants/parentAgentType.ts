@@ -18,6 +18,8 @@ export const PARENT_AGENT_TYPE = {
   PersistMemory: 7,
   /** 代码规范编排（仅生成代码规范；仅支持单个 git 仓库） */
   CodeSpec: 8,
+  /** 业务知识编排（仅生成业务知识；仅支持单个 git 仓库） */
+  BusinessCore: 9,
 } as const;
 
 export type ParentAgentType = (typeof PARENT_AGENT_TYPE)[keyof typeof PARENT_AGENT_TYPE];
@@ -109,6 +111,8 @@ export function parentAgentTypeLabel(code: ParentAgentType | number | string): s
       return "知识沉淀Agent";
     case PARENT_AGENT_TYPE.CodeSpec:
       return "代码规范Agent";
+    case PARENT_AGENT_TYPE.BusinessCore:
+      return "业务知识Agent";
     default:
       return String(code);
   }

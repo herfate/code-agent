@@ -4,12 +4,21 @@ import { readAiOutFileByRelativePath } from "./readLatestAiOutMarkdown.js";
 import type { TaskType } from "../../constants/taskType.js";
 
 const KNOWLEDGE_BASE_DIR = "knowledge_base";
-const CODE_STYLE_DIR = "code-style";
 /** 规范正文目录（相对项目目录） */
 const PROJECT_DOCS_SUBDIR = ".docs";
 const PROJECT_INDEX_FILE = "index.md";
 
+/** knowledge_base 下可手动落盘的分类 */
+export const KNOWLEDGE_BASE_CATEGORY = {
+  CodeStyle: "code-style",
+  BusinessCore: "business-core",
+} as const;
+
+export type KnowledgeBaseCategory =
+  (typeof KNOWLEDGE_BASE_CATEGORY)[keyof typeof KNOWLEDGE_BASE_CATEGORY];
+
 export type PromoteToKnowledgeBaseResult = {
+  category: KnowledgeBaseCategory;
   project_name: string;
   /** 相对仓库根，如 `knowledge_base/code-style/fds-console/.docs/naming.md` */
   path: string;
@@ -73,18 +82,31 @@ function assertUnderKnowledgeBase(absPath: string): void {
   }
 }
 
+function categoryLabelZh(category: KnowledgeBaseCategory): string {
+  return category === KNOWLEDGE_BASE_CATEGORY.BusinessCore ? "业务知识" : "规范文档";
+}
+
 /** 从 Markdown frontmatter 粗取字段（失败则用文件名推导） */
-function parseFrontmatterMeta(content: string, fileName: string): {
+function parseFrontmatterMeta(
+  content: string,
+  fileName: string,
+  defaultCategory: KnowledgeBaseCategory,
+): {
   id: string;
   title: string;
   category: string;
   status: string;
 } {
   const fallbackId = fileName.replace(/\.(md|markdown|json|txt)$/i, "") || "doc";
-  const meta = {
+  const meta: {
+    id: string;
+    title: string;
+    category: string;
+    status: string;
+  } = {
     id: fallbackId,
     title: fallbackId,
-    category: "code-style",
+    category: defaultCategory,
     status: "candidate",
   };
   const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(String(content || ""));
@@ -105,25 +127,27 @@ function parseFrontmatterMeta(content: string, fileName: string): {
   return meta;
 }
 
-function buildEmptyProjectIndex(projectName: string): string {
+function buildEmptyProjectIndex(projectName: string, category: KnowledgeBaseCategory): string {
+  const kind = categoryLabelZh(category);
   return (
-    `# ${projectName} 规范文档索引\n\n` +
-    `由 Rule Agent「添加到规范文档」维护。文档位于 \`${PROJECT_DOCS_SUBDIR}/\`。\n\n` +
+    `# ${projectName} ${kind}索引\n\n` +
+    `由 Rule Agent「添加到${kind}」维护。文档位于 \`${PROJECT_DOCS_SUBDIR}/\`。\n\n` +
     `| id | title | category | status | path |\n` +
     `|----|-------|----------|--------|------|\n`
   );
 }
 
 /**
- * 在 `knowledge_base/code-style/<projectName>/index.md` 中 upsert 一行（按 path 匹配）。
+ * 在 `knowledge_base/<category>/<projectName>/index.md` 中 upsert 一行（按 path 匹配）。
  * 文件不存在则创建。返回是否新建。
  */
 function upsertProjectIndexRow(opts: {
   projectDir: string;
   projectName: string;
+  category: KnowledgeBaseCategory;
   id: string;
   title: string;
-  category: string;
+  docCategory: string;
   status: string;
   /** 相对项目目录的路径，如 `.docs/naming.md` */
   path: string;
@@ -134,11 +158,11 @@ function upsertProjectIndexRow(opts: {
   const existed = existsSync(indexPath);
   let text = existed
     ? readFileSync(indexPath, "utf8")
-    : buildEmptyProjectIndex(opts.projectName);
+    : buildEmptyProjectIndex(opts.projectName, opts.category);
 
   const escapeCell = (s: string) => String(s || "").replace(/\|/g, "\\|");
   const newRow =
-    `| ${escapeCell(opts.id)} | ${escapeCell(opts.title)} | ${escapeCell(opts.category)} | ${escapeCell(opts.status)} | ${escapeCell(opts.path)} |`;
+    `| ${escapeCell(opts.id)} | ${escapeCell(opts.title)} | ${escapeCell(opts.docCategory)} | ${escapeCell(opts.status)} | ${escapeCell(opts.path)} |`;
 
   const lines = text.split(/\r?\n/);
   const pathNeedle = opts.path.replace(/\\/g, "/");
@@ -194,18 +218,20 @@ function upsertProjectIndexRow(opts: {
 }
 
 /**
- * 将 `ai_out` 文档写入 `knowledge_base/code-style/<projectName>/.docs/<fileName>`，
- * 并维护 `knowledge_base/code-style/<projectName>/index.md`（不存在则创建）。
+ * 将 `ai_out` 文档写入 `knowledge_base/<category>/<projectName>/.docs/<fileName>`，
+ * 并维护 `knowledge_base/<category>/<projectName>/index.md`（不存在则创建）。
  */
 export function promoteAiOutDocToKnowledgeBase(opts: {
   pid: string;
   taskType: TaskType;
   relativePath: string;
   projectName: string;
+  category?: KnowledgeBaseCategory;
   /** 省略则从 ai_out 读取 */
   content?: string;
   overwrite?: boolean;
 }): PromoteToKnowledgeBaseResult {
+  const category = opts.category ?? KNOWLEDGE_BASE_CATEGORY.CodeStyle;
   const projectName = assertSafeKnowledgeBaseProjectName(opts.projectName);
   const fileName = assertSafeKnowledgeBaseFileName(opts.relativePath);
 
@@ -218,12 +244,12 @@ export function promoteAiOutDocToKnowledgeBase(opts: {
     content = doc.content;
   }
 
-  const projectDir = join(knowledgeBaseRoot(), CODE_STYLE_DIR, projectName);
+  const projectDir = join(knowledgeBaseRoot(), category, projectName);
   const docsDir = join(projectDir, PROJECT_DOCS_SUBDIR);
   const absPath = resolve(docsDir, fileName);
   assertUnderKnowledgeBase(absPath);
   if (!absPath.startsWith(docsDir + sep)) {
-    throw new Error("path outside knowledge_base code-style project .docs dir");
+    throw new Error(`path outside knowledge_base ${category} project .docs dir`);
   }
 
   const existed = existsSync(absPath);
@@ -237,27 +263,25 @@ export function promoteAiOutDocToKnowledgeBase(opts: {
   writeFileSync(absPath, content, "utf8");
 
   const relDocPath =
-    `${KNOWLEDGE_BASE_DIR}/${CODE_STYLE_DIR}/${projectName}/${PROJECT_DOCS_SUBDIR}/${fileName}`.replace(
+    `${KNOWLEDGE_BASE_DIR}/${category}/${projectName}/${PROJECT_DOCS_SUBDIR}/${fileName}`.replace(
       /\\/g,
       "/",
     );
   const relIndexPath =
-    `${KNOWLEDGE_BASE_DIR}/${CODE_STYLE_DIR}/${projectName}/${PROJECT_INDEX_FILE}`.replace(
-      /\\/g,
-      "/",
-    );
+    `${KNOWLEDGE_BASE_DIR}/${category}/${projectName}/${PROJECT_INDEX_FILE}`.replace(/\\/g, "/");
   /** 写入项目 index 表用的相对项目目录路径 */
   const indexEntryPath = `${PROJECT_DOCS_SUBDIR}/${fileName}`.replace(/\\/g, "/");
-  const meta = parseFrontmatterMeta(content, fileName);
+  const meta = parseFrontmatterMeta(content, fileName, category);
 
   let indexCreated = false;
   try {
     const idx = upsertProjectIndexRow({
       projectDir,
       projectName,
+      category,
       id: meta.id,
       title: meta.title,
-      category: meta.category,
+      docCategory: meta.category,
       status: meta.status,
       path: indexEntryPath,
     });
@@ -267,6 +291,7 @@ export function promoteAiOutDocToKnowledgeBase(opts: {
   }
 
   return {
+    category,
     project_name: projectName,
     path: relDocPath,
     index_path: relIndexPath,
