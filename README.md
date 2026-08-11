@@ -56,6 +56,8 @@ npm run build && npm start
 | `GET` | `/api/parent-tasks/:pid/ai-out/file` | 按相对路径读取单个可预览文档；查询参数 `task_type`、`path`（相对该 taskType 目录）；响应同 `latest`；无文件 **404** |
 | `PUT` | `/api/parent-tasks/:pid/ai-out/file` | 覆写已有可预览文档；JSON body `{ task_type, path, content }`（不允许新建路径）；成功返回更新后的文档对象 |
 | `POST` | `/api/parent-tasks/:pid/knowledge-base/promote` | 将 ai_out 文档写入 `knowledge_base/<category>/<项目名>/.docs/`；并维护同级 `index.md`（不存在则创建）；`category` 为 `code-style`（默认）或 `business-core`；项目名取自父任务 `init.gitRepos` **唯一**仓库地址末段；body `{ task_type, path, category?, content?, overwrite? }`；已存在且未 `overwrite` 时 **409** |
+| `GET` | `/api/knowledge-base/repos` | 按 git 仓库（项目目录名）聚合列出 `knowledge_base/code-style` 与 `business-core` 下文档元数据；响应 `{ repos: [{ project_name, code_style[], business_core[] }] }` |
+| `GET` | `/api/knowledge-base/file` | 读取规范/业务知识正文；查询参数 `category`（`code-style` \| `business-core`）、`project`（项目名）、`path`（相对项目目录，如 `.docs/foo.md`） |
 | `GET` | `/api/parent-tasks/:pid/ai-out/latest` | 读取 `ai_out/<pid>/<taskType>/` 下可预览文档；可选 `task_type`（0–15、20–22 或 101–104）；可选 `task_id`（须与 `task_type` 同传，读取 `ai_out/<pid>/<taskType>/<taskId>/`）；省略 `task_id` 时取该目录下 mtime 最新文件；响应 `{ pid, task_type, task_id?, relative_path, content, content_kind, updated_at }`；无文档时 **404** |
 | `GET` | `/api/parent-tasks/:pid/ai-out/asset` | 读取 `ai_out/<pid>/<taskType>/` 下图片资源（如 UI 测试截图）；查询参数 `task_type`（必填）、`path`（相对该 taskType 目录的路径，如 `{taskId}/ui_test_screenshots/xx.png`）；成功返回二进制图片；无文件 **404** |
 | `GET` | `/api/parent-tasks/:pid/ai-out/ui-test-scripts-zip` | 打包下载 UI 测试执行产物：`ai_out/<pid>/12/<taskId>/` 全部文件 → `.zip`（排除 `node_modules` / `test-results` / `playwright-report`）；可选 `task_id`（省略时按最新 UI 测试执行文档所在目录）；无输出 **404** |

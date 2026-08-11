@@ -10,15 +10,30 @@
 <body class="h-full min-h-0 bg-slate-50 text-slate-900 antialiased">
   <div class="flex h-full min-h-0 w-full flex-col gap-4 p-4">
     <header class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <h1 class="text-sm font-semibold text-slate-800">Rule Agent（知识沉淀 / 代码规范 / 业务知识）</h1>
-      <p class="mt-0.5 text-xs text-slate-500">
-        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">7</code> 知识沉淀（13→14→15）；
-        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">8</code> 代码规范（仅 14，单仓库）；
-        类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">9</code> 业务知识（仅 13，单仓库）。
-        对接 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">GET/POST /api/parent-tasks</code>。
-      </p>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0 flex items-start gap-3">
+          <button type="button" id="ra-btn-back" class="hidden shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">返回</button>
+          <div class="min-w-0">
+            <h1 id="ra-page-title" class="text-sm font-semibold text-slate-800">Rule Agent（代码规范 / 业务知识）</h1>
+            <p id="ra-page-subtitle" class="mt-0.5 text-xs text-slate-500">
+              按 git 仓库浏览 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">knowledge_base</code> 下的代码规范与业务知识文档。
+            </p>
+          </div>
+        </div>
+        <button type="button" id="ra-btn-add-spec" class="shrink-0 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30">增加规范</button>
+      </div>
     </header>
 
+    <!-- 默认：按仓库展示 knowledge_base -->
+    <div id="ra-view-kb" class="min-h-0 flex-1 overflow-y-auto">
+      <p id="ra-kb-error" class="mb-3 hidden rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></p>
+      <p id="ra-kb-loading" class="px-1 py-10 text-center text-sm text-slate-500">加载中…</p>
+      <p id="ra-kb-empty" class="hidden px-1 py-10 text-center text-sm text-slate-500">暂无规范文档。可通过「增加规范」抽取后预览页添加到 knowledge_base。</p>
+      <div id="ra-kb-cards" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
+    </div>
+
+    <!-- 任务列表（增加规范入口） -->
+    <div id="ra-view-tasks" class="hidden flex min-h-0 flex-1 flex-col gap-4">
     <section class="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
       <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">查询条件</h2>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
@@ -96,6 +111,7 @@
         </div>
       </div>
     </section>
+    </div>
   </div>
 
   <!-- 新增弹窗 -->
@@ -416,6 +432,91 @@
     #ra-preview-body th, #ra-preview-body td { border: 1px solid #e2e8f0; padding: 0.375rem 0.5rem; text-align: left; }
     #ra-preview-body th { background: #f8fafc; font-weight: 600; }
     #ra-preview-body img { max-width: 100%; height: auto; margin: 0.5rem 0; border-radius: 0.375rem; border: 1px solid #e2e8f0; }
+    /* YAML frontmatter → 元信息卡片 */
+    #ra-preview-body .ra-fm {
+      margin: 0 0 1.25rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      padding: 1rem 1.125rem;
+    }
+    #ra-preview-body .ra-fm-title {
+      margin: 0;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #0f172a;
+      line-height: 1.4;
+    }
+    #ra-preview-body .ra-fm-id {
+      margin-top: 0.25rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.6875rem;
+      color: #64748b;
+    }
+    #ra-preview-body .ra-fm-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-top: 0.75rem;
+    }
+    #ra-preview-body .ra-fm-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 9999px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      padding: 0.125rem 0.625rem;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      color: #334155;
+    }
+    #ra-preview-body .ra-fm-badge-cat { border-color: #ddd6fe; background: #f5f3ff; color: #5b21b6; }
+    #ra-preview-body .ra-fm-badge-status { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+    #ra-preview-body .ra-fm-badge-conf { border-color: #bfdbfe; background: #eff6ff; color: #1e40af; }
+    #ra-preview-body .ra-fm-badge-updated { border-color: #e2e8f0; background: #f8fafc; color: #475569; }
+    #ra-preview-body .ra-fm-section {
+      margin-top: 0.875rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #e2e8f0;
+    }
+    #ra-preview-body .ra-fm-section-label {
+      margin: 0 0 0.375rem;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+    #ra-preview-body .ra-fm-evidence {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    #ra-preview-body .ra-fm-evidence li {
+      margin: 0.25rem 0;
+      padding: 0.375rem 0.5rem;
+      border-radius: 0.375rem;
+      background: #f1f5f9;
+      font-family: ui-monospace, monospace;
+      font-size: 0.6875rem;
+      line-height: 1.45;
+      color: #334155;
+      word-break: break-all;
+    }
+    #ra-preview-body .ra-fm-kv {
+      display: grid;
+      gap: 0.375rem;
+      margin: 0;
+    }
+    #ra-preview-body .ra-fm-kv-row {
+      display: grid;
+      grid-template-columns: 7rem 1fr;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      line-height: 1.45;
+    }
+    #ra-preview-body .ra-fm-kv-k { color: #64748b; }
+    #ra-preview-body .ra-fm-kv-v { color: #1e293b; word-break: break-word; }
   </style>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -857,7 +958,12 @@
       }
 
       function previewDownloadFilename(doc) {
-        var rel = doc && doc.relative_path ? String(doc.relative_path) : "";
+        var rel =
+          doc && doc.relative_path
+            ? String(doc.relative_path)
+            : doc && doc.path
+              ? String(doc.path)
+              : "";
         var base = rel.split("/").filter(Boolean).pop();
         if (base) return base;
         if (doc && doc.content_kind === "json") return "document.json";
@@ -918,6 +1024,7 @@
 
       function enterPreviewEditMode() {
         if (!previewCurrentDoc || previewCurrentDoc.content == null) return;
+        if (previewCurrentDoc.kb_readonly) return;
         previewEditing = true;
         previewEditorEl.value = String(previewCurrentDoc.content);
         previewBodyEl.classList.add("hidden");
@@ -966,6 +1073,7 @@
         setPreviewEditEnabled(false);
         setPreviewPromoteEnabled(false);
         setPreviewBackListVisible(false);
+        previewEditBtn.classList.remove("hidden");
         if (previewPickRoot.classList.contains("hidden")) {
           document.body.style.overflow = "";
         }
@@ -991,8 +1099,107 @@
         setPreviewEditEnabled(true);
         setPreviewPromoteEnabled(true);
         setPreviewBackListVisible(previewPickFiles.length > 1);
+        previewEditBtn.classList.remove("hidden");
         exitPreviewEditMode();
         previewBodyEl.innerHTML = renderPreviewContent(doc);
+      }
+
+      /** knowledge_base 文档只读预览（无编辑 / promote） */
+      function showKbPreviewDoc(doc) {
+        var catLabel = doc.category === "business-core" ? "业务知识" : "代码规范";
+        var displayName = String(doc.path || "")
+          .replace(/\\/g, "/")
+          .split("/")
+          .filter(Boolean)
+          .pop() || "document.md";
+        previewTitleEl.textContent = "文档预览 · " + (doc.project_name || "");
+        previewMetaEl.textContent =
+          "knowledge_base/" +
+          doc.category +
+          "/" +
+          doc.project_name +
+          "/" +
+          String(doc.path || "").replace(/\\/g, "/") +
+          " · " +
+          catLabel +
+          " · " +
+          displayName;
+        previewCurrentDoc = {
+          content: doc.content,
+          content_kind: "markdown",
+          path: doc.path,
+          relative_path: doc.path,
+          category: doc.category,
+          project_name: doc.project_name,
+          kb_readonly: true,
+        };
+        setPreviewDownloadEnabled(true);
+        setPreviewEditEnabled(false);
+        previewEditBtn.classList.add("hidden");
+        previewPromoteBtn.classList.add("hidden");
+        previewPromoteBtn.disabled = true;
+        setPreviewBackListVisible(false);
+        exitPreviewEditMode();
+        previewBodyEl.innerHTML = renderMarkdownWithFrontmatterHtml(doc.content || "");
+        previewRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+      }
+
+      function openKbDoc(category, project, path, title) {
+        if (!category || !project || !path) return;
+        exitPreviewEditMode();
+        previewCurrentDoc = null;
+        setPreviewDownloadEnabled(false);
+        setPreviewEditEnabled(false);
+        previewEditBtn.classList.add("hidden");
+        previewPromoteBtn.classList.add("hidden");
+        setPreviewBackListVisible(false);
+        previewTitleEl.textContent = "文档预览 · " + (title || project);
+        previewMetaEl.textContent = "加载中…";
+        previewBodyEl.innerHTML =
+          '<p class="text-center text-xs text-slate-400">加载文档…</p>';
+        previewRoot.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        fetch(
+          raBase() +
+            "/api/knowledge-base/file?category=" +
+            encodeURIComponent(category) +
+            "&project=" +
+            encodeURIComponent(project) +
+            "&path=" +
+            encodeURIComponent(path),
+        )
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              var msg =
+                res.body && res.body.error
+                  ? typeof res.body.error === "string"
+                    ? res.body.error
+                    : JSON.stringify(res.body.error)
+                  : JSON.stringify(res.body);
+              previewMetaEl.textContent = "";
+              previewBodyEl.innerHTML =
+                '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+                esc("预览失败 " + res.status + ": " + msg) +
+                "</p>";
+              return;
+            }
+            showKbPreviewDoc(res.body);
+          })
+          .catch(function (e) {
+            previewCurrentDoc = null;
+            setPreviewDownloadEnabled(false);
+            previewMetaEl.textContent = "";
+            previewBodyEl.innerHTML =
+              '<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">' +
+              esc("预览失败: " + e.message) +
+              "</p>";
+          });
       }
 
       function renderPreviewPickOptions(taskTypes) {
@@ -1180,6 +1387,145 @@
         return '<pre class="whitespace-pre-wrap font-mono text-xs">' + esc(md || "") + "</pre>";
       }
 
+      /**
+       * 解析文档开头 YAML frontmatter（--- ... ---）。
+       * 支持标量与简单列表（如 evidence: / - item）。
+       */
+      function parseMarkdownFrontmatter(raw) {
+        var text = String(raw || "");
+        var m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+        if (!m) return { meta: null, body: text };
+        var block = m[1] || "";
+        var body = text.slice(m[0].length);
+        var meta = {};
+        var lines = block.split(/\r?\n/);
+        var currentListKey = null;
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          var listItem = /^\s*-\s+(.+)$/.exec(line);
+          if (listItem && currentListKey) {
+            if (!Array.isArray(meta[currentListKey])) meta[currentListKey] = [];
+            meta[currentListKey].push(
+              String(listItem[1] || "")
+                .trim()
+                .replace(/^["']|["']$/g, ""),
+            );
+            continue;
+          }
+          var kv = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+          if (!kv) {
+            currentListKey = null;
+            continue;
+          }
+          var key = kv[1];
+          var val = String(kv[2] || "").trim();
+          if (val === "" || val === "|" || val === ">") {
+            meta[key] = [];
+            currentListKey = key;
+            continue;
+          }
+          currentListKey = null;
+          meta[key] = val.replace(/^["']|["']$/g, "");
+        }
+        return { meta: meta, body: body };
+      }
+
+      function categoryLabelZh(cat) {
+        if (cat === "business-core") return "业务知识";
+        if (cat === "code-style") return "代码规范";
+        return cat || "";
+      }
+
+      /** 将 frontmatter 渲染为元信息卡片；无 frontmatter 则仅渲染正文 Markdown */
+      function renderFrontmatterCardHtml(meta) {
+        if (!meta || typeof meta !== "object") return "";
+        var title = meta.title || meta.id || "";
+        var id = meta.id || "";
+        var category = meta.category || "";
+        var status = meta.status || "";
+        var confidence = meta.confidence || "";
+        var updated = meta.updated || "";
+        var evidence = Array.isArray(meta.evidence) ? meta.evidence : [];
+        var known = {
+          title: true,
+          id: true,
+          category: true,
+          status: true,
+          confidence: true,
+          updated: true,
+          evidence: true,
+        };
+        var extraKeys = Object.keys(meta).filter(function (k) {
+          return !known[k] && meta[k] != null && meta[k] !== "";
+        });
+
+        var html = '<aside class="ra-fm" aria-label="文档元信息">';
+        if (title) {
+          html += '<h2 class="ra-fm-title">' + esc(title) + "</h2>";
+        }
+        if (id) {
+          html += '<div class="ra-fm-id">id · ' + esc(id) + "</div>";
+        }
+        var badges = [];
+        if (category) {
+          badges.push(
+            '<span class="ra-fm-badge ra-fm-badge-cat">' +
+              esc(categoryLabelZh(category) || category) +
+              "</span>",
+          );
+        }
+        if (status) {
+          badges.push('<span class="ra-fm-badge ra-fm-badge-status">' + esc(status) + "</span>");
+        }
+        if (confidence) {
+          badges.push(
+            '<span class="ra-fm-badge ra-fm-badge-conf">confidence · ' +
+              esc(confidence) +
+              "</span>",
+          );
+        }
+        if (updated) {
+          badges.push(
+            '<span class="ra-fm-badge ra-fm-badge-updated">updated · ' + esc(updated) + "</span>",
+          );
+        }
+        if (badges.length) {
+          html += '<div class="ra-fm-badges">' + badges.join("") + "</div>";
+        }
+        if (evidence.length) {
+          html +=
+            '<div class="ra-fm-section"><p class="ra-fm-section-label">Evidence</p><ul class="ra-fm-evidence">';
+          for (var ei = 0; ei < evidence.length; ei++) {
+            html += "<li>" + esc(evidence[ei]) + "</li>";
+          }
+          html += "</ul></div>";
+        }
+        if (extraKeys.length) {
+          html +=
+            '<div class="ra-fm-section"><p class="ra-fm-section-label">其他字段</p><dl class="ra-fm-kv">';
+          for (var xi = 0; xi < extraKeys.length; xi++) {
+            var ek = extraKeys[xi];
+            var ev = meta[ek];
+            var evText = Array.isArray(ev) ? ev.join(", ") : String(ev);
+            html +=
+              '<div class="ra-fm-kv-row"><dt class="ra-fm-kv-k">' +
+              esc(ek) +
+              '</dt><dd class="ra-fm-kv-v">' +
+              esc(evText) +
+              "</dd></div>";
+          }
+          html += "</dl></div>";
+        }
+        html += "</aside>";
+        return html;
+      }
+
+      function renderMarkdownWithFrontmatterHtml(md) {
+        var parsed = parseMarkdownFrontmatter(md);
+        var card = renderFrontmatterCardHtml(parsed.meta);
+        return card + renderMarkdownHtml(parsed.body);
+      }
+
       function renderPlainTextHtml(text) {
         return '<pre class="whitespace-pre-wrap font-mono text-xs">' + esc(text || "") + "</pre>";
       }
@@ -1229,7 +1575,9 @@
         if (kind === "text") kind = detectPreviewKindFromContent(content);
         if (kind === "json") return renderJsonHtml(content);
         if (kind === "text") return renderPlainTextHtml(content);
-        return renderMarkdownHtml(preprocessAiOutMarkdownImages(content, doc));
+        var parsed = parseMarkdownFrontmatter(content);
+        var card = renderFrontmatterCardHtml(parsed.meta);
+        return card + renderMarkdownHtml(preprocessAiOutMarkdownImages(parsed.body, doc));
       }
 
       function loadPreviewFile(pid, taskType, relativePath) {
@@ -2256,8 +2604,173 @@
       var loginUser = currentLoginUser();
       if (loginUser && !creatorInput.value) creatorInput.value = loginUser;
 
+      // —— 默认知识库视图 / 任务列表视图切换 ——
+      var viewKb = document.getElementById("ra-view-kb");
+      var viewTasks = document.getElementById("ra-view-tasks");
+      var btnBack = document.getElementById("ra-btn-back");
+      var btnAddSpec = document.getElementById("ra-btn-add-spec");
+      var pageTitleEl = document.getElementById("ra-page-title");
+      var pageSubtitleEl = document.getElementById("ra-page-subtitle");
+      var kbCardsEl = document.getElementById("ra-kb-cards");
+      var kbLoadingEl = document.getElementById("ra-kb-loading");
+      var kbEmptyEl = document.getElementById("ra-kb-empty");
+      var kbErrorEl = document.getElementById("ra-kb-error");
+      var tasksQueriedOnce = false;
+      var currentView = "kb";
+
+      function setKbError(msg) {
+        if (!msg) {
+          kbErrorEl.textContent = "";
+          kbErrorEl.classList.add("hidden");
+          return;
+        }
+        kbErrorEl.textContent = msg;
+        kbErrorEl.classList.remove("hidden");
+      }
+
+      function renderKbDocList(docs, category, projectName) {
+        if (!docs || docs.length === 0) {
+          return '<p class="text-xs text-slate-400">暂无</p>';
+        }
+        return (
+          '<ul class="space-y-1">' +
+          docs
+            .map(function (d) {
+              var label = d.title || d.id || d.path || "未命名";
+              return (
+                '<li><button type="button" class="ra-kb-doc-btn w-full truncate rounded-md px-2 py-1.5 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-blue-700" data-category="' +
+                esc(category) +
+                '" data-project="' +
+                esc(projectName) +
+                '" data-path="' +
+                esc(d.path || "") +
+                '" data-title="' +
+                esc(label) +
+                '" title="' +
+                esc(d.path || "") +
+                '">' +
+                esc(label) +
+                "</button></li>"
+              );
+            })
+            .join("") +
+          "</ul>"
+        );
+      }
+
+      function renderKbRepos(repos) {
+        kbCardsEl.innerHTML = "";
+        if (!repos || repos.length === 0) {
+          kbEmptyEl.classList.remove("hidden");
+          return;
+        }
+        kbEmptyEl.classList.add("hidden");
+        repos.forEach(function (repo) {
+          var name = repo.project_name || "";
+          var card = document.createElement("article");
+          card.className =
+            "flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm";
+          card.innerHTML =
+            '<div class="min-w-0 border-b border-slate-100 pb-2">' +
+            '<h3 class="truncate text-sm font-semibold text-slate-800" title="' +
+            esc(name) +
+            '">' +
+            esc(name) +
+            "</h3>" +
+            '<p class="mt-0.5 text-[11px] text-slate-500">git 仓库 · knowledge_base</p>' +
+            "</div>" +
+            '<div class="grid gap-3 sm:grid-cols-2">' +
+            '<div class="min-w-0">' +
+            '<h4 class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-700">代码规范</h4>' +
+            renderKbDocList(repo.code_style, "code-style", name) +
+            "</div>" +
+            '<div class="min-w-0">' +
+            '<h4 class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800">业务知识</h4>' +
+            renderKbDocList(repo.business_core, "business-core", name) +
+            "</div>" +
+            "</div>";
+          kbCardsEl.appendChild(card);
+        });
+      }
+
+      function loadKbRepos() {
+        setKbError("");
+        kbLoadingEl.classList.remove("hidden");
+        kbEmptyEl.classList.add("hidden");
+        kbCardsEl.innerHTML = "";
+        fetch(raBase() + "/api/knowledge-base/repos")
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, status: r.status, body: j };
+            });
+          })
+          .then(function (res) {
+            kbLoadingEl.classList.add("hidden");
+            if (!res.ok) {
+              setKbError(
+                "加载失败 " +
+                  res.status +
+                  ": " +
+                  (res.body && res.body.error
+                    ? typeof res.body.error === "string"
+                      ? res.body.error
+                      : JSON.stringify(res.body.error)
+                    : JSON.stringify(res.body)),
+              );
+              return;
+            }
+            renderKbRepos(res.body.repos || []);
+          })
+          .catch(function (e) {
+            kbLoadingEl.classList.add("hidden");
+            setKbError("加载失败: " + e.message);
+          });
+      }
+
+      function showKbView() {
+        currentView = "kb";
+        viewKb.classList.remove("hidden");
+        viewTasks.classList.add("hidden");
+        btnBack.classList.add("hidden");
+        btnAddSpec.classList.remove("hidden");
+        pageTitleEl.textContent = "Rule Agent（代码规范 / 业务知识）";
+        pageSubtitleEl.innerHTML =
+          '按 git 仓库浏览 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">knowledge_base</code> 下的代码规范与业务知识文档。';
+        loadKbRepos();
+      }
+
+      function showTasksView() {
+        currentView = "tasks";
+        viewKb.classList.add("hidden");
+        viewTasks.classList.remove("hidden");
+        btnBack.classList.remove("hidden");
+        btnAddSpec.classList.add("hidden");
+        pageTitleEl.textContent = "Rule Agent（增加规范）";
+        pageSubtitleEl.innerHTML =
+          '类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">7</code> 知识沉淀（13→14→15）；' +
+          ' 类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">8</code> 代码规范（仅 14，单仓库）；' +
+          ' 类型 <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">9</code> 业务知识（仅 13，单仓库）。';
+        if (!tasksQueriedOnce) {
+          tasksQueriedOnce = true;
+          runQuery(true);
+        }
+      }
+
+      btnAddSpec.addEventListener("click", showTasksView);
+      btnBack.addEventListener("click", showKbView);
+      kbCardsEl.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".ra-kb-doc-btn");
+        if (!btn) return;
+        openKbDoc(
+          btn.getAttribute("data-category"),
+          btn.getAttribute("data-project"),
+          btn.getAttribute("data-path"),
+          btn.getAttribute("data-title"),
+        );
+      });
+
       loadWikiCategories();
-      runQuery(true);
+      loadKbRepos();
     })();
   </script>
 </body>
