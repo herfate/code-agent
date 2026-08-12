@@ -284,3 +284,9 @@ remaining--
 def result = sdf.format(cal.getTime())
 return [retCode: "000000", retMsg: "成功", data: result]');
 ```
+
+### otc-search
+```
+ (INTERFACE_CLASS, METHOD_NAME, RET_VALUE, RET_TYPE, INNER_RET_TYPE, STATUS, script) 
+ VALUES ('com.howbuy.otc.search.facade.fund.querytxacctbatch.QueryFundTxAcctBatchFacade', 'execute', '{"returnCode":"F0000000","description":"�ɹ�","data":[{"txAcctNo":"0100875744","investorName":"���Կͻ�1","customProductCode":"P001","customProductName":"���Բ�ƷA","coopMerchantId":"1600043536"},{"txAcctNo":"043334172","investorName":"���Կͻ�2","customProductCode":"P002","customProductName":"���Բ�ƷB","coopMerchantId":"1600043536"},{"txAcctNo":"043504630","investorName":"���Կͻ�3","customProductCode":"P003","customProductName":"���Բ�ƷC","coopMerchantId":"1600043536"},{"txAcctNo":"0100875686","investorName":"���Կͻ�4","customProductCode":"P004","customProductName":"���Բ�ƷD","coopMerchantId":"1600043536"},{"txAcctNo":"10000001","investorName":"���Կͻ�5","customProductCode":"P005","customProductName":"���Բ�ƷE","coopMerchantId":"1600043536"},{"txAcctNo":"10000002","investorName":"���Կͻ�6","customProductCode":"P006","customProductName":"���Բ�ƷF","coopMerchantId":"1600043536"}]}', 'com.howbuy.otc.BaseResponse', 'java.util.List<com.howbuy.otc.search.facade.fund.querytxacctbatch.FundTxAcctBatchRecord>', '1', '');
+```
