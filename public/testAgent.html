@@ -1199,7 +1199,7 @@
 
       /** 请求一页 QA 标签；返回 { rows }，供回填匹配 title→id */
       function fetchQaLabelPage(titleKeyword, pageSize) {
-        var body = { pageNum: 1, pageSize: pageSize || 200, data: {} };
+        var body = { pageNum: 1, pageSize: pageSize || 9999, data: {} };
         var kw = (titleKeyword || "").trim();
         if (kw) body.data.title = kw;
         return fetch(tagBase() + "/qa/label/findPage", {
@@ -1247,7 +1247,7 @@
               : [];
         var reqSeq = ++tagLabelListReqSeq;
         tagLabelIdsOptionsEl.innerHTML = '<p class="px-3 py-2 text-xs text-slate-500">加载中…</p>';
-        return fetchQaLabelPage(titleKeyword, 200).then(function (res) {
+        return fetchQaLabelPage(titleKeyword, 9999).then(function (res) {
           if (reqSeq !== tagLabelListReqSeq) return;
           fillLabelIdsOptions(res.rows || [], selected);
           applyLabelIdsSelection(selected);
@@ -1286,13 +1286,13 @@
             return !found[t];
           });
         }
-        return fetchQaLabelPage("", 200)
+        return fetchQaLabelPage("", 9999)
           .then(function (res) {
             matchRows(res.rows);
             if (!pending.length) return;
             return Promise.all(
               pending.map(function (title) {
-                return fetchQaLabelPage(title, 50).then(function (r) {
+                return fetchQaLabelPage(title, 9999).then(function (r) {
                   matchRows(r.rows);
                 });
               }),

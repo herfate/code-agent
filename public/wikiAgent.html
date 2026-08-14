@@ -4272,18 +4272,14 @@
     document.getElementById("wa-qa-prep-close").addEventListener("click", closeQaPrepDialog);
     document.getElementById("wa-qa-prep-cancel").addEventListener("click", closeQaPrepDialog);
     document.getElementById("wa-qa-prep-start").addEventListener("click", startQaFromPrep);
-    document.getElementById("wa-qa-prep-backdrop").addEventListener("click", function (e) {
-      if (e.target.id === "wa-qa-prep-backdrop") closeQaPrepDialog();
-    });
+    // 点击遮罩不关闭准备弹框，仅「取消」关闭
     document.getElementById("wa-qa-prep-panel").addEventListener("click", function (e) {
       e.stopPropagation();
     });
     document.getElementById("wa-qa-copy").addEventListener("click", copyQaLog);
     if (qaMaximizeBtn) qaMaximizeBtn.addEventListener("click", toggleQaMaximized);
     document.getElementById("wa-qa-close").addEventListener("click", closeQaChat);
-    document.getElementById("wa-qa-backdrop").addEventListener("click", function (e) {
-      if (e.target.id === "wa-qa-backdrop") closeQaChat();
-    });
+    // 点击遮罩不关闭问答弹框，仅「关闭」按钮关闭
     document.getElementById("wa-qa-panel").addEventListener("click", function (e) {
       e.stopPropagation();
     });

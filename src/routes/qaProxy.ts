@@ -24,7 +24,7 @@ const scriptListBody = z.record(z.string(), z.unknown());
 
 const labelFindPageBody = z.object({
   pageNum: z.number().int().min(1).optional().default(1),
-  pageSize: z.number().int().min(1).max(200).optional().default(100),
+  pageSize: z.number().int().min(1).max(9999).optional().default(9999),
   data: z
     .object({
       title: z.string().trim().max(500).optional(),
