@@ -1125,12 +1125,40 @@
         fillLabelIdsOptions([], []);
       }
 
+      var tagLabelListReqSeq = 0;
+
+      function applyLabelIdsSelection(selectedIds) {
+        var selected = Array.isArray(selectedIds)
+          ? selectedIds
+              .map(function (id) {
+                return String(id);
+              })
+              .filter(function (s) {
+                return s && Number.isFinite(Number(s)) && Number(s) > 0;
+              })
+          : [];
+        if (tagLabelIdsCombo) {
+          tagLabelIdsCombo.setValue(selected.join(","));
+          if (tagLabelIdsCombo.syncFromHidden) tagLabelIdsCombo.syncFromHidden();
+          else tagLabelIdsCombo.sync();
+        }
+        return selected;
+      }
+
       function fillLabelIdsOptions(rows, selectedIds) {
         if (!tagLabelIdsOptionsEl) return;
         var selectedSet = {};
         (selectedIds || []).forEach(function (id) {
           var key = String(id);
           if (key) selectedSet[key] = true;
+        });
+        // 先用接口行刷新 title 映射（含已选 id，避免回填只显示数字）
+        (rows || []).forEach(function (row) {
+          if (!row || row.id == null) return;
+          var key = String(row.id);
+          if (!key) return;
+          var title = row.title != null ? String(row.title).trim() : "";
+          if (title) tagLabelTitleMap[key] = title;
         });
         var seen = {};
         var merged = [];
@@ -1143,11 +1171,9 @@
         (rows || []).forEach(function (row) {
           if (!row || row.id == null) return;
           var key = String(row.id);
-          var title = row.title != null ? String(row.title).trim() : key;
           if (!key || seen[key]) return;
           seen[key] = true;
-          tagLabelTitleMap[key] = title;
-          merged.push({ id: key, title: title });
+          merged.push({ id: key, title: tagLabelTitleMap[key] || key });
         });
         if (!merged.length) {
           tagLabelIdsOptionsEl.innerHTML =
@@ -1171,11 +1197,9 @@
         tagLabelIdsOptionsEl.innerHTML = html;
       }
 
-      function loadQaLabelList(titleKeyword) {
-        if (!tagLabelIdsOptionsEl) return Promise.resolve();
-        var selected = tagLabelIdsCombo ? tagLabelIdsCombo.getValues() : [];
-        tagLabelIdsOptionsEl.innerHTML = '<p class="px-3 py-2 text-xs text-slate-500">加载中…</p>';
-        var body = { pageNum: 1, pageSize: 100, data: {} };
+      /** 请求一页 QA 标签；返回 { rows }，供回填匹配 title→id */
+      function fetchQaLabelPage(titleKeyword, pageSize) {
+        var body = { pageNum: 1, pageSize: pageSize || 200, data: {} };
         var kw = (titleKeyword || "").trim();
         if (kw) body.data.title = kw;
         return fetch(tagBase() + "/qa/label/findPage", {
@@ -1189,14 +1213,7 @@
             });
           })
           .then(function (res) {
-            if (!res.ok || res.body.code !== 200) {
-              fillLabelIdsOptions([], selected);
-              if (tagLabelIdsCombo) {
-                tagLabelIdsCombo.setValue(selected.join(","));
-                tagLabelIdsCombo.sync();
-              }
-              return;
-            }
+            if (!res.ok || res.body.code !== 200) return { rows: [] };
             var payload = res.body.data;
             var list =
               payload && Array.isArray(payload.list)
@@ -1207,35 +1224,89 @@
             var rows = [];
             list.forEach(function (row) {
               if (!row || row.id == null) return;
-              rows.push({ id: row.id, title: row.title });
+              rows.push({
+                id: row.id,
+                title: row.title != null ? String(row.title).trim() : String(row.id),
+              });
             });
-            fillLabelIdsOptions(rows, selected);
-            if (tagLabelIdsCombo) {
-              tagLabelIdsCombo.setValue(selected.join(","));
-              tagLabelIdsCombo.sync();
-            }
+            return { rows: rows };
           })
           .catch(function () {
-            fillLabelIdsOptions([], selected);
-            if (tagLabelIdsCombo) {
-              tagLabelIdsCombo.setValue(selected.join(","));
-              tagLabelIdsCombo.sync();
-            }
+            return { rows: [] };
           });
       }
 
+      function loadQaLabelList(titleKeyword, preferredSelected) {
+        if (!tagLabelIdsOptionsEl) return Promise.resolve();
+        // preferredSelected：复制回填时传入，避免选项未渲染时 getValues 丢值
+        var selected =
+          preferredSelected != null
+            ? preferredSelected.map(String).filter(Boolean)
+            : tagLabelIdsCombo
+              ? tagLabelIdsCombo.getValues()
+              : [];
+        var reqSeq = ++tagLabelListReqSeq;
+        tagLabelIdsOptionsEl.innerHTML = '<p class="px-3 py-2 text-xs text-slate-500">加载中…</p>';
+        return fetchQaLabelPage(titleKeyword, 200).then(function (res) {
+          if (reqSeq !== tagLabelListReqSeq) return;
+          fillLabelIdsOptions(res.rows || [], selected);
+          applyLabelIdsSelection(selected);
+        });
+      }
+
       function setLabelIds(ids) {
-        var selected = Array.isArray(ids)
-          ? ids
-              .map(function (id) {
-                return String(id);
+        var selected = applyLabelIdsSelection(ids);
+        // 先占位渲染已选项，再拉列表补全 title
+        fillLabelIdsOptions([], selected);
+        applyLabelIdsSelection(selected);
+        return loadQaLabelList(tagLabelIdsSearchEl ? tagLabelIdsSearchEl.value : "", selected);
+      }
+
+      /** 旧任务仅有 labelNames 时：按 title 精确匹配解析为 labelIds */
+      function resolveLabelIdsFromNames(names) {
+        var wanted = Array.isArray(names)
+          ? names
+              .map(function (n) {
+                return String(n || "").trim();
               })
-              .filter(function (s) {
-                return s && Number.isFinite(Number(s)) && Number(s) > 0;
-              })
+              .filter(Boolean)
           : [];
-        if (tagLabelIdsCombo) tagLabelIdsCombo.setValue(selected.join(","));
-        return loadQaLabelList(tagLabelIdsSearchEl ? tagLabelIdsSearchEl.value : "");
+        if (!wanted.length) return Promise.resolve([]);
+        var pending = wanted.slice();
+        var found = {};
+        function matchRows(rows) {
+          (rows || []).forEach(function (row) {
+            if (!row || row.id == null || !row.title) return;
+            var title = String(row.title).trim();
+            if (wanted.indexOf(title) < 0 || found[title]) return;
+            found[title] = Number(row.id);
+            tagLabelTitleMap[String(row.id)] = title;
+          });
+          pending = wanted.filter(function (t) {
+            return !found[t];
+          });
+        }
+        return fetchQaLabelPage("", 200)
+          .then(function (res) {
+            matchRows(res.rows);
+            if (!pending.length) return;
+            return Promise.all(
+              pending.map(function (title) {
+                return fetchQaLabelPage(title, 50).then(function (r) {
+                  matchRows(r.rows);
+                });
+              }),
+            );
+          })
+          .then(function () {
+            return wanted
+              .map(function (t) {
+                return found[t];
+              })
+              .filter(function (id) {
+                return Number.isFinite(id) && id > 0;
+              });
+          });
       }
 
       function collectLabelIds() {
@@ -1400,21 +1471,16 @@
         return parseFirstTaskInputFields(parentTaskDetail).scriptId || "";
       }
 
-      /** 复制父任务时从首条子任务 input_json 解析 QA 字段 */
+      /** 复制父任务时从子任务 input_json 解析 QA 字段（优先含 app / labelIds 的条目） */
       function parseFirstTaskInputFields(copyFrom) {
-        var empty = { app: "", qaVersion: "", qaApiPath: "", scriptId: "", labelIds: [] };
+        var empty = { app: "", qaVersion: "", qaApiPath: "", scriptId: "", labelIds: [], labelNames: [] };
         if (!copyFrom || !copyFrom.tasks || !copyFrom.tasks.length) return empty;
-        var raw = copyFrom.tasks[0].input_json;
-        if (!raw) return empty;
-        try {
-          var o = JSON.parse(raw);
-          if (typeof o !== "object" || o === null || Array.isArray(o)) return empty;
-          return {
-            app: typeof o.app === "string" ? o.app.trim() : "",
-            qaVersion: typeof o.qaVersion === "string" ? o.qaVersion.trim() : "",
-            qaApiPath: typeof o.qaApiPath === "string" ? o.qaApiPath.trim() : "",
-            scriptId: o.scriptId != null ? String(o.scriptId).trim() : "",
-            labelIds: Array.isArray(o.labelIds)
+        function parseOne(raw) {
+          if (!raw) return null;
+          try {
+            var o = JSON.parse(raw);
+            if (typeof o !== "object" || o === null || Array.isArray(o)) return null;
+            var labelIds = Array.isArray(o.labelIds)
               ? o.labelIds
                   .map(function (item) {
                     var n = typeof item === "number" ? item : Number(String(item).trim());
@@ -1423,16 +1489,63 @@
                   .filter(function (n) {
                     return n > 0;
                   })
-              : [],
-          };
-        } catch (e) {
-          return empty;
+              : [];
+            var labelNames = Array.isArray(o.labelNames)
+              ? o.labelNames
+                  .map(function (item) {
+                    return String(item || "").trim();
+                  })
+                  .filter(Boolean)
+              : [];
+            return {
+              app: typeof o.app === "string" ? o.app.trim() : "",
+              qaVersion: typeof o.qaVersion === "string" ? o.qaVersion.trim() : "",
+              qaApiPath: typeof o.qaApiPath === "string" ? o.qaApiPath.trim() : "",
+              scriptId: o.scriptId != null ? String(o.scriptId).trim() : "",
+              labelIds: labelIds,
+              labelNames: labelNames,
+            };
+          } catch (e) {
+            return null;
+          }
         }
+        var best = empty;
+        var bestScore = -1;
+        for (var i = 0; i < copyFrom.tasks.length; i++) {
+          var parsed = parseOne(copyFrom.tasks[i].input_json);
+          if (!parsed) continue;
+          var score =
+            (parsed.app ? 4 : 0) +
+            (parsed.labelIds.length ? 2 : 0) +
+            (parsed.labelNames.length ? 1 : 0) +
+            (parsed.scriptId ? 1 : 0);
+          if (score > bestScore) {
+            best = parsed;
+            bestScore = score;
+          }
+        }
+        return best;
+      }
+
+      function restoreQaLabelsFromCopy(qaFields) {
+        if (!qaFields) return Promise.resolve();
+        if (qaFields.labelIds && qaFields.labelIds.length) {
+          return setLabelIds(qaFields.labelIds);
+        }
+        if (qaFields.labelNames && qaFields.labelNames.length) {
+          return resolveLabelIdsFromNames(qaFields.labelNames).then(function (ids) {
+            return setLabelIds(ids);
+          });
+        }
+        return setLabelIds([]);
       }
 
       function restoreQaScriptFieldsFromCopy(qaFields) {
-        if (!qaFields || !qaFields.app) return Promise.resolve();
-        return loadQaAppList().then(function () {
+        if (!qaFields) return Promise.resolve();
+        // 标签与应用下拉并行回填，避免卡在版本/路径链路末尾导致漏填
+        var labelsP = restoreQaLabelsFromCopy(qaFields);
+        if (!qaFields.app) return labelsP;
+        var appP = loadQaAppList().then(function () {
           if (tagQaAppCombo) tagQaAppCombo.setValue(qaFields.app);
           return loadQaVersionList(qaFields.app).then(function () {
             if (qaFields.qaVersion && tagQaVersionCombo) tagQaVersionCombo.setValue(qaFields.qaVersion);
@@ -1444,10 +1557,10 @@
               if (!document.getElementById("tag-new-qaScriptId").value && qaFields.scriptId) {
                 document.getElementById("tag-new-qaScriptId").value = qaFields.scriptId;
               }
-              setLabelIds(qaFields.labelIds || []);
             });
           });
         });
+        return Promise.all([labelsP, appP]).then(function () {});
       }
 
       function wikiCategoryLabel(id) {
@@ -2912,9 +3025,7 @@
         }
       });
 
-      modalBackdrop.addEventListener("click", function (e) {
-        if (e.target === modalBackdrop) closeNewModal();
-      });
+      // 点击遮罩不关闭，仅「取消」/ 保存成功 / Esc 关闭
 
       document.addEventListener("keydown", function (e) {
         if (e.key !== "Escape") return;

@@ -103,25 +103,44 @@
     }
 
     function sync() {
+      var boxes = checkboxes();
+      if (!boxes.length) {
+        // 选项未渲染时不要用空 checkbox 列表覆盖 hidden
+        renderTags(parseValue(hidden.value));
+        return;
+      }
       var vals = getSelected();
       hidden.value = vals.join(",");
       renderTags(vals);
-      checkboxes().forEach(function (cb) {
+      boxes.forEach(function (cb) {
         var opt = cb.closest(SEL_OPT);
         if (opt) opt.setAttribute("aria-selected", cb.checked ? "true" : "false");
       });
     }
 
     function applySelection(vals, fireChange) {
+      var list = (vals || [])
+        .map(function (v) {
+          return String(v).trim();
+        })
+        .filter(Boolean);
       var set = {};
-      (vals || []).forEach(function (v) {
-        set[String(v)] = true;
+      list.forEach(function (v) {
+        set[v] = true;
       });
-      checkboxes().forEach(function (cb) {
-        var v = cb.getAttribute("data-value") || "";
-        cb.checked = !!set[v];
-      });
-      sync();
+      var boxes = checkboxes();
+      if (boxes.length) {
+        // 选项已渲染：按 checkbox 勾选后 sync 回写 hidden
+        boxes.forEach(function (cb) {
+          var v = cb.getAttribute("data-value") || "";
+          cb.checked = !!set[v];
+        });
+        sync();
+      } else {
+        // 选项尚未渲染：直接写入 hidden，避免 sync 把已设值清空
+        hidden.value = list.join(",");
+        renderTags(list);
+      }
       if (fireChange && options.onChange) options.onChange(hidden.value);
     }
 
@@ -223,7 +242,8 @@
         return hidden.value;
       },
       getValues: function () {
-        return getSelected();
+        // 优先读 hidden：setValue 在选项未渲染时也能保留值
+        return parseValue(hidden.value);
       },
       setValue: function (val, extra) {
         applySelection(parseValue(val), !!(extra && extra.notify));
@@ -233,6 +253,15 @@
       },
       close: function () {
         setOpen(false);
+      },
+      /** 选项 DOM 更新后调用：按 hidden 勾选 checkbox 并刷新标签 */
+      syncFromHidden: function () {
+        if (!checkboxes().length) {
+          renderTags(parseValue(hidden.value));
+          return;
+        }
+        syncCheckboxesFromHidden();
+        sync();
       },
       sync: sync,
       destroy: function () {
