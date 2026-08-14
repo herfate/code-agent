@@ -98,6 +98,7 @@ export function registerQaProxyRoutes(app: FastifyInstance, deps: { db: Database
   });
 
   app.post("/qa/getScriptList", async (request, reply) => {
+    console.log('-----------------')
     const creds = getQaCredentials(db);
     if (!creds) {
       return reply.status(503).send(err(503, missingCredsMsg()));
@@ -108,6 +109,7 @@ export function registerQaProxyRoutes(app: FastifyInstance, deps: { db: Database
     }
     try {
       const raw = await qaPostRaw(creds, "/qa-info/getScriptList", JSON.stringify(parsed.data));
+      console.log(raw)
       let data: unknown = raw;
       try {
         data = JSON.parse(raw) as unknown;

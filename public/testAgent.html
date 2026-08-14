@@ -1406,7 +1406,7 @@
         fillQaComboboxList(tagQaApiPathListEl, [], "加载中…");
         if (tagQaApiPathCombo) tagQaApiPathCombo.sync();
         var pageNum = 1;
-        var pageSize = 200;
+        var pageSize = 9999;
         return fetch(tagBase() + "/qa/getScriptList", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
